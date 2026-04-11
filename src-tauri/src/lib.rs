@@ -1,10 +1,14 @@
-mod application;
-mod domain;
+pub mod application;
+pub mod domain;
+pub mod persistence;
 
+use std::fs;
+use std::path::PathBuf;
 use std::sync::Mutex;
 
 use application::session_store::SessionStore;
 use domain::session::{write_generated_typescript_contract, SessionDocument};
+use persistence::session_file;
 
 #[tauri::command]
 fn create_default_session(
@@ -23,6 +27,33 @@ fn get_current_session(
     Ok(store.current())
 }
 
+#[tauri::command]
+fn save_session_to_path(
+    path: String,
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<(), String> {
+    let path = PathBuf::from(path);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+    }
+
+    let store = state.lock().map_err(|err| err.to_string())?;
+    session_file::save_session_to_path(&store.current(), &path).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+fn open_session_from_path(
+    path: String,
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<SessionDocument, String> {
+    let session = session_file::open_session_from_path(&PathBuf::from(path))
+        .map_err(|err| err.to_string())?;
+
+    let mut store = state.lock().map_err(|err| err.to_string())?;
+    store.replace_current(session.clone());
+    Ok(session)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _ = write_generated_typescript_contract();
@@ -32,7 +63,9 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             create_default_session,
-            get_current_session
+            get_current_session,
+            save_session_to_path,
+            open_session_from_path
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

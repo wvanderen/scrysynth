@@ -6,8 +6,10 @@ use ts_rs::{Config, TS};
 use uuid::Uuid;
 
 const GENERATED_TYPES_PATH: &str = "../src/generated/session-types.ts";
+pub const CURRENT_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
 pub struct SessionDocument {
     pub schema_version: u32,
     pub session_id: String,
@@ -28,7 +30,7 @@ pub struct SessionDocument {
 impl Default for SessionDocument {
     fn default() -> Self {
         Self {
-            schema_version: 1,
+            schema_version: CURRENT_SCHEMA_VERSION,
             session_id: new_id(),
             title: "Untitled Session".to_string(),
             created_at: "2026-04-11T00:00:00Z".to_string(),
@@ -47,6 +49,7 @@ impl Default for SessionDocument {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
 pub struct TransportState {
     pub tempo_bpm: f32,
     pub is_playing: bool,
@@ -64,6 +67,7 @@ impl Default for TransportState {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
 pub struct Node {
     pub id: String,
     pub node_type: NodeType,
@@ -83,6 +87,7 @@ pub enum NodeType {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
 pub struct Port {
     pub id: String,
     pub name: String,
@@ -105,6 +110,7 @@ pub enum SignalType {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
 pub struct ParameterValue {
     pub id: String,
     pub name: String,
@@ -113,6 +119,7 @@ pub struct ParameterValue {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
 pub struct Route {
     pub id: String,
     pub source_node_id: String,
@@ -123,6 +130,7 @@ pub struct Route {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
 pub struct Bus {
     pub id: String,
     pub name: String,
@@ -130,6 +138,7 @@ pub struct Bus {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
 pub struct MacroDefinition {
     pub id: String,
     pub name: String,
@@ -139,6 +148,7 @@ pub struct MacroDefinition {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
 pub struct SceneDefinition {
     pub id: String,
     pub name: String,
@@ -147,12 +157,14 @@ pub struct SceneDefinition {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
 pub struct MacroOverride {
     pub macro_id: String,
     pub value: f64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
 pub struct VariationDefinition {
     pub id: String,
     pub name: String,
@@ -161,12 +173,14 @@ pub struct VariationDefinition {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
 pub struct ParameterOverride {
     pub parameter_id: String,
     pub value: f64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
 pub struct OwnershipRule {
     pub id: String,
     pub scope: String,
@@ -183,12 +197,14 @@ pub enum ControllerKind {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
 pub struct OwnershipAssignment {
     pub controller: ControllerKind,
     pub is_locked: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
 pub struct RuntimeStatusRef {
     pub id: String,
     pub runtime: RuntimeKind,
@@ -280,7 +296,7 @@ mod tests {
         let json = serde_json::to_string(&session).expect("session serializes");
         let restored: SessionDocument = serde_json::from_str(&json).expect("session deserializes");
 
-        assert_eq!(restored.schema_version, 1);
+        assert_eq!(restored.schema_version, CURRENT_SCHEMA_VERSION);
         assert_eq!(restored.nodes, session.nodes);
         assert_eq!(restored.routes, session.routes);
         assert_eq!(restored.buses, session.buses);
