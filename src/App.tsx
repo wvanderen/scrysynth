@@ -1,49 +1,80 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
+import { useEffect } from "react";
+
 import "./App.css";
+import { GraphViewport } from "./components/session/GraphViewport";
+import { NodeInspector } from "./components/session/NodeInspector";
+import { SessionToolbar } from "./components/session/SessionToolbar";
+import { useSessionStore } from "./store/sessionStore";
+
+const DEFAULT_SAVE_PATH = "./scrysynth-session.json";
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+  const {
+    session,
+    selectedNode,
+    graphNodes,
+    graphEdges,
+    isLoading,
+    error,
+    bootstrapSession,
+    newSession,
+    saveSession,
+    openSession,
+    selectNode,
+  } = useSessionStore();
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
+  useEffect(() => {
+    void bootstrapSession();
+  }, [bootstrapSession]);
+
+  const handleSaveSession = () => {
+    const path = window.prompt("Save session to path", DEFAULT_SAVE_PATH);
+    if (!path) {
+      return;
+    }
+
+    void saveSession(path);
+  };
+
+  const handleOpenSession = () => {
+    const path = window.prompt("Open session from path", DEFAULT_SAVE_PATH);
+    if (!path) {
+      return;
+    }
+
+    void openSession(path);
+  };
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
+    <main className="workspace-shell">
+      <SessionToolbar
+        title={session?.title ?? "Loading Session"}
+        isLoading={isLoading}
+        onNewSession={() => void newSession()}
+        onSaveSession={handleSaveSession}
+        onOpenSession={handleOpenSession}
+      />
 
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
+      {error ? <div className="error-banner">{error}</div> : null}
 
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
+      <section className="workspace-grid">
+        <GraphViewport
+          graphNodes={graphNodes}
+          graphEdges={graphEdges}
+          onSelectNode={selectNode}
         />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
+        <NodeInspector selectedNode={selectedNode} />
+      </section>
+
+      <footer className="runtime-strip">
+        {(session?.runtimeStatus ?? []).map((runtime) => (
+          <div key={runtime.id} className="runtime-pill">
+            <strong>{runtime.runtime}</strong>
+            <span>{runtime.status}</span>
+            <small>{runtime.targetId ?? "no target"}</small>
+          </div>
+        ))}
+      </footer>
     </main>
   );
 }

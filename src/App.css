@@ -1,116 +1,237 @@
-.logo.vite:hover {
-  filter: drop-shadow(0 0 2em #747bff);
-}
-
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafb);
-}
 :root {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
   font-size: 16px;
-  line-height: 24px;
+  line-height: 1.5;
   font-weight: 400;
-
-  color: #0f0f0f;
-  background-color: #f6f6f6;
-
+  color: #f2eee5;
+  background:
+    radial-gradient(circle at top left, rgba(247, 198, 106, 0.18), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(52, 95, 88, 0.35), transparent 36%),
+    #081312;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
 }
 
-.container {
+* {
+  box-sizing: border-box;
+}
+
+body {
   margin: 0;
-  padding-top: 10vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  text-align: center;
-}
-
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: 0.75s;
-}
-
-.logo.tauri:hover {
-  filter: drop-shadow(0 0 2em #24c8db);
-}
-
-.row {
-  display: flex;
-  justify-content: center;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-
-a:hover {
-  color: #535bf2;
-}
-
-h1 {
-  text-align: center;
-}
-
-input,
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  color: #0f0f0f;
-  background-color: #ffffff;
-  transition: border-color 0.25s;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
+  min-width: 320px;
+  min-height: 100vh;
 }
 
 button {
+  border: 1px solid rgba(247, 198, 106, 0.4);
+  border-radius: 999px;
+  padding: 0.75rem 1.1rem;
+  font: inherit;
+  color: #f2eee5;
+  background: rgba(18, 36, 33, 0.88);
   cursor: pointer;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease;
 }
 
 button:hover {
-  border-color: #396cd8;
-}
-button:active {
-  border-color: #396cd8;
-  background-color: #e8e8e8;
+  transform: translateY(-1px);
+  border-color: #f7c66a;
+  background: rgba(26, 53, 49, 0.95);
 }
 
-input,
-button {
-  outline: none;
+button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+  transform: none;
 }
 
-#greet-input {
-  margin-right: 5px;
+#root {
+  min-height: 100vh;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #f6f6f6;
-    background-color: #2f2f2f;
+.workspace-shell {
+  min-height: 100vh;
+  padding: 1.25rem;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 1rem;
+}
+
+.session-toolbar,
+.graph-panel,
+.inspector-panel,
+.runtime-strip,
+.error-banner {
+  border: 1px solid rgba(92, 127, 120, 0.34);
+  background: rgba(9, 24, 22, 0.84);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.24);
+}
+
+.session-toolbar {
+  padding: 1rem 1.25rem;
+  border-radius: 26px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.session-toolbar h1,
+.inspector-group h2 {
+  margin: 0;
+  font-family: "IBM Plex Mono", "Fira Code", monospace;
+}
+
+.session-toolbar h1 {
+  font-size: clamp(1.4rem, 3vw, 2.2rem);
+}
+
+.eyebrow {
+  margin: 0 0 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.72rem;
+  color: #c2b68c;
+}
+
+.toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.error-banner {
+  padding: 0.9rem 1rem;
+  border-radius: 18px;
+  color: #ffd0bd;
+  background: rgba(76, 18, 16, 0.88);
+}
+
+.workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.85fr) minmax(290px, 0.95fr);
+  gap: 1rem;
+  min-height: 0;
+}
+
+.graph-panel,
+.inspector-panel {
+  border-radius: 28px;
+  padding: 1rem;
+  min-height: 60vh;
+}
+
+.panel-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+
+.panel-heading span,
+.list-card span,
+.runtime-pill span,
+.runtime-pill small,
+.empty-copy,
+.empty-state {
+  color: #a8b8b0;
+}
+
+.graph-surface {
+  overflow: hidden;
+  border-radius: 22px;
+  min-height: 52vh;
+  border: 1px solid rgba(47, 80, 75, 0.8);
+}
+
+.react-flow__attribution {
+  display: none;
+}
+
+.inspector-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.inspector-group {
+  padding: 0.9rem 1rem;
+  border-radius: 20px;
+  background: rgba(17, 39, 37, 0.8);
+  border: 1px solid rgba(58, 88, 83, 0.8);
+}
+
+.inspector-group p {
+  margin: 0.35rem 0;
+  word-break: break-word;
+}
+
+.list-card {
+  margin-top: 0.65rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 16px;
+  background: rgba(10, 28, 26, 0.88);
+}
+
+.list-card p {
+  margin: 0 0 0.2rem;
+}
+
+.runtime-strip {
+  padding: 0.85rem;
+  border-radius: 22px;
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.runtime-pill {
+  min-width: 150px;
+  padding: 0.75rem 0.9rem;
+  border-radius: 16px;
+  background: rgba(17, 39, 37, 0.78);
+  border: 1px solid rgba(56, 87, 82, 0.82);
+  display: grid;
+  gap: 0.15rem;
+}
+
+@media (max-width: 960px) {
+  .workspace-grid {
+    grid-template-columns: 1fr;
   }
 
-  a:hover {
-    color: #24c8db;
+  .graph-panel,
+  .inspector-panel {
+    min-height: auto;
   }
 
-  input,
-  button {
-    color: #ffffff;
-    background-color: #0f0f0f98;
+  .graph-surface {
+    min-height: 48vh;
   }
-  button:active {
-    background-color: #0f0f0f69;
+}
+
+@media (max-width: 720px) {
+  .workspace-shell {
+    padding: 0.75rem;
+  }
+
+  .session-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .toolbar-actions {
+    width: 100%;
+  }
+
+  .toolbar-actions button {
+    flex: 1 1 160px;
   }
 }
