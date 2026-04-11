@@ -43,7 +43,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Persistence and Sync
 
-- [ ] **PERS-01**: User can save and reload a session with graph structure, macro definitions, scene data, ownership rules, and runtime mapping state restored from app-owned data.
+- [x] **PERS-01**: User can save and reload a session with graph structure, macro definitions, scene data, ownership rules, and runtime mapping state restored from app-owned data.
 - [ ] **PERS-02**: User can run a basic visual runtime that responds to shared session events, scenes, or macros without making the visual engine the source of truth.
 
 ## v2 Requirements
@@ -99,7 +99,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AGNT-02 | Phase 4 | Pending |
 | AGNT-03 | Phase 4 | Pending |
 | AGNT-04 | Phase 4 | Pending |
-| PERS-01 | Phase 1 | Pending |
+| PERS-01 | Phase 1 | Complete |
 | PERS-02 | Phase 5 | Pending |
 
 **Coverage:**
