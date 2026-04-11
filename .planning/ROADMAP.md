@@ -31,7 +31,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. User can save, close, and reload a session with graph structure, macro definitions, scene data, ownership rules, and runtime mapping state restored.
 **Plans**: 3 plans
 Plans:
-- [ ] `01-session-core-recall-01-PLAN.md` — Define the canonical Rust session schema and Tauri session-store commands.
+- [x] `01-session-core-recall-01-PLAN.md` — Define the canonical Rust session schema and Tauri session-store commands.
 - [ ] `01-session-core-recall-02-PLAN.md` — Add versioned JSON save/open persistence and round-trip recall tests.
 - [ ] `01-session-core-recall-03-PLAN.md` — Build the Phase 1 session workspace with graph inspection and save/open controls.
 **UI hint**: yes
@@ -91,7 +91,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Session Core & Recall | 0/TBD | Not started | - |
+| 1. Session Core & Recall | 1/3 | In Progress | 2026-04-11 |
 | 2. Playable Audio Graph | 0/TBD | Not started | - |
 | 3. Performance Workspace | 0/TBD | Not started | - |
 | 4. Agent Collaboration | 0/TBD | Not started | - |

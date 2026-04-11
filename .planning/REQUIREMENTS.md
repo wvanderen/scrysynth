@@ -9,7 +9,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Session Graph
 
-- [ ] **SESS-01**: User can create and open a session whose canonical state includes nodes, routes, buses, macros, scenes, variations, ownership rules, and runtime status references.
+- [x] **SESS-01**: User can create and open a session whose canonical state includes nodes, routes, buses, macros, scenes, variations, ownership rules, and runtime status references.
 - [ ] **SESS-02**: User can inspect the current session graph as visible nodes and connections instead of hidden runtime-only state.
 - [ ] **SESS-03**: User can inspect a node's identity, type, ports, parameters, runtime target, scene membership, and ownership metadata.
 - [ ] **SESS-04**: User can create, remove, enable, and re-route supported v1 graph primitives without editing raw runtime internals.
@@ -80,7 +80,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SESS-01 | Phase 1 | Pending |
+| SESS-01 | Phase 1 | Complete |
 | SESS-02 | Phase 1 | Pending |
 | SESS-03 | Phase 1 | Pending |
 | SESS-04 | Phase 2 | Pending |
