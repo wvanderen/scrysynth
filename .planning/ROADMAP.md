@@ -29,7 +29,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. User can inspect the current session as visible graph nodes and connections instead of hidden runtime-only state.
   3. User can inspect a node's identity, type, ports, parameters, runtime target, scene membership, and ownership metadata.
   4. User can save, close, and reload a session with graph structure, macro definitions, scene data, ownership rules, and runtime mapping state restored.
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] `01-session-core-recall-01-PLAN.md` — Define the canonical Rust session schema and Tauri session-store commands.
+- [ ] `01-session-core-recall-02-PLAN.md` — Add versioned JSON save/open persistence and round-trip recall tests.
+- [ ] `01-session-core-recall-03-PLAN.md` — Build the Phase 1 session workspace with graph inspection and save/open controls.
 **UI hint**: yes
 
 ### Phase 2: Playable Audio Graph
