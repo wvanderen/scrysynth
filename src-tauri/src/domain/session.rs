@@ -352,4 +352,154 @@ mod tests {
         assert!(generated.contains("export type Node"));
         assert!(generated.contains("export type OwnershipRule"));
     }
+
+    #[test]
+    fn audio_graph_schema_round_trips_supported_v1_primitives() {
+        let session = SessionDocument {
+            audio_runtime: AudioRuntimeState {
+                lifecycle: AudioRuntimeLifecycle::Ready,
+                health: AudioRuntimeHealth::Healthy,
+                sample_rate_hz: Some(48_000),
+                block_size: Some(64),
+                active_patch_id: Some("patch-main".to_string()),
+                last_error: None,
+                panic_recovery_count: 0,
+            },
+            nodes: vec![
+                Node {
+                    id: "node-source".to_string(),
+                    node_type: NodeType::Source,
+                    ports: vec![Port {
+                        id: "node-source-out".to_string(),
+                        name: "main_out".to_string(),
+                        direction: PortDirection::Output,
+                        signal_type: SignalType::Audio,
+                    }],
+                    parameters: vec![ParameterValue {
+                        id: "param-frequency".to_string(),
+                        name: "frequency".to_string(),
+                        value: 220.0,
+                        default_value: 220.0,
+                        min_value: 20.0,
+                        max_value: 20_000.0,
+                        unit: "hz".to_string(),
+                    }],
+                    runtime_target: Some("audio/source/oscillator".to_string()),
+                    scene_membership: vec![],
+                    ownership: OwnershipAssignment {
+                        controller: ControllerKind::Shared,
+                        is_locked: false,
+                    },
+                    enabled: true,
+                    audio_primitive: Some(AudioPrimitive::Source(AudioSourceNode {
+                        source_type: AudioSourceType::Oscillator,
+                        channel_mode: ChannelMode::Mono,
+                        bus_target_id: Some("bus-main".to_string()),
+                    })),
+                },
+                Node {
+                    id: "node-fx".to_string(),
+                    node_type: NodeType::Effect,
+                    ports: vec![
+                        Port {
+                            id: "node-fx-in".to_string(),
+                            name: "signal_in".to_string(),
+                            direction: PortDirection::Input,
+                            signal_type: SignalType::Audio,
+                        },
+                        Port {
+                            id: "node-fx-out".to_string(),
+                            name: "signal_out".to_string(),
+                            direction: PortDirection::Output,
+                            signal_type: SignalType::Audio,
+                        },
+                    ],
+                    parameters: vec![ParameterValue {
+                        id: "param-mix".to_string(),
+                        name: "mix".to_string(),
+                        value: 0.35,
+                        default_value: 0.35,
+                        min_value: 0.0,
+                        max_value: 1.0,
+                        unit: "ratio".to_string(),
+                    }],
+                    runtime_target: Some("audio/effect/filter".to_string()),
+                    scene_membership: vec![],
+                    ownership: OwnershipAssignment {
+                        controller: ControllerKind::User,
+                        is_locked: false,
+                    },
+                    enabled: false,
+                    audio_primitive: Some(AudioPrimitive::Effect(AudioEffectNode {
+                        effect_type: AudioEffectType::LowPassFilter,
+                        bypassed: true,
+                        bus_target_id: Some("bus-main".to_string()),
+                    })),
+                },
+                Node {
+                    id: "node-mix".to_string(),
+                    node_type: NodeType::Mixer,
+                    ports: vec![],
+                    parameters: vec![],
+                    runtime_target: Some("audio/mixer/submix".to_string()),
+                    scene_membership: vec![],
+                    ownership: OwnershipAssignment {
+                        controller: ControllerKind::Shared,
+                        is_locked: false,
+                    },
+                    enabled: true,
+                    audio_primitive: Some(AudioPrimitive::Mixer(AudioMixerNode {
+                        channel_mode: ChannelMode::Stereo,
+                        bus_target_id: Some("bus-main".to_string()),
+                    })),
+                },
+                Node {
+                    id: "node-out".to_string(),
+                    node_type: NodeType::Output,
+                    ports: vec![],
+                    parameters: vec![],
+                    runtime_target: Some("audio/output/master".to_string()),
+                    scene_membership: vec![],
+                    ownership: OwnershipAssignment {
+                        controller: ControllerKind::User,
+                        is_locked: false,
+                    },
+                    enabled: true,
+                    audio_primitive: Some(AudioPrimitive::Output(AudioOutputNode {
+                        output_type: AudioOutputType::Master,
+                        channels: 2,
+                        bus_target_id: Some("bus-main".to_string()),
+                    })),
+                },
+            ],
+            buses: vec![Bus {
+                id: "bus-main".to_string(),
+                name: "main".to_string(),
+                channels: 2,
+                bus_type: AudioBusType::Main,
+                is_enabled: true,
+            }],
+            ..SessionDocument::default()
+        };
+
+        let json = serde_json::to_string(&session).expect("session serializes");
+        let restored: SessionDocument = serde_json::from_str(&json).expect("session deserializes");
+
+        assert_eq!(restored.audio_runtime, session.audio_runtime);
+        assert_eq!(restored.nodes, session.nodes);
+        assert_eq!(restored.buses, session.buses);
+    }
+
+    #[test]
+    fn audio_graph_schema_exports_typescript_contracts() {
+        write_generated_typescript_contract().expect("typescript contract is written");
+
+        let file_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(GENERATED_TYPES_PATH);
+        let generated = fs::read_to_string(file_path).expect("generated types are readable");
+
+        assert!(generated.contains("export type GraphEditCommand"));
+        assert!(generated.contains("export type AudioRuntimeState"));
+        assert!(generated.contains("export type AudioPrimitive"));
+        assert!(generated.contains("export type AudioBusType"));
+    }
 }
