@@ -1,9 +1,8 @@
 use scrysynth_lib::application::graph_edit::{apply_graph_edit, GraphEditError};
 use scrysynth_lib::application::session_store::SessionStore;
 use scrysynth_lib::domain::session::{
-    AudioEffectNode, AudioEffectType, AudioPrimitive, ChannelMode, ControllerKind,
-    GraphEditCommand, Node, NodeType, OwnershipAssignment, ParameterValue, Port, PortDirection,
-    Route, SignalType,
+    AudioEffectNode, AudioEffectType, AudioPrimitive, ControllerKind, GraphEditCommand, Node,
+    NodeType, OwnershipAssignment, ParameterValue, Port, PortDirection, Route, SignalType,
 };
 
 fn effect_node(id: &str) -> Node {
@@ -150,6 +149,7 @@ fn audio_graph_commands_rejects_cycle_and_store_unchanged() {
 fn audio_graph_commands_remove_node_prunes_dependent_routes() {
     let mut store = SessionStore::new_default();
     let added_node = effect_node("fx-remove");
+    let current = store.current();
 
     apply_graph_edit(
         &mut store,
@@ -164,8 +164,8 @@ fn audio_graph_commands_remove_node_prunes_dependent_routes() {
         GraphEditCommand::AddRoute {
             route: Route {
                 id: "route-source-to-remove".to_string(),
-                source_node_id: source_node_id(&store.current()),
-                source_port_id: source_output_port_id(&store.current()),
+                source_node_id: source_node_id(&current),
+                source_port_id: source_output_port_id(&current),
                 target_node_id: added_node.id.clone(),
                 target_port_id: "fx-remove-in".to_string(),
                 bus_id: None,

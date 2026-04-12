@@ -6,8 +6,9 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use application::graph_edit;
 use application::session_store::SessionStore;
-use domain::session::{write_generated_typescript_contract, SessionDocument};
+use domain::session::{write_generated_typescript_contract, GraphEditCommand, SessionDocument};
 use persistence::session_file;
 
 #[tauri::command]
@@ -25,6 +26,15 @@ fn get_current_session(
 ) -> Result<SessionDocument, String> {
     let store = state.lock().map_err(|err| err.to_string())?;
     Ok(store.current())
+}
+
+#[tauri::command]
+fn apply_graph_edit(
+    command: GraphEditCommand,
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<SessionDocument, String> {
+    let mut store = state.lock().map_err(|err| err.to_string())?;
+    graph_edit::apply_graph_edit(&mut store, command).map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -64,6 +74,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             create_default_session,
             get_current_session,
+            apply_graph_edit,
             save_session_to_path,
             open_session_from_path
         ])

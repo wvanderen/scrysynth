@@ -26,6 +26,16 @@ impl SessionStore {
     pub fn replace_current(&mut self, session: SessionDocument) {
         self.current = session;
     }
+
+    pub fn mutate_current<F, E>(&mut self, mutate: F) -> Result<SessionDocument, E>
+    where
+        F: FnOnce(&mut SessionDocument) -> Result<(), E>,
+    {
+        let mut next = self.current.clone();
+        mutate(&mut next)?;
+        self.current = next.clone();
+        Ok(next)
+    }
 }
 
 fn build_default_session() -> SessionDocument {
