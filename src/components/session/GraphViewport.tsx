@@ -1,10 +1,13 @@
 import {
   Background,
+  type Connection,
   Controls,
   MiniMap,
+  Panel,
   ReactFlow,
   type Edge,
   type Node,
+  type OnConnect,
   type NodeMouseHandler,
 } from "@xyflow/react";
 
@@ -14,11 +17,16 @@ type GraphViewportProps = {
   graphNodes: Node[];
   graphEdges: Edge[];
   onSelectNode: (nodeId: string | null) => void;
+  onConnect: (connection: Connection) => void;
 };
 
-export function GraphViewport({ graphNodes, graphEdges, onSelectNode }: GraphViewportProps) {
+export function GraphViewport({ graphNodes, graphEdges, onSelectNode, onConnect }: GraphViewportProps) {
   const handleNodeClick: NodeMouseHandler = (_, node) => {
     onSelectNode(node.id);
+  };
+
+  const handleConnect: OnConnect = (connection) => {
+    onConnect(connection);
   };
 
   return (
@@ -33,11 +41,15 @@ export function GraphViewport({ graphNodes, graphEdges, onSelectNode }: GraphVie
           edges={graphEdges}
           fitView
           nodesDraggable={false}
-          nodesConnectable={false}
+          nodesConnectable
           elementsSelectable
           onNodeClick={handleNodeClick}
+          onConnect={handleConnect}
           onPaneClick={() => onSelectNode(null)}
         >
+          <Panel position="top-right" className="graph-hint">
+            Patch source and effect nodes directly in the graph.
+          </Panel>
           <MiniMap pannable zoomable />
           <Controls showInteractive={false} />
           <Background color="#28514d" gap={24} />

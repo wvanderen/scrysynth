@@ -1,6 +1,11 @@
 import { create } from "zustand";
 
-import type { GraphEditCommand, Node, SessionDocument } from "../generated/session-types";
+import type {
+  GraphEditCommand,
+  Node,
+  Route,
+  SessionDocument,
+} from "../generated/session-types";
 import {
   applyGraphEdit as applyGraphEditCommand,
   createDefaultSession,
@@ -33,6 +38,11 @@ type SessionStore = {
   openSession: (path: string) => Promise<void>;
   selectNode: (nodeId: string | null) => void;
   applyGraphEdit: (command: GraphEditCommand) => Promise<void>;
+  addNode: (node: Node) => Promise<void>;
+  removeNode: (nodeId: string) => Promise<void>;
+  connectNodes: (sourceNodeId: string, targetNodeId: string) => Promise<void>;
+  assignNodeToBus: (nodeId: string, busId: string) => Promise<void>;
+  clearNodeBusAssignment: (nodeId: string) => Promise<void>;
   updateNodeParameter: (nodeId: string, parameterId: string, value: number) => Promise<void>;
   toggleNodeEnabled: (nodeId: string, enabled: boolean) => Promise<void>;
   startAudio: () => Promise<void>;
@@ -82,6 +92,31 @@ function nextSelectedNodeIdForCommand(
     default:
       return currentSelectedNodeId;
   }
+}
+
+function createRouteFromNodes(session: SessionDocument, sourceNodeId: string, targetNodeId: string): Route | null {
+  const sourceNode = session.nodes.find((node) => node.id === sourceNodeId);
+  const targetNode = session.nodes.find((node) => node.id === targetNodeId);
+
+  if (!sourceNode || !targetNode) {
+    return null;
+  }
+
+  const sourcePort = sourceNode.ports.find((port) => port.direction === "output" && port.signalType === "audio");
+  const targetPort = targetNode.ports.find((port) => port.direction === "input" && port.signalType === "audio");
+
+  if (!sourcePort || !targetPort) {
+    return null;
+  }
+
+  return {
+    id: `route-${globalThis.crypto.randomUUID()}`,
+    sourceNodeId,
+    sourcePortId: sourcePort.id,
+    targetNodeId,
+    targetPortId: targetPort.id,
+    busId: null,
+  };
 }
 
 export const useSessionStore = create<SessionStore>((set, get) => ({
@@ -166,6 +201,66 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const message = error instanceof Error ? error.message : "Unable to apply graph edit.";
       set({ isLoading: false, error: message });
     }
+  },
+  addNode: async (node) => {
+    await get().applyGraphEdit({
+      type: "addNode",
+      payload: { node },
+    });
+  },
+  removeNode: async (nodeId) => {
+    await get().applyGraphEdit({
+      type: "removeNode",
+      payload: { node_id: nodeId },
+    });
+  },
+  connectNodes: async (sourceNodeId, targetNodeId) => {
+    const session = get().session;
+    if (!session || sourceNodeId === targetNodeId) {
+      return;
+    }
+
+    const route = createRouteFromNodes(session, sourceNodeId, targetNodeId);
+    if (!route) {
+      set({ error: "Unable to connect those nodes with the supported audio ports." });
+      return;
+    }
+
+    const existingIncomingRoute = session.routes.find(
+      (candidate) =>
+        candidate.targetNodeId === route.targetNodeId &&
+        candidate.targetPortId === route.targetPortId &&
+        candidate.sourceNodeId !== route.sourceNodeId,
+    );
+
+    await get().applyGraphEdit({
+      type: "addRoute",
+      payload: { route },
+    });
+
+    if (get().error || !existingIncomingRoute) {
+      return;
+    }
+
+    await get().applyGraphEdit({
+      type: "removeRoute",
+      payload: { route_id: existingIncomingRoute.id },
+    });
+  },
+  assignNodeToBus: async (nodeId, busId) => {
+    await get().applyGraphEdit({
+      type: "assignNodeToBus",
+      payload: {
+        node_id: nodeId,
+        bus_id: busId,
+      },
+    });
+  },
+  clearNodeBusAssignment: async (nodeId) => {
+    await get().applyGraphEdit({
+      type: "clearNodeBusAssignment",
+      payload: { node_id: nodeId },
+    });
   },
   updateNodeParameter: async (nodeId, parameterId, value) => {
     await get().applyGraphEdit({

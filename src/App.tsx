@@ -1,6 +1,10 @@
 import { useEffect } from "react";
 
+import type { Connection } from "@xyflow/react";
+
 import "./App.css";
+import { AudioTransportStrip } from "./components/audio/AudioTransportStrip";
+import { PrimitivePalette } from "./components/audio/PrimitivePalette";
 import { GraphViewport } from "./components/session/GraphViewport";
 import { NodeInspector } from "./components/session/NodeInspector";
 import { SessionToolbar } from "./components/session/SessionToolbar";
@@ -14,6 +18,7 @@ function App() {
     selectedNode,
     graphNodes,
     graphEdges,
+    audioRuntime,
     isLoading,
     error,
     bootstrapSession,
@@ -21,6 +26,16 @@ function App() {
     saveSession,
     openSession,
     selectNode,
+    addNode,
+    removeNode,
+    connectNodes,
+    assignNodeToBus,
+    clearNodeBusAssignment,
+    updateNodeParameter,
+    toggleNodeEnabled,
+    startAudio,
+    stopAudio,
+    panicAudio,
   } = useSessionStore();
 
   useEffect(() => {
@@ -45,6 +60,14 @@ function App() {
     void openSession(path);
   };
 
+  const handleConnect = (connection: Connection) => {
+    if (!connection.source || !connection.target) {
+      return;
+    }
+
+    void connectNodes(connection.source, connection.target);
+  };
+
   return (
     <main className="workspace-shell">
       <SessionToolbar
@@ -57,13 +80,41 @@ function App() {
 
       {error ? <div className="error-banner">{error}</div> : null}
 
+      <AudioTransportStrip
+        runtime={audioRuntime}
+        isLoading={isLoading}
+        onStart={() => void startAudio()}
+        onStop={() => void stopAudio()}
+        onPanic={() => void panicAudio()}
+      />
+
       <section className="workspace-grid">
-        <GraphViewport
-          graphNodes={graphNodes}
-          graphEdges={graphEdges}
-          onSelectNode={selectNode}
+        <div className="workspace-main-column">
+          <GraphViewport
+            graphNodes={graphNodes}
+            graphEdges={graphEdges}
+            onSelectNode={selectNode}
+            onConnect={handleConnect}
+          />
+          <PrimitivePalette
+            session={session}
+            selectedNode={selectedNode}
+            isLoading={isLoading}
+            onAddNode={(node) => void addNode(node)}
+            onRemoveNode={(nodeId) => void removeNode(nodeId)}
+          />
+        </div>
+        <NodeInspector
+          selectedNode={selectedNode}
+          buses={session?.buses ?? []}
+          isLoading={isLoading}
+          onToggleEnabled={(nodeId, enabled) => void toggleNodeEnabled(nodeId, enabled)}
+          onUpdateParameter={(nodeId, parameterId, value) =>
+            void updateNodeParameter(nodeId, parameterId, value)
+          }
+          onAssignNodeToBus={(nodeId, busId) => void assignNodeToBus(nodeId, busId)}
+          onClearNodeBus={(nodeId) => void clearNodeBusAssignment(nodeId)}
         />
-        <NodeInspector selectedNode={selectedNode} />
       </section>
 
       <footer className="runtime-strip">

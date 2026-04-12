@@ -120,11 +120,18 @@ button:disabled {
   min-height: 0;
 }
 
+.workspace-main-column {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 1rem;
+  min-height: 0;
+}
+
 .graph-panel,
 .inspector-panel {
   border-radius: 28px;
   padding: 1rem;
-  min-height: 60vh;
+  min-height: 0;
 }
 
 .panel-heading {
@@ -149,6 +156,14 @@ button:disabled {
   border-radius: 22px;
   min-height: 52vh;
   border: 1px solid rgba(47, 80, 75, 0.8);
+}
+
+.graph-hint {
+  border-radius: 999px;
+  padding: 0.45rem 0.75rem;
+  color: #d9c8a0;
+  background: rgba(8, 19, 18, 0.8);
+  border: 1px solid rgba(89, 121, 114, 0.55);
 }
 
 .react-flow__attribution {
@@ -184,6 +199,111 @@ button:disabled {
   margin: 0 0 0.2rem;
 }
 
+.transport-strip,
+.primitive-palette {
+  border: 1px solid rgba(92, 127, 120, 0.34);
+  background: rgba(9, 24, 22, 0.84);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.24);
+  border-radius: 24px;
+}
+
+.transport-strip {
+  padding: 1rem 1.15rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.transport-strip h2,
+.primitive-palette h2 {
+  margin: 0;
+  font-family: "IBM Plex Mono", "Fira Code", monospace;
+  font-size: 1.05rem;
+}
+
+.transport-detail,
+.palette-caption {
+  margin: 0.35rem 0 0;
+  color: #a8b8b0;
+}
+
+.transport-readout {
+  display: grid;
+  justify-items: end;
+  gap: 0.75rem;
+}
+
+.transport-status {
+  padding: 0.45rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid rgba(247, 198, 106, 0.32);
+  background: rgba(17, 39, 37, 0.85);
+  color: #f7c66a;
+  text-transform: capitalize;
+}
+
+.transport-actions,
+.palette-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.panic-button {
+  border-color: rgba(255, 147, 118, 0.5);
+  background: rgba(68, 21, 16, 0.92);
+}
+
+.panic-button:hover {
+  border-color: #ff9376;
+  background: rgba(96, 31, 24, 0.98);
+}
+
+.primitive-palette {
+  padding: 1rem 1.1rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.destructive-button {
+  border-color: rgba(255, 170, 130, 0.38);
+}
+
+.toggle-row,
+.parameter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.toggle-row {
+  margin: 0.6rem 0;
+}
+
+.toggle-row input {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.list-card input[type="range"] {
+  width: 100%;
+  margin-top: 0.75rem;
+}
+
+.bus-select {
+  width: 100%;
+  margin-bottom: 0.75rem;
+  border-radius: 14px;
+  border: 1px solid rgba(92, 127, 120, 0.55);
+  padding: 0.7rem 0.8rem;
+  font: inherit;
+  color: #f2eee5;
+  background: rgba(10, 28, 26, 0.88);
+}
+
 .runtime-strip {
   padding: 0.85rem;
   border-radius: 22px;
@@ -214,6 +334,16 @@ button:disabled {
 
   .graph-surface {
     min-height: 48vh;
+  }
+
+  .transport-strip {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .transport-readout {
+    width: 100%;
+    justify-items: stretch;
   }
 }
 
