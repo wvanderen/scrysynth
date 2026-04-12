@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { z } from "zod";
 
-import type { SessionDocument } from "../generated/session-types";
+import type { GraphEditCommand, SessionDocument } from "../generated/session-types";
 
 const transportStateSchema = z.object({
   tempoBpm: z.number(),
@@ -13,6 +13,9 @@ const parameterValueSchema = z.object({
   id: z.string(),
   name: z.string(),
   value: z.number(),
+  defaultValue: z.number(),
+  minValue: z.number(),
+  maxValue: z.number(),
   unit: z.string(),
 });
 
@@ -30,12 +33,48 @@ const ownershipAssignmentSchema = z.object({
 
 const nodeSchema = z.object({
   id: z.string(),
-  nodeType: z.enum(["source", "mixer", "output"]),
+  nodeType: z.enum(["source", "effect", "mixer", "output"]),
   ports: z.array(portSchema),
   parameters: z.array(parameterValueSchema),
   runtimeTarget: z.string().nullable(),
   sceneMembership: z.array(z.string()),
   ownership: ownershipAssignmentSchema,
+  enabled: z.boolean(),
+  audioPrimitive: z
+    .discriminatedUnion("kind", [
+      z.object({
+        kind: z.literal("source"),
+        config: z.object({
+          sourceType: z.enum(["oscillator", "noise"]),
+          channelMode: z.enum(["mono", "stereo"]),
+          busTargetId: z.string().nullable(),
+        }),
+      }),
+      z.object({
+        kind: z.literal("effect"),
+        config: z.object({
+          effectType: z.enum(["low_pass_filter", "delay"]),
+          bypassed: z.boolean(),
+          busTargetId: z.string().nullable(),
+        }),
+      }),
+      z.object({
+        kind: z.literal("mixer"),
+        config: z.object({
+          channelMode: z.enum(["mono", "stereo"]),
+          busTargetId: z.string().nullable(),
+        }),
+      }),
+      z.object({
+        kind: z.literal("output"),
+        config: z.object({
+          outputType: z.enum(["master", "cue"]),
+          channels: z.number(),
+          busTargetId: z.string().nullable(),
+        }),
+      }),
+    ])
+    .nullable(),
 });
 
 const routeSchema = z.object({
@@ -51,6 +90,8 @@ const busSchema = z.object({
   id: z.string(),
   name: z.string(),
   channels: z.number(),
+  busType: z.enum(["auxiliary", "main", "cue"]),
+  isEnabled: z.boolean(),
 });
 
 const macroDefinitionSchema = z.object({
@@ -100,6 +141,16 @@ const runtimeStatusSchema = z.object({
   lastError: z.string().nullable(),
 });
 
+const audioRuntimeSchema = z.object({
+  lifecycle: z.enum(["idle", "booting", "ready", "running", "recovering", "failed"]),
+  health: z.enum(["unknown", "healthy", "degraded", "panic_recovered", "error"]),
+  sampleRateHz: z.number().nullable(),
+  blockSize: z.number().nullable(),
+  activePatchId: z.string().nullable(),
+  lastError: z.string().nullable(),
+  panicRecoveryCount: z.number(),
+});
+
 const sessionDocumentSchema: z.ZodType<SessionDocument> = z.object({
   schemaVersion: z.number(),
   sessionId: z.string(),
@@ -107,6 +158,7 @@ const sessionDocumentSchema: z.ZodType<SessionDocument> = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   transport: transportStateSchema,
+  audioRuntime: audioRuntimeSchema,
   nodes: z.array(nodeSchema),
   routes: z.array(routeSchema),
   buses: z.array(busSchema),
@@ -140,4 +192,20 @@ export async function saveSessionToPath(path: string): Promise<void> {
 
 export async function openSessionFromPath(path: string): Promise<SessionDocument> {
   return invokeSession("open_session_from_path", { path });
+}
+
+export async function applyGraphEdit(command: GraphEditCommand): Promise<SessionDocument> {
+  return invokeSession("apply_graph_edit", { command });
+}
+
+export async function startAudioRuntime(): Promise<SessionDocument> {
+  return invokeSession("start_audio_runtime");
+}
+
+export async function stopAudioRuntime(): Promise<SessionDocument> {
+  return invokeSession("stop_audio_runtime");
+}
+
+export async function panicAudioRuntime(): Promise<SessionDocument> {
+  return invokeSession("panic_audio_runtime");
 }

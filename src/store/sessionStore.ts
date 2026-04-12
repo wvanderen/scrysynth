@@ -1,23 +1,22 @@
 import { create } from "zustand";
 
-import type { Edge, Node as FlowNode } from "@xyflow/react";
-
-import type { Node, SessionDocument } from "../generated/session-types";
+import type { GraphEditCommand, Node, SessionDocument } from "../generated/session-types";
 import {
+  applyGraphEdit as applyGraphEditCommand,
   createDefaultSession,
   getCurrentSession,
   openSessionFromPath,
+  panicAudioRuntime,
   saveSessionToPath,
+  startAudioRuntime,
+  stopAudioRuntime,
 } from "../lib/session-client";
-
-type GraphNodeData = {
-  title: string;
-  subtitle: string;
-  isSelected: boolean;
-};
-
-type GraphNode = FlowNode<GraphNodeData>;
-type GraphEdge = Edge;
+import {
+  type AudioRuntimeProjection,
+  type GraphEdge,
+  type GraphNode,
+  projectSessionState,
+} from "./session-projections";
 
 type SessionStore = {
   session: SessionDocument | null;
@@ -25,6 +24,7 @@ type SessionStore = {
   graphNodes: GraphNode[];
   graphEdges: GraphEdge[];
   selectedNode: Node | null;
+  audioRuntime: AudioRuntimeProjection | null;
   isLoading: boolean;
   error: string | null;
   bootstrapSession: () => Promise<void>;
@@ -32,76 +32,56 @@ type SessionStore = {
   saveSession: (path: string) => Promise<void>;
   openSession: (path: string) => Promise<void>;
   selectNode: (nodeId: string | null) => void;
+  applyGraphEdit: (command: GraphEditCommand) => Promise<void>;
+  updateNodeParameter: (nodeId: string, parameterId: string, value: number) => Promise<void>;
+  toggleNodeEnabled: (nodeId: string, enabled: boolean) => Promise<void>;
+  startAudio: () => Promise<void>;
+  stopAudio: () => Promise<void>;
+  panicAudio: () => Promise<void>;
 };
 
-function projectGraphNodes(session: SessionDocument, selectedNodeId: string | null): GraphNode[] {
-  return session.nodes.map((node, index) => ({
-    id: node.id,
-    position: {
-      x: 80 + (index % 3) * 260,
-      y: 72 + Math.floor(index / 3) * 180,
-    },
-    draggable: false,
-    selectable: true,
-    data: {
-      title: labelForNode(node),
-      subtitle: `${node.nodeType} / ${node.ownership.controller}`,
-      isSelected: selectedNodeId === node.id,
-    },
-    style: {
-      borderRadius: 18,
-      border: selectedNodeId === node.id ? "1px solid #f7c66a" : "1px solid #2d4442",
-      background: selectedNodeId === node.id ? "#173734" : "#112725",
-      color: "#f2eee5",
-      padding: 16,
-      width: 190,
-      boxShadow: "0 20px 40px rgba(5, 12, 12, 0.35)",
-    },
-  }));
-}
-
-function projectGraphEdges(session: SessionDocument): GraphEdge[] {
-  return session.routes.map((route) => ({
-    id: route.id,
-    source: route.sourceNodeId,
-    target: route.targetNodeId,
-    animated: false,
-    style: {
-      stroke: "#f7c66a",
-      strokeWidth: 2,
-    },
-    label: route.busId ? "bus" : undefined,
-    labelStyle: {
-      fill: "#d9c8a0",
-      fontSize: 12,
-    },
-  }));
-}
-
-function labelForNode(node: Node) {
-  const primaryPort = node.ports[0]?.name ?? "portless";
-  return `${node.nodeType}:${primaryPort}`;
-}
-
-function deriveSelectedNode(session: SessionDocument, selectedNodeId: string | null): Node | null {
-  if (!selectedNodeId) {
-    return session.nodes[0] ?? null;
-  }
-
-  return session.nodes.find((node) => node.id === selectedNodeId) ?? session.nodes[0] ?? null;
-}
-
-function applySession(session: SessionDocument, selectedNodeId: string | null) {
-  const selectedNode = deriveSelectedNode(session, selectedNodeId);
-  const resolvedSelectedNodeId = selectedNode?.id ?? null;
+function applySession(
+  session: SessionDocument,
+  selectedNodeId: string | null,
+  previous: {
+    selectedNodeId: string | null;
+    graphNodes: GraphNode[];
+    graphEdges: GraphEdge[];
+    topologySignature?: string;
+  },
+) {
+  const projection = projectSessionState(session, selectedNodeId, previous.topologySignature
+    ? {
+        selectedNodeId: previous.selectedNodeId,
+        graphNodes: previous.graphNodes,
+        graphEdges: previous.graphEdges,
+        topologySignature: previous.topologySignature,
+      }
+    : undefined);
 
   return {
-    session,
-    selectedNodeId: resolvedSelectedNodeId,
-    selectedNode,
-    graphNodes: projectGraphNodes(session, resolvedSelectedNodeId),
-    graphEdges: projectGraphEdges(session),
+    session: projection.session,
+    selectedNodeId: projection.selectedNodeId,
+    selectedNode: projection.selectedNode,
+    graphNodes: projection.graphNodes,
+    graphEdges: projection.graphEdges,
+    audioRuntime: projection.audioRuntime,
+    topologySignature: projection.topologySignature,
   };
+}
+
+function nextSelectedNodeIdForCommand(
+  command: GraphEditCommand,
+  currentSelectedNodeId: string | null,
+): string | null {
+  switch (command.type) {
+    case "addNode":
+      return command.payload.node.id;
+    case "removeNode":
+      return currentSelectedNodeId === command.payload.node_id ? null : currentSelectedNodeId;
+    default:
+      return currentSelectedNodeId;
+  }
 }
 
 export const useSessionStore = create<SessionStore>((set, get) => ({
@@ -110,6 +90,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   graphNodes: [],
   graphEdges: [],
   selectedNode: null,
+  audioRuntime: null,
   isLoading: false,
   error: null,
   bootstrapSession: async () => {
@@ -117,7 +98,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
     try {
       const session = await getCurrentSession();
-      set({ ...applySession(session, get().selectedNodeId), isLoading: false });
+      const current = get();
+      set({
+        ...applySession(session, current.selectedNodeId, current),
+        isLoading: false,
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to load session.";
       set({ isLoading: false, error: message });
@@ -128,7 +113,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
     try {
       const session = await createDefaultSession();
-      set({ ...applySession(session, null), isLoading: false });
+      const current = get();
+      set({ ...applySession(session, null, current), isLoading: false });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to create a session.";
       set({ isLoading: false, error: message });
@@ -150,7 +136,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
     try {
       const session = await openSessionFromPath(path);
-      set({ ...applySession(session, null), isLoading: false });
+      const current = get();
+      set({ ...applySession(session, null, current), isLoading: false });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to open the session.";
       set({ isLoading: false, error: message });
@@ -162,6 +149,77 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       return;
     }
 
-    set(applySession(session, nodeId));
+    set(applySession(session, nodeId, get()));
+  },
+  applyGraphEdit: async (command) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const session = await applyGraphEditCommand(command);
+      const current = get();
+      const selectedNodeId = nextSelectedNodeIdForCommand(command, current.selectedNodeId);
+      set({
+        ...applySession(session, selectedNodeId, current),
+        isLoading: false,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to apply graph edit.";
+      set({ isLoading: false, error: message });
+    }
+  },
+  updateNodeParameter: async (nodeId, parameterId, value) => {
+    await get().applyGraphEdit({
+      type: "setParameterValue",
+      payload: {
+        node_id: nodeId,
+        parameter_id: parameterId,
+        value,
+      },
+    });
+  },
+  toggleNodeEnabled: async (nodeId, enabled) => {
+    await get().applyGraphEdit({
+      type: "setNodeEnabled",
+      payload: {
+        node_id: nodeId,
+        enabled,
+      },
+    });
+  },
+  startAudio: async () => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const session = await startAudioRuntime();
+      const current = get();
+      set({ ...applySession(session, current.selectedNodeId, current), isLoading: false });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to start audio.";
+      set({ isLoading: false, error: message });
+    }
+  },
+  stopAudio: async () => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const session = await stopAudioRuntime();
+      const current = get();
+      set({ ...applySession(session, current.selectedNodeId, current), isLoading: false });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to stop audio.";
+      set({ isLoading: false, error: message });
+    }
+  },
+  panicAudio: async () => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const session = await panicAudioRuntime();
+      const current = get();
+      set({ ...applySession(session, current.selectedNodeId, current), isLoading: false });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to panic audio runtime.";
+      set({ isLoading: false, error: message });
+    }
   },
 }));
