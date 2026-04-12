@@ -16,10 +16,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Audio Runtime
 
-- [ ] **AUD-01**: User can hear playable audio from supported source, effect, and routing primitives executed through the SuperCollider adapter.
+- [x] **AUD-01**: User can hear playable audio from supported source, effect, and routing primitives executed through the SuperCollider adapter.
 - [ ] **AUD-02**: User can update supported audio parameters during playback and hear the change without rebuilding the whole session.
 - [x] **AUD-03**: User can route supported audio nodes through buses and grouped processing defined by the canonical session graph.
-- [ ] **AUD-04**: User can stop all sound immediately with a panic-safe control that recovers the app to a known safe state.
+- [x] **AUD-04**: User can stop all sound immediately with a panic-safe control that recovers the app to a known safe state.
 
 ### Interface
 
@@ -84,10 +84,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SESS-02 | Phase 1 | Complete |
 | SESS-03 | Phase 1 | Complete |
 | SESS-04 | Phase 2 | Complete |
-| AUD-01 | Phase 2 | Pending |
+| AUD-01 | Phase 2 | Complete |
 | AUD-02 | Phase 2 | Pending |
 | AUD-03 | Phase 2 | Complete |
-| AUD-04 | Phase 2 | Pending |
+| AUD-04 | Phase 2 | Complete |
 | UI-01 | Phase 3 | Pending |
 | UI-02 | Phase 5 | Pending |
 | UI-03 | Phase 4 | Pending |

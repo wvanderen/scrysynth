@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-playable-audio-graph-01-PLAN.md
-last_updated: "2026-04-12T01:12:17.903Z"
+stopped_at: Completed 02-playable-audio-graph-02-PLAN.md
+last_updated: "2026-04-12T01:38:22.248Z"
 last_activity: 2026-04-12
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
   percent: 50
 ---
 
@@ -26,7 +26,7 @@ See: `.planning/PROJECT.md` (updated 2026-04-11)
 ## Current Position
 
 Phase: 2 of 5 (Playable Audio Graph)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: Ready to execute
 Last activity: 2026-04-12
 
@@ -59,6 +59,7 @@ Progress: [█████░░░░░] 50%
 | Phase 01-session-core-recall P02 | 480 | 2 tasks | 8 files |
 | Phase 01-session-core-recall P03 | 248 | 3 tasks | 9 files |
 | Phase 02-playable-audio-graph P01 | 347 | 2 tasks | 7 files |
+| Phase 02-playable-audio-graph P02 | 404 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -79,6 +80,9 @@ Recent decisions affecting current work:
 - [Phase 02]: Represented v1 audio nodes as performer-facing canonical primitives with bounded parameter metadata instead of runtime-specific SuperCollider details.
 - [Phase 02]: Applied graph edits transactionally against cloned SessionDocument state so rejected mutations never leak partial changes into the store.
 - [Phase 02]: Exposed one GraphEditCommand Tauri IPC surface and kept edit validation in Rust before runtime work begins.
+- [Phase 02-playable-audio-graph]: Compiled the canonical audio graph into an ephemeral adapter-facing topology so SuperCollider never becomes persisted session truth.
+- [Phase 02-playable-audio-graph]: Stored runtime lifecycle supervision behind SessionStore delegation so Tauri commands can update canonical state without exposing realtime transport over IPC.
+- [Phase 02-playable-audio-graph]: Made panic tear down adapter state and clear active patch metadata even when the runtime is already degraded or disconnected.
 
 ### Pending Todos
 
@@ -92,6 +96,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-12T01:12:17.902Z
-Stopped at: Completed 02-playable-audio-graph-01-PLAN.md
+Last session: 2026-04-12T01:38:22.246Z
+Stopped at: Completed 02-playable-audio-graph-02-PLAN.md
 Resume file: None
