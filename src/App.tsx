@@ -47,6 +47,10 @@ function App() {
     restoreVariation,
     reclaimOwnership,
     setNodeOwnership,
+    createMacro,
+    updateMacro,
+    removeMacro,
+    setMacroValue,
   } = useSessionStore();
 
   useEffect(() => {
@@ -143,11 +147,17 @@ function App() {
           scenes={session?.scenes ?? []}
           variations={session?.variations ?? []}
           enabledNodes={session?.nodes ?? []}
+          allNodes={session?.nodes ?? []}
+          macros={session?.macros ?? []}
           actionHistory={actionHistory}
           isLoading={isLoading}
           onRecallScene={(sceneId) => void recallScene(sceneId)}
           onSaveVariation={(name, sceneId) => void saveVariation(name, sceneId)}
           onRestoreVariation={(variationId) => void restoreVariation(variationId)}
+          onCreateMacro={(definition) => void createMacro(definition)}
+          onUpdateMacro={(macroId, updates) => void updateMacro(macroId, updates)}
+          onRemoveMacro={(macroId) => void removeMacro(macroId)}
+          onSetMacroValue={(macroId, value) => void setMacroValue(macroId, value)}
         />
       ) : null}
 

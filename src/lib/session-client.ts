@@ -6,6 +6,7 @@ import type {
   AgentIntent,
   AgentRuntimeState,
   GraphEditCommand,
+  MacroCommand,
   PerformanceCommand,
   PendingAction,
   SessionDocument,
@@ -102,13 +103,47 @@ const busSchema = z.object({
   isEnabled: z.boolean(),
 });
 
+const macroTargetSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("audioParameter"),
+    config: z.object({
+      node_id: z.string(),
+      parameter_id: z.string(),
+    }),
+  }),
+  z.object({
+    kind: z.literal("visualParameter"),
+    config: z.object({
+      element_id: z.string(),
+      parameter_id: z.string(),
+    }),
+  }),
+]);
+
 const macroDefinitionSchema = z.object({
   id: z.string(),
   name: z.string(),
-  targetParameterIds: z.array(z.string()),
+  targetParameterIds: z.array(z.string()).optional().default([]),
   rangeStart: z.number(),
   rangeEnd: z.number(),
+  targets: z.array(macroTargetSchema).default([]),
 });
+
+const macroCommandSchema: z.ZodType<MacroCommand> = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("createMacro"), payload: z.object({ definition: macroDefinitionSchema }) }),
+  z.object({
+    type: z.literal("updateMacro"),
+    payload: z.object({
+      macro_id: z.string(),
+      name: z.string().nullable(),
+      targets: z.array(macroTargetSchema).nullable(),
+      range_start: z.number().nullable(),
+      range_end: z.number().nullable(),
+    }),
+  }),
+  z.object({ type: z.literal("removeMacro"), payload: z.object({ macro_id: z.string() }) }),
+  z.object({ type: z.literal("setMacroValue"), payload: z.object({ macro_id: z.string(), value: z.number() }) }),
+]);
 
 const macroOverrideSchema = z.object({
   macroId: z.string(),
@@ -299,6 +334,11 @@ export async function panicAudioRuntime(): Promise<SessionDocument> {
 
 export async function applyPerformanceCommand(command: PerformanceCommand): Promise<SessionDocument> {
   return invokeSession("apply_performance_command", { command });
+}
+
+export async function applyMacroCommand(command: MacroCommand): Promise<SessionDocument> {
+  macroCommandSchema.parse(command);
+  return invokeSession("apply_macro_command", { command });
 }
 
 const agentMessageResponseSchema = z.object({

@@ -1,7 +1,9 @@
 import { useMemo } from "react";
 
-import type { ActionHistoryEntry, Node, SceneDefinition, VariationDefinition } from "../../generated/session-types";
+import type { ActionHistoryEntry, MacroDefinition, Node, SceneDefinition, VariationDefinition } from "../../generated/session-types";
 import { ActivityPanel } from "./ActivityPanel";
+import { MacroEditor } from "./MacroEditor";
+import { MacroSlider } from "./MacroSlider";
 import { ScenePanel } from "./ScenePanel";
 import { VariationPanel } from "./VariationPanel";
 
@@ -9,22 +11,34 @@ type PerformanceViewProps = {
   scenes: SceneDefinition[];
   variations: VariationDefinition[];
   enabledNodes: Node[];
+  allNodes: Node[];
+  macros: MacroDefinition[];
   actionHistory: ActionHistoryEntry[];
   isLoading: boolean;
   onRecallScene: (sceneId: string) => void;
   onSaveVariation: (name: string, sceneId: string) => void;
   onRestoreVariation: (variationId: string) => void;
+  onCreateMacro: (definition: MacroDefinition) => void;
+  onUpdateMacro: (macroId: string, updates: { name?: string; targets?: import("../../generated/session-types").MacroTarget[]; rangeStart?: number; rangeEnd?: number }) => void;
+  onRemoveMacro: (macroId: string) => void;
+  onSetMacroValue: (macroId: string, value: number) => void;
 };
 
 export function PerformanceView({
   scenes,
   variations,
   enabledNodes,
+  allNodes,
+  macros,
   actionHistory,
   isLoading,
   onRecallScene,
   onSaveVariation,
   onRestoreVariation,
+  onCreateMacro,
+  onUpdateMacro,
+  onRemoveMacro,
+  onSetMacroValue,
 }: PerformanceViewProps) {
   const activeSceneId = useMemo(() => {
     const enabledIds = new Set(
@@ -84,6 +98,35 @@ export function PerformanceView({
           />
         </div>
       </div>
+
+      <div className="inspector-group" style={{ marginTop: 16 }}>
+        <h2>Macro Controls</h2>
+        {macros.length > 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {macros.map((macro) => (
+              <MacroSlider
+                key={macro.id}
+                macroId={macro.id}
+                macroName={macro.name}
+                rangeStart={macro.rangeStart}
+                rangeEnd={macro.rangeEnd}
+                onValueChange={onSetMacroValue}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="empty-copy">No macros defined.</p>
+        )}
+      </div>
+
+      <MacroEditor
+        macros={macros}
+        nodes={allNodes}
+        isLoading={isLoading}
+        onCreateMacro={onCreateMacro}
+        onUpdateMacro={onUpdateMacro}
+        onRemoveMacro={onRemoveMacro}
+      />
 
       <ActivityPanel actionHistory={actionHistory} />
     </section>

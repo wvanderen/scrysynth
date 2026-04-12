@@ -6,6 +6,9 @@ import type {
   AgentRuntimeState,
   ControllerKind,
   GraphEditCommand,
+  MacroCommand,
+  MacroDefinition,
+  MacroTarget,
   Node,
   PendingAction,
   PerformanceCommand,
@@ -14,6 +17,7 @@ import type {
 } from "../generated/session-types";
 import {
   applyGraphEdit as applyGraphEditCommand,
+  applyMacroCommand as applyMacroCommandIPC,
   applyPerformanceCommand as applyPerformanceCommandIPC,
   approvePendingAction as approvePendingActionIPC,
   createDefaultSession,
@@ -37,6 +41,7 @@ import {
   type AudioRuntimeProjection,
   type GraphEdge,
   type GraphNode,
+  type MacroProjection,
   type VisualRuntimeProjection,
   projectSessionState,
 } from "./session-projections";
@@ -60,6 +65,7 @@ type SessionStore = {
   audioRuntime: AudioRuntimeProjection | null;
   visualRuntime: VisualRuntimeProjection | null;
   agentRuntime: AgentRuntimeProjection | null;
+  macros: MacroProjection[];
   isLoading: boolean;
   error: string | null;
   workspaceView: WorkspaceView;
@@ -97,6 +103,10 @@ type SessionStore = {
   setNodeOwnership: (nodeIds: string[], targetController: ControllerKind) => Promise<void>;
   approvePendingAction: (actionId: string) => Promise<void>;
   rejectPendingAction: (actionId: string) => Promise<void>;
+  createMacro: (definition: MacroDefinition) => Promise<void>;
+  updateMacro: (macroId: string, updates: { name?: string; targets?: MacroTarget[]; rangeStart?: number; rangeEnd?: number }) => Promise<void>;
+  removeMacro: (macroId: string) => Promise<void>;
+  setMacroValue: (macroId: string, value: number) => Promise<void>;
 };
 
 function applySession(
@@ -127,6 +137,7 @@ function applySession(
     audioRuntime: projection.audioRuntime,
     visualRuntime: projection.visualRuntime,
     agentRuntime: projection.agentRuntime,
+    macros: projection.macros,
     topologySignature: projection.topologySignature,
     agentFrozen: session.agentFrozen,
     pendingActions: session.pendingActions,
@@ -198,6 +209,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   audioRuntime: null,
   visualRuntime: null,
   agentRuntime: null,
+  macros: [],
   isLoading: false,
   error: null,
   workspaceView: "graph" as WorkspaceView,
@@ -584,6 +596,65 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to reject action.";
       set({ isLoading: false, error: message });
+    }
+  },
+  createMacro: async (definition) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const command: MacroCommand = { type: "createMacro", payload: { definition } };
+      const session = await applyMacroCommandIPC(command);
+      const current = get();
+      set({ ...applySession(session, current.selectedNodeId, current), isLoading: false });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to create macro.";
+      set({ isLoading: false, error: message });
+    }
+  },
+  updateMacro: async (macroId, updates) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const command: MacroCommand = {
+        type: "updateMacro",
+        payload: {
+          macro_id: macroId,
+          name: updates.name ?? null,
+          targets: updates.targets ?? null,
+          range_start: updates.rangeStart ?? null,
+          range_end: updates.rangeEnd ?? null,
+        },
+      };
+      const session = await applyMacroCommandIPC(command);
+      const current = get();
+      set({ ...applySession(session, current.selectedNodeId, current), isLoading: false });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to update macro.";
+      set({ isLoading: false, error: message });
+    }
+  },
+  removeMacro: async (macroId) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const command: MacroCommand = { type: "removeMacro", payload: { macro_id: macroId } };
+      const session = await applyMacroCommandIPC(command);
+      const current = get();
+      set({ ...applySession(session, current.selectedNodeId, current), isLoading: false });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to remove macro.";
+      set({ isLoading: false, error: message });
+    }
+  },
+  setMacroValue: async (macroId, value) => {
+    try {
+      const command: MacroCommand = { type: "setMacroValue", payload: { macro_id: macroId, value } };
+      const session = await applyMacroCommandIPC(command);
+      const current = get();
+      set({ ...applySession(session, current.selectedNodeId, current) });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to set macro value.";
+      set({ error: message });
     }
   },
 }));

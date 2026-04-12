@@ -2,6 +2,14 @@ import type { Edge, Node as FlowNode } from "@xyflow/react";
 
 import type { Node, SessionDocument } from "../generated/session-types";
 
+export type MacroProjection = {
+  id: string;
+  name: string;
+  targets: SessionDocument["macros"][number]["targets"];
+  rangeStart: number;
+  rangeEnd: number;
+};
+
 export type GraphNodeData = {
   title: string;
   subtitle: string;
@@ -46,6 +54,7 @@ export type SessionProjection = {
   audioRuntime: AudioRuntimeProjection;
   visualRuntime: VisualRuntimeProjection;
   agentRuntime: AgentRuntimeProjection;
+  macros: MacroProjection[];
   topologySignature: string;
 };
 
@@ -71,6 +80,7 @@ export function projectSessionState(
     audioRuntime: projectAudioRuntime(session),
     visualRuntime: projectVisualRuntime(session),
     agentRuntime: projectAgentRuntime(session),
+    macros: projectMacros(session),
     topologySignature,
   };
 }
@@ -263,4 +273,14 @@ function projectAgentRuntime(session: SessionDocument): AgentRuntimeProjection {
     isFrozen,
     status,
   };
+}
+
+export function projectMacros(session: SessionDocument): MacroProjection[] {
+  return session.macros.map((macro) => ({
+    id: macro.id,
+    name: macro.name,
+    targets: macro.targets,
+    rangeStart: macro.rangeStart,
+    rangeEnd: macro.rangeEnd,
+  }));
 }
