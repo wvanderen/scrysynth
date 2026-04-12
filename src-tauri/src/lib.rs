@@ -65,6 +65,30 @@ fn open_session_from_path(
     Ok(session)
 }
 
+#[tauri::command]
+fn start_audio_runtime(
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<SessionDocument, String> {
+    let mut store = state.lock().map_err(|err| err.to_string())?;
+    store.start_audio_runtime().map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+fn stop_audio_runtime(
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<SessionDocument, String> {
+    let mut store = state.lock().map_err(|err| err.to_string())?;
+    store.stop_audio_runtime().map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+fn panic_audio_runtime(
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<SessionDocument, String> {
+    let mut store = state.lock().map_err(|err| err.to_string())?;
+    store.panic_audio_runtime().map_err(|err| err.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _ = write_generated_typescript_contract();
@@ -77,7 +101,10 @@ pub fn run() {
             get_current_session,
             apply_graph_edit,
             save_session_to_path,
-            open_session_from_path
+            open_session_from_path,
+            start_audio_runtime,
+            stop_audio_runtime,
+            panic_audio_runtime
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

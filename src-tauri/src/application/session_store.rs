@@ -1,3 +1,4 @@
+use crate::audio::runtime_manager::{AudioRuntimeManager, AudioRuntimeManagerError};
 use crate::domain::session::{
     new_id, AudioBusType, AudioOutputNode, AudioOutputType, AudioPrimitive, AudioRuntimeHealth,
     AudioRuntimeLifecycle, AudioRuntimeState, AudioSourceNode, AudioSourceType, Bus, ChannelMode,
@@ -7,15 +8,17 @@ use crate::domain::session::{
     SignalType, VariationDefinition,
 };
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct SessionStore {
     current: SessionDocument,
+    audio_runtime_manager: AudioRuntimeManager,
 }
 
 impl SessionStore {
     pub fn new_default() -> Self {
         Self {
             current: build_default_session(),
+            audio_runtime_manager: AudioRuntimeManager::default(),
         }
     }
 
@@ -25,6 +28,27 @@ impl SessionStore {
 
     pub fn replace_current(&mut self, session: SessionDocument) {
         self.current = session;
+    }
+
+    pub fn start_audio_runtime(&mut self) -> Result<SessionDocument, AudioRuntimeManagerError> {
+        let mut manager = std::mem::take(&mut self.audio_runtime_manager);
+        let result = manager.start(self);
+        self.audio_runtime_manager = manager;
+        result
+    }
+
+    pub fn stop_audio_runtime(&mut self) -> Result<SessionDocument, AudioRuntimeManagerError> {
+        let mut manager = std::mem::take(&mut self.audio_runtime_manager);
+        let result = manager.stop(self);
+        self.audio_runtime_manager = manager;
+        result
+    }
+
+    pub fn panic_audio_runtime(&mut self) -> Result<SessionDocument, AudioRuntimeManagerError> {
+        let mut manager = std::mem::take(&mut self.audio_runtime_manager);
+        let result = manager.panic(self);
+        self.audio_runtime_manager = manager;
+        result
     }
 
     pub fn mutate_current<F, E>(&mut self, mutate: F) -> Result<SessionDocument, E>
