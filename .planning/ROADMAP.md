@@ -94,7 +94,11 @@ Plans:
   2. User can create and adjust macros that map one control to multiple audio and visual parameters.
   3. User can bind supported MIDI or OSC input through learn to v1 macros or performance actions and use that input during performance.
   4. User can see runtime health, activity, and error status for the audio runtime, visual runtime, and agent system from the shared workspace.
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] `05-visual-sync-cross-modal-01-PLAN.md` — Visual Runtime Adapter + Runtime Health Dashboard (PERS-02, UI-02)
+- [ ] `05-visual-sync-cross-modal-02-PLAN.md` — Cross-Modal Macro System with CRUD + live sliders (CTRL-01)
+- [ ] `05-visual-sync-cross-modal-03-PLAN.md` — Hardware Input Binding — MIDI/OSC Learn (CTRL-04)
 **UI hint**: yes
 
 ## Progress
