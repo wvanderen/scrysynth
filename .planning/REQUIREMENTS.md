@@ -24,7 +24,7 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Interface
 
 - [x] **UI-01**: User can switch between conversation, graph, and performance views that all reflect the same live session state.
-- [ ] **UI-02**: User can see current runtime health, activity, and error status for the audio runtime, visual runtime, and agent system.
+- [x] **UI-02**: User can see current runtime health, activity, and error status for the audio runtime, visual runtime, and agent system.
 - [ ] **UI-03**: User can inspect what changed in the session after a user or agent action through visible diffs, activity history, or equivalent structured feedback.
 
 ### Performance Control
@@ -44,7 +44,7 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Persistence and Sync
 
 - [x] **PERS-01**: User can save and reload a session with graph structure, macro definitions, scene data, ownership rules, and runtime mapping state restored from app-owned data.
-- [ ] **PERS-02**: User can run a basic visual runtime that responds to shared session events, scenes, or macros without making the visual engine the source of truth.
+- [x] **PERS-02**: User can run a basic visual runtime that responds to shared session events, scenes, or macros without making the visual engine the source of truth.
 
 ## v2 Requirements
 
@@ -89,7 +89,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUD-03 | Phase 2 | Complete |
 | AUD-04 | Phase 2 | Complete |
 | UI-01 | Phase 3 | Complete |
-| UI-02 | Phase 5 | Pending |
+| UI-02 | Phase 5 | Complete |
 | UI-03 | Phase 4 | Pending |
 | CTRL-01 | Phase 5 | Pending |
 | CTRL-02 | Phase 3 | Complete |
@@ -100,7 +100,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AGNT-03 | Phase 4 | Pending |
 | AGNT-04 | Phase 4 | Pending |
 | PERS-01 | Phase 1 | Complete |
-| PERS-02 | Phase 5 | Pending |
+| PERS-02 | Phase 5 | Complete |
 
 **Coverage:**
 - v1 requirements: 21 total
