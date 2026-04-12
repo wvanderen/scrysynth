@@ -17,6 +17,8 @@ pub struct SessionDocument {
     pub created_at: String,
     pub updated_at: String,
     pub transport: TransportState,
+    #[serde(default)]
+    pub audio_runtime: AudioRuntimeState,
     pub nodes: Vec<Node>,
     pub routes: Vec<Route>,
     pub buses: Vec<Bus>,
@@ -36,6 +38,7 @@ impl Default for SessionDocument {
             created_at: "2026-04-11T00:00:00Z".to_string(),
             updated_at: "2026-04-11T00:00:00Z".to_string(),
             transport: TransportState::default(),
+            audio_runtime: AudioRuntimeState::default(),
             nodes: Vec::new(),
             routes: Vec::new(),
             buses: Vec::new(),
@@ -46,6 +49,41 @@ impl Default for SessionDocument {
             runtime_status: Vec::new(),
         }
     }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioRuntimeState {
+    pub lifecycle: AudioRuntimeLifecycle,
+    pub health: AudioRuntimeHealth,
+    pub sample_rate_hz: Option<u32>,
+    pub block_size: Option<u32>,
+    pub active_patch_id: Option<String>,
+    pub last_error: Option<String>,
+    pub panic_recovery_count: u32,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum AudioRuntimeLifecycle {
+    #[default]
+    Idle,
+    Booting,
+    Ready,
+    Running,
+    Recovering,
+    Failed,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum AudioRuntimeHealth {
+    #[default]
+    Unknown,
+    Healthy,
+    Degraded,
+    PanicRecovered,
+    Error,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -76,14 +114,87 @@ pub struct Node {
     pub runtime_target: Option<String>,
     pub scene_membership: Vec<String>,
     pub ownership: OwnershipAssignment,
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub audio_primitive: Option<AudioPrimitive>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
 pub enum NodeType {
     Source,
+    Effect,
     Mixer,
     Output,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "kind", content = "config", rename_all = "camelCase")]
+pub enum AudioPrimitive {
+    Source(AudioSourceNode),
+    Effect(AudioEffectNode),
+    Mixer(AudioMixerNode),
+    Output(AudioOutputNode),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioSourceNode {
+    pub source_type: AudioSourceType,
+    pub channel_mode: ChannelMode,
+    pub bus_target_id: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum AudioSourceType {
+    Oscillator,
+    Noise,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioEffectNode {
+    pub effect_type: AudioEffectType,
+    pub bypassed: bool,
+    pub bus_target_id: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum AudioEffectType {
+    LowPassFilter,
+    Delay,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioMixerNode {
+    pub channel_mode: ChannelMode,
+    pub bus_target_id: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioOutputNode {
+    pub output_type: AudioOutputType,
+    pub channels: u32,
+    pub bus_target_id: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum AudioOutputType {
+    Master,
+    Cue,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum ChannelMode {
+    Mono,
+    Stereo,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -115,6 +226,12 @@ pub struct ParameterValue {
     pub id: String,
     pub name: String,
     pub value: f64,
+    #[serde(default = "parameter_default_value")]
+    pub default_value: f64,
+    #[serde(default = "parameter_default_min")]
+    pub min_value: f64,
+    #[serde(default = "parameter_default_max")]
+    pub max_value: f64,
     pub unit: String,
 }
 
@@ -135,6 +252,19 @@ pub struct Bus {
     pub id: String,
     pub name: String,
     pub channels: u32,
+    #[serde(default)]
+    pub bus_type: AudioBusType,
+    #[serde(default = "default_enabled")]
+    pub is_enabled: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum AudioBusType {
+    #[default]
+    Auxiliary,
+    Main,
+    Cue,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -230,6 +360,55 @@ pub enum RuntimeConnectionState {
     Error,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "type", content = "payload", rename_all = "camelCase")]
+pub enum GraphEditCommand {
+    AddNode {
+        node: Node,
+    },
+    RemoveNode {
+        node_id: String,
+    },
+    SetNodeEnabled {
+        node_id: String,
+        enabled: bool,
+    },
+    SetParameterValue {
+        node_id: String,
+        parameter_id: String,
+        value: f64,
+    },
+    AddRoute {
+        route: Route,
+    },
+    RemoveRoute {
+        route_id: String,
+    },
+    AssignNodeToBus {
+        node_id: String,
+        bus_id: String,
+    },
+    ClearNodeBusAssignment {
+        node_id: String,
+    },
+}
+
+fn default_enabled() -> bool {
+    true
+}
+
+fn parameter_default_value() -> f64 {
+    0.0
+}
+
+fn parameter_default_min() -> f64 {
+    0.0
+}
+
+fn parameter_default_max() -> f64 {
+    1.0
+}
+
 pub fn new_id() -> String {
     Uuid::new_v4().to_string()
 }
@@ -239,14 +418,27 @@ pub fn write_generated_typescript_contract() -> std::io::Result<()> {
     let declarations = [
         SessionDocument::decl(&cfg),
         TransportState::decl(&cfg),
+        AudioRuntimeState::decl(&cfg),
+        AudioRuntimeLifecycle::decl(&cfg),
+        AudioRuntimeHealth::decl(&cfg),
         Node::decl(&cfg),
         NodeType::decl(&cfg),
+        AudioPrimitive::decl(&cfg),
+        AudioSourceNode::decl(&cfg),
+        AudioSourceType::decl(&cfg),
+        AudioEffectNode::decl(&cfg),
+        AudioEffectType::decl(&cfg),
+        AudioMixerNode::decl(&cfg),
+        AudioOutputNode::decl(&cfg),
+        AudioOutputType::decl(&cfg),
+        ChannelMode::decl(&cfg),
         Port::decl(&cfg),
         PortDirection::decl(&cfg),
         SignalType::decl(&cfg),
         ParameterValue::decl(&cfg),
         Route::decl(&cfg),
         Bus::decl(&cfg),
+        AudioBusType::decl(&cfg),
         MacroDefinition::decl(&cfg),
         SceneDefinition::decl(&cfg),
         MacroOverride::decl(&cfg),
@@ -258,6 +450,7 @@ pub fn write_generated_typescript_contract() -> std::io::Result<()> {
         RuntimeStatusRef::decl(&cfg),
         RuntimeKind::decl(&cfg),
         RuntimeConnectionState::decl(&cfg),
+        GraphEditCommand::decl(&cfg),
     ]
     .join("\n\n");
 
@@ -297,6 +490,7 @@ mod tests {
         let restored: SessionDocument = serde_json::from_str(&json).expect("session deserializes");
 
         assert_eq!(restored.schema_version, CURRENT_SCHEMA_VERSION);
+        assert_eq!(restored.audio_runtime, session.audio_runtime);
         assert_eq!(restored.nodes, session.nodes);
         assert_eq!(restored.routes, session.routes);
         assert_eq!(restored.buses, session.buses);
@@ -322,6 +516,9 @@ mod tests {
                 id: new_id(),
                 name: "gain".to_string(),
                 value: 0.75,
+                default_value: 0.75,
+                min_value: 0.0,
+                max_value: 1.0,
                 unit: "linear".to_string(),
             }],
             runtime_target: Some("audio:source".to_string()),
@@ -330,6 +527,12 @@ mod tests {
                 controller: ControllerKind::Shared,
                 is_locked: false,
             },
+            enabled: true,
+            audio_primitive: Some(AudioPrimitive::Source(AudioSourceNode {
+                source_type: AudioSourceType::Oscillator,
+                channel_mode: ChannelMode::Mono,
+                bus_target_id: None,
+            })),
         };
 
         assert!(!node.id.is_empty());
@@ -339,6 +542,11 @@ mod tests {
         assert_eq!(node.runtime_target.as_deref(), Some("audio:source"));
         assert_eq!(node.scene_membership.len(), 1);
         assert_eq!(node.ownership.controller, ControllerKind::Shared);
+        assert!(node.enabled);
+        assert!(matches!(
+            node.audio_primitive,
+            Some(AudioPrimitive::Source(_))
+        ));
     }
 
     #[test]

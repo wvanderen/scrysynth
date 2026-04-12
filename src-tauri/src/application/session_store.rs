@@ -1,7 +1,9 @@
 use crate::domain::session::{
-    new_id, Bus, ControllerKind, MacroDefinition, MacroOverride, Node, NodeType,
-    OwnershipAssignment, OwnershipRule, ParameterOverride, ParameterValue, Port, PortDirection,
-    Route, RuntimeConnectionState, RuntimeKind, RuntimeStatusRef, SceneDefinition, SessionDocument,
+    new_id, AudioBusType, AudioOutputNode, AudioOutputType, AudioPrimitive, AudioRuntimeHealth,
+    AudioRuntimeLifecycle, AudioRuntimeState, AudioSourceNode, AudioSourceType, Bus, ChannelMode,
+    ControllerKind, MacroDefinition, MacroOverride, Node, NodeType, OwnershipAssignment,
+    OwnershipRule, ParameterOverride, ParameterValue, Port, PortDirection, Route,
+    RuntimeConnectionState, RuntimeKind, RuntimeStatusRef, SceneDefinition, SessionDocument,
     SignalType, VariationDefinition,
 };
 
@@ -38,6 +40,15 @@ fn build_default_session() -> SessionDocument {
 
     SessionDocument {
         title: "Default Scrysynth Session".to_string(),
+        audio_runtime: AudioRuntimeState {
+            lifecycle: AudioRuntimeLifecycle::Idle,
+            health: AudioRuntimeHealth::Unknown,
+            sample_rate_hz: None,
+            block_size: None,
+            active_patch_id: None,
+            last_error: None,
+            panic_recovery_count: 0,
+        },
         nodes: vec![
             Node {
                 id: source_node_id.clone(),
@@ -52,6 +63,9 @@ fn build_default_session() -> SessionDocument {
                     id: parameter_id.clone(),
                     name: "level".to_string(),
                     value: 0.8,
+                    default_value: 0.8,
+                    min_value: 0.0,
+                    max_value: 1.0,
                     unit: "linear".to_string(),
                 }],
                 runtime_target: Some("audio/source/default".to_string()),
@@ -60,6 +74,12 @@ fn build_default_session() -> SessionDocument {
                     controller: ControllerKind::Shared,
                     is_locked: false,
                 },
+                enabled: true,
+                audio_primitive: Some(AudioPrimitive::Source(AudioSourceNode {
+                    source_type: AudioSourceType::Oscillator,
+                    channel_mode: ChannelMode::Mono,
+                    bus_target_id: Some(bus_id.clone()),
+                })),
             },
             Node {
                 id: master_node_id.clone(),
@@ -77,6 +97,12 @@ fn build_default_session() -> SessionDocument {
                     controller: ControllerKind::User,
                     is_locked: false,
                 },
+                enabled: true,
+                audio_primitive: Some(AudioPrimitive::Output(AudioOutputNode {
+                    output_type: AudioOutputType::Master,
+                    channels: 2,
+                    bus_target_id: Some(bus_id.clone()),
+                })),
             },
         ],
         routes: vec![Route {
@@ -91,6 +117,8 @@ fn build_default_session() -> SessionDocument {
             id: bus_id,
             name: "master_bus".to_string(),
             channels: 2,
+            bus_type: AudioBusType::Main,
+            is_enabled: true,
         }],
         macros: vec![MacroDefinition {
             id: macro_id.clone(),
