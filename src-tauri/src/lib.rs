@@ -1,4 +1,5 @@
 pub mod application;
+pub mod audio;
 pub mod domain;
 pub mod persistence;
 

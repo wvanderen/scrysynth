@@ -84,32 +84,34 @@ fn deterministic_session() -> SessionDocument {
     }
 }
 
-mod compiler {
-    use super::*;
+mod audio_runtime {
+    mod compiler {
+        use super::super::*;
 
-    #[test]
-    fn deterministic_topology_compilation_preserves_ordering() {
-        let session = deterministic_session();
+        #[test]
+        fn deterministic_topology_compilation_preserves_ordering() {
+            let session = deterministic_session();
 
-        let first = compile_session_to_topology(&session).expect("first compile succeeds");
-        let second = compile_session_to_topology(&session).expect("second compile succeeds");
+            let first = compile_session_to_topology(&session).expect("first compile succeeds");
+            let second = compile_session_to_topology(&session).expect("second compile succeeds");
 
-        assert_eq!(first, second, "deterministic");
-        assert_eq!(first.buses.len(), 1);
-        assert_eq!(first.node_launch_order.len(), 2);
-        assert_eq!(
-            first.group_order[0].node_ids,
-            vec!["node-source", "node-output"]
-        );
-    }
+            assert_eq!(first, second, "deterministic");
+            assert_eq!(first.buses.len(), 1);
+            assert_eq!(first.node_launch_order.len(), 2);
+            assert_eq!(
+                first.group_order[0].node_ids,
+                vec!["node-source", "node-output"]
+            );
+        }
 
-    #[test]
-    fn compile_error_rejects_missing_bus_reference() {
-        let mut session = deterministic_session();
-        session.buses.clear();
+        #[test]
+        fn compile_error_rejects_missing_bus_reference() {
+            let mut session = deterministic_session();
+            session.buses.clear();
 
-        let error = compile_session_to_topology(&session).expect_err("compile_error");
+            let error = compile_session_to_topology(&session).expect_err("compile_error");
 
-        assert!(error.to_string().contains("bus-main"));
+            assert!(error.to_string().contains("bus-main"));
+        }
     }
 }
