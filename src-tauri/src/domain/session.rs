@@ -28,6 +28,10 @@ pub struct SessionDocument {
     pub ownership_rules: Vec<OwnershipRule>,
     pub runtime_status: Vec<RuntimeStatusRef>,
     #[serde(default)]
+    pub visual_runtime: VisualRuntimeState,
+    #[serde(default)]
+    pub agent_runtime: AgentRuntimeState,
+    #[serde(default)]
     pub agent_frozen: bool,
     #[serde(default)]
     pub pending_actions: Vec<PendingAction>,
@@ -53,6 +57,8 @@ impl Default for SessionDocument {
             variations: Vec::new(),
             ownership_rules: Vec::new(),
             runtime_status: Vec::new(),
+            visual_runtime: VisualRuntimeState::default(),
+            agent_runtime: AgentRuntimeState::default(),
             agent_frozen: false,
             pending_actions: Vec::new(),
             action_history: Vec::new(),
@@ -93,6 +99,47 @@ pub enum AudioRuntimeHealth {
     Degraded,
     PanicRecovered,
     Error,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum VisualRuntimeLifecycle {
+    #[default]
+    Idle,
+    Starting,
+    Ready,
+    Rendering,
+    Failed,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum VisualRuntimeHealth {
+    #[default]
+    Unknown,
+    Healthy,
+    Degraded,
+    Error,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct VisualRuntimeState {
+    pub lifecycle: VisualRuntimeLifecycle,
+    pub health: VisualRuntimeHealth,
+    pub active_scene_id: Option<String>,
+    pub fps: Option<f32>,
+    pub last_error: Option<String>,
+    pub renderer: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRuntimeState {
+    #[serde(default = "default_true")]
+    pub is_available: bool,
+    pub pending_action_count: u32,
+    pub is_frozen: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -482,6 +529,10 @@ fn default_enabled() -> bool {
     true
 }
 
+fn default_true() -> bool {
+    true
+}
+
 fn parameter_default_value() -> f64 {
     0.0
 }
@@ -506,6 +557,10 @@ pub fn write_generated_typescript_contract() -> std::io::Result<()> {
         AudioRuntimeState::decl(&cfg),
         AudioRuntimeLifecycle::decl(&cfg),
         AudioRuntimeHealth::decl(&cfg),
+        VisualRuntimeLifecycle::decl(&cfg),
+        VisualRuntimeHealth::decl(&cfg),
+        VisualRuntimeState::decl(&cfg),
+        AgentRuntimeState::decl(&cfg),
         Node::decl(&cfg),
         NodeType::decl(&cfg),
         AudioPrimitive::decl(&cfg),

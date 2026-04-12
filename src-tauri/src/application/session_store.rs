@@ -373,6 +373,13 @@ fn build_default_session() -> SessionDocument {
                 target_id: Some("visual-runtime".to_string()),
                 last_error: None,
             },
+            RuntimeStatusRef {
+                id: new_id(),
+                runtime: RuntimeKind::Agent,
+                status: RuntimeConnectionState::Disconnected,
+                target_id: Some("agent-runtime".to_string()),
+                last_error: None,
+            },
         ],
         ..SessionDocument::default()
     }

@@ -2,6 +2,7 @@ pub mod application;
 pub mod audio;
 pub mod domain;
 pub mod persistence;
+pub mod visual;
 
 use std::fs;
 use std::path::PathBuf;

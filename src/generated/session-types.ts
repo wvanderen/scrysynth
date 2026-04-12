@@ -1,6 +1,6 @@
 // Generated from Rust session contracts.
 
-export type SessionDocument = { schemaVersion: number, sessionId: string, title: string, createdAt: string, updatedAt: string, transport: TransportState, audioRuntime: AudioRuntimeState, nodes: Array<Node>, routes: Array<Route>, buses: Array<Bus>, macros: Array<MacroDefinition>, scenes: Array<SceneDefinition>, variations: Array<VariationDefinition>, ownershipRules: Array<OwnershipRule>, runtimeStatus: Array<RuntimeStatusRef>, agentFrozen: boolean, pendingActions: Array<PendingAction>, actionHistory: Array<ActionHistoryEntry>, };
+export type SessionDocument = { schemaVersion: number, sessionId: string, title: string, createdAt: string, updatedAt: string, transport: TransportState, audioRuntime: AudioRuntimeState, nodes: Array<Node>, routes: Array<Route>, buses: Array<Bus>, macros: Array<MacroDefinition>, scenes: Array<SceneDefinition>, variations: Array<VariationDefinition>, ownershipRules: Array<OwnershipRule>, runtimeStatus: Array<RuntimeStatusRef>, visualRuntime: VisualRuntimeState, agentRuntime: AgentRuntimeState, agentFrozen: boolean, pendingActions: Array<PendingAction>, actionHistory: Array<ActionHistoryEntry>, };
 
 export type TransportState = { tempoBpm: number, isPlaying: boolean, positionBeats: number, };
 
@@ -9,6 +9,14 @@ export type AudioRuntimeState = { lifecycle: AudioRuntimeLifecycle, health: Audi
 export type AudioRuntimeLifecycle = "idle" | "booting" | "ready" | "running" | "recovering" | "failed";
 
 export type AudioRuntimeHealth = "unknown" | "healthy" | "degraded" | "panic_recovered" | "error";
+
+export type VisualRuntimeLifecycle = "idle" | "starting" | "ready" | "rendering" | "failed";
+
+export type VisualRuntimeHealth = "unknown" | "healthy" | "degraded" | "error";
+
+export type VisualRuntimeState = { lifecycle: VisualRuntimeLifecycle, health: VisualRuntimeHealth, activeSceneId: string | null, fps: number | null, lastError: string | null, renderer: string | null, };
+
+export type AgentRuntimeState = { isAvailable: boolean, pendingActionCount: number, isFrozen: boolean, };
 
 export type Node = { id: string, nodeType: NodeType, ports: Array<Port>, parameters: Array<ParameterValue>, runtimeTarget: string | null, sceneMembership: Array<string>, ownership: OwnershipAssignment, enabled: boolean, audioPrimitive: AudioPrimitive | null, };
 
