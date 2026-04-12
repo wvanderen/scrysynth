@@ -31,9 +31,9 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. User can save, close, and reload a session with graph structure, macro definitions, scene data, ownership rules, and runtime mapping state restored.
 **Plans**: 3 plans
 Plans:
-- [x] `01-session-core-recall-01-PLAN.md` — Define the canonical Rust session schema and Tauri session-store commands.
-- [x] `01-session-core-recall-02-PLAN.md` — Add versioned JSON save/open persistence and round-trip recall tests.
-- [x] `01-session-core-recall-03-PLAN.md` — Build the Phase 1 session workspace with graph inspection and save/open controls.
+- [x] `01-session-core-recall-01-PLAN.md` — Define the canonical Rust session schema, managed store, and fail-loud TS contract generation.
+- [x] `01-session-core-recall-02-PLAN.md` — Add versioned JSON save/open persistence with typed file errors and round-trip recall tests.
+- [x] `01-session-core-recall-03-PLAN.md` — Build the Phase 1 session workspace with native file dialogs, graph inspection, and tested selection behavior.
 **UI hint**: yes
 
 ### Phase 2: Playable Audio Graph
@@ -46,7 +46,12 @@ Plans:
   3. User can update supported audio parameters during playback and hear the result without rebuilding the whole session.
   4. User can route supported audio nodes through buses and grouped processing defined by the canonical session graph.
   5. User can stop all sound immediately with a panic-safe control that returns the app to a known safe state.
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] `02-playable-audio-graph-01-PLAN.md` - Expand the canonical session with bounded v1 audio primitives, validation, and graph-edit commands.
+- [ ] `02-playable-audio-graph-02-PLAN.md` - Add the supervised SuperCollider runtime foundation, deterministic graph compilation, and panic-safe transport.
+- [ ] `02-playable-audio-graph-03-PLAN.md` - Wire live playback controls into the workspace with incremental parameter and routing updates.
+**UI hint**: yes
 
 ### Phase 3: Performance Workspace
 **Goal**: Users can navigate the live instrument as one coherent workspace and recall structured performance states during a session.
@@ -92,7 +97,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Session Core & Recall | 3/3 | Complete | 2026-04-11 |
-| 2. Playable Audio Graph | 0/TBD | Not started | - |
+| 2. Playable Audio Graph | 0/3 | Planned | - |
 | 3. Performance Workspace | 0/TBD | Not started | - |
 | 4. Agent Collaboration | 0/TBD | Not started | - |
 | 5. Visual Sync & Cross-Modal Control | 0/TBD | Not started | - |

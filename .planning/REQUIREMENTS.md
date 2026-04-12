@@ -12,13 +12,13 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **SESS-01**: User can create and open a session whose canonical state includes nodes, routes, buses, macros, scenes, variations, ownership rules, and runtime status references.
 - [x] **SESS-02**: User can inspect the current session graph as visible nodes and connections instead of hidden runtime-only state.
 - [x] **SESS-03**: User can inspect a node's identity, type, ports, parameters, runtime target, scene membership, and ownership metadata.
-- [ ] **SESS-04**: User can create, remove, enable, and re-route supported v1 graph primitives without editing raw runtime internals.
+- [x] **SESS-04**: User can create, remove, enable, and re-route supported v1 graph primitives without editing raw runtime internals.
 
 ### Audio Runtime
 
 - [ ] **AUD-01**: User can hear playable audio from supported source, effect, and routing primitives executed through the SuperCollider adapter.
 - [ ] **AUD-02**: User can update supported audio parameters during playback and hear the change without rebuilding the whole session.
-- [ ] **AUD-03**: User can route supported audio nodes through buses and grouped processing defined by the canonical session graph.
+- [x] **AUD-03**: User can route supported audio nodes through buses and grouped processing defined by the canonical session graph.
 - [ ] **AUD-04**: User can stop all sound immediately with a panic-safe control that recovers the app to a known safe state.
 
 ### Interface
@@ -83,10 +83,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SESS-01 | Phase 1 | Complete |
 | SESS-02 | Phase 1 | Complete |
 | SESS-03 | Phase 1 | Complete |
-| SESS-04 | Phase 2 | Pending |
+| SESS-04 | Phase 2 | Complete |
 | AUD-01 | Phase 2 | Pending |
 | AUD-02 | Phase 2 | Pending |
-| AUD-03 | Phase 2 | Pending |
+| AUD-03 | Phase 2 | Complete |
 | AUD-04 | Phase 2 | Pending |
 | UI-01 | Phase 3 | Pending |
 | UI-02 | Phase 5 | Pending |
