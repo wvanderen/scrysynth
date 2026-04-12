@@ -482,6 +482,12 @@ pub fn write_generated_typescript_contract() -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, OnceLock};
+
+    fn contract_write_lock() -> &'static Mutex<()> {
+        static CONTRACT_WRITE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        CONTRACT_WRITE_LOCK.get_or_init(|| Mutex::new(()))
+    }
 
     #[test]
     fn session_document_default_round_trip_preserves_required_collections() {
@@ -551,6 +557,7 @@ mod tests {
 
     #[test]
     fn session_document_exports_typescript_contracts() {
+        let _guard = contract_write_lock().lock().expect("contract lock");
         write_generated_typescript_contract().expect("typescript contract is written");
 
         let file_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(GENERATED_TYPES_PATH);
@@ -700,6 +707,7 @@ mod tests {
 
     #[test]
     fn audio_graph_schema_exports_typescript_contracts() {
+        let _guard = contract_write_lock().lock().expect("contract lock");
         write_generated_typescript_contract().expect("typescript contract is written");
 
         let file_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(GENERATED_TYPES_PATH);
