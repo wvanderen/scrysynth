@@ -346,19 +346,319 @@ button:disabled {
   border-radius: 28px;
   padding: 1.5rem;
   min-height: 50vh;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
-.conversation-placeholder {
+.conversation-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.freeze-button-active {
+  border-color: rgba(255, 170, 130, 0.6);
+  background: rgba(96, 31, 24, 0.6);
+}
+
+.frozen-banner {
+  padding: 0.75rem 1rem;
+  border-radius: 14px;
+  background: rgba(76, 18, 16, 0.6);
+  border: 1px solid rgba(255, 147, 118, 0.4);
+  color: #ffd0bd;
+  text-align: center;
+}
+
+.conversation-messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+}
+
+.message-bubble {
+  padding: 0.75rem 1rem;
+  border-radius: 16px;
+  max-width: 80%;
+}
+
+.message-user {
+  align-self: flex-end;
+  background: rgba(247, 198, 106, 0.12);
+  border: 1px solid rgba(247, 198, 106, 0.3);
+}
+
+.message-agent {
+  align-self: flex-start;
+  background: rgba(17, 39, 37, 0.8);
+  border: 1px solid rgba(58, 88, 83, 0.8);
+}
+
+.message-role {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #c2b68c;
+  margin-bottom: 0.35rem;
+}
+
+.message-content {
+  margin: 0;
+}
+
+.intent-preview {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(92, 127, 120, 0.25);
+}
+
+.intent-confidence {
+  display: block;
+  font-size: 0.78rem;
+  color: #a8b8b0;
+  margin-bottom: 0.35rem;
+}
+
+.command-preview {
+  padding: 0.25rem 0.5rem;
+  border-radius: 8px;
+  background: rgba(10, 28, 26, 0.6);
+  margin-bottom: 0.25rem;
+}
+
+.command-preview code {
+  font-size: 0.82rem;
+  color: #d9c8a0;
+}
+
+.conversation-input-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.conversation-input {
+  flex: 1;
+  border-radius: 14px;
+  border: 1px solid rgba(92, 127, 120, 0.55);
+  padding: 0.75rem 1rem;
+  font: inherit;
+  color: #f2eee5;
+  background: rgba(10, 28, 26, 0.88);
+}
+
+.conversation-input:focus {
+  outline: none;
+  border-color: #f7c66a;
+}
+
+.conversation-input::placeholder {
+  color: #6a7a74;
+}
+
+.pending-actions {
+  padding: 0.75rem;
+  border-radius: 18px;
+  background: rgba(17, 39, 37, 0.5);
+  border: 1px solid rgba(58, 88, 83, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.pending-action-card {
+  padding: 0.75rem 1rem;
+  border-radius: 14px;
+  background: rgba(10, 28, 26, 0.88);
+  border: 1px solid rgba(92, 127, 120, 0.4);
+}
+
+.risk-badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.risk-low {
+  border-color: rgba(100, 200, 150, 0.5);
+  color: #8fd4b0;
+  background: rgba(40, 100, 70, 0.3);
+}
+
+.risk-medium {
+  border-color: rgba(247, 198, 106, 0.5);
+  color: #f7c66a;
+  background: rgba(120, 100, 30, 0.3);
+}
+
+.risk-high {
+  border-color: rgba(255, 147, 118, 0.5);
+  color: #ff9376;
+  background: rgba(120, 40, 30, 0.3);
+}
+
+.pending-action-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.pending-action-time {
+  font-size: 0.78rem;
+  color: #a8b8b0;
+}
+
+.pending-action-command {
+  margin: 0 0 0.5rem;
+  font-family: "IBM Plex Mono", "Fira Code", monospace;
+  font-size: 0.88rem;
+}
+
+.pending-action-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.activity-panel {
   margin-top: 1rem;
-  padding: 1.5rem;
+  border: 1px solid rgba(92, 127, 120, 0.34);
+  background: rgba(9, 24, 22, 0.84);
   border-radius: 20px;
-  background: rgba(17, 39, 37, 0.6);
+  padding: 1rem;
+}
+
+.activity-filters {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.activity-list {
+  margin-top: 0.75rem;
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.activity-entry {
+  padding: 0.65rem 0.85rem;
+  border-radius: 14px;
+  background: rgba(10, 28, 26, 0.88);
   border: 1px solid rgba(58, 88, 83, 0.5);
 }
 
-.conversation-session-ref {
-  margin-top: 1rem;
+.activity-entry-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.35rem;
+}
+
+.actor-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.actor-user {
+  background: rgba(80, 140, 220, 0.2);
+  color: #7ab8ff;
+  border: 1px solid rgba(80, 140, 220, 0.4);
+}
+
+.actor-agent {
+  background: rgba(220, 170, 60, 0.2);
+  color: #f7c66a;
+  border: 1px solid rgba(220, 170, 60, 0.4);
+}
+
+.activity-timestamp {
+  font-size: 0.75rem;
   color: #a8b8b0;
+}
+
+.activity-description {
+  margin: 0 0 0.25rem;
+  font-size: 0.9rem;
+}
+
+.activity-detail {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.activity-command {
+  font-size: 0.78rem;
+  color: #d9c8a0;
+}
+
+.affected-nodes {
+  font-size: 0.78rem;
+  color: #a8b8b0;
+}
+
+.ownership-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.ownership-badge {
+  display: inline-block;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.badge-user {
+  background: rgba(80, 140, 220, 0.2);
+  color: #7ab8ff;
+  border: 1px solid rgba(80, 140, 220, 0.4);
+}
+
+.badge-agent {
+  background: rgba(220, 170, 60, 0.2);
+  color: #f7c66a;
+  border: 1px solid rgba(220, 170, 60, 0.4);
+}
+
+.badge-shared {
+  background: rgba(100, 200, 150, 0.2);
+  color: #8fd4b0;
+  border: 1px solid rgba(100, 200, 150, 0.4);
+}
+
+.lock-indicator {
+  font-size: 0.78rem;
+  color: #ff9376;
+}
+
+.ownership-quick-set {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.ownership-set-button {
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.78rem;
 }
 
 .performance-view {

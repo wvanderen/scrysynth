@@ -1,7 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
 import { z } from "zod";
 
-import type { GraphEditCommand, PerformanceCommand, SessionDocument } from "../generated/session-types";
+import type {
+  ActionHistoryEntry,
+  AgentIntent,
+  GraphEditCommand,
+  PerformanceCommand,
+  PendingAction,
+  SessionDocument,
+  TypedCommand,
+} from "../generated/session-types";
 
 const transportStateSchema = z.object({
   tempoBpm: z.number(),
@@ -151,6 +159,65 @@ const audioRuntimeSchema = z.object({
   panicRecoveryCount: z.number(),
 });
 
+const graphEditCommandSchema: z.ZodType<GraphEditCommand> = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("addNode"), payload: z.object({ node: nodeSchema }) }),
+  z.object({ type: z.literal("removeNode"), payload: z.object({ node_id: z.string() }) }),
+  z.object({ type: z.literal("setNodeEnabled"), payload: z.object({ node_id: z.string(), enabled: z.boolean() }) }),
+  z.object({ type: z.literal("setParameterValue"), payload: z.object({ node_id: z.string(), parameter_id: z.string(), value: z.number() }) }),
+  z.object({ type: z.literal("addRoute"), payload: z.object({ route: routeSchema }) }),
+  z.object({ type: z.literal("removeRoute"), payload: z.object({ route_id: z.string() }) }),
+  z.object({ type: z.literal("assignNodeToBus"), payload: z.object({ node_id: z.string(), bus_id: z.string() }) }),
+  z.object({ type: z.literal("clearNodeBusAssignment"), payload: z.object({ node_id: z.string() }) }),
+]);
+
+const performanceCommandSchema: z.ZodType<PerformanceCommand> = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("recallScene"), payload: z.object({ scene_id: z.string() }) }),
+  z.object({ type: z.literal("saveVariation"), payload: z.object({ name: z.string(), scene_id: z.string() }) }),
+  z.object({ type: z.literal("restoreVariation"), payload: z.object({ variation_id: z.string() }) }),
+]);
+
+const typedCommandSchema: z.ZodType<TypedCommand> = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("graphEdit"), payload: graphEditCommandSchema }),
+  z.object({ type: z.literal("performance"), payload: performanceCommandSchema }),
+]);
+
+const actorRefSchema = z.object({
+  actorId: z.string(),
+  correlationId: z.string(),
+});
+
+const diffSummarySchema = z.object({
+  description: z.string(),
+  affectedNodeIds: z.array(z.string()),
+  beforeSnippet: z.string(),
+  afterSnippet: z.string(),
+});
+
+const pendingActionStatusSchema = z.enum(["pending", "approved", "rejected"]);
+
+const pendingActionSchema: z.ZodType<PendingAction> = z.object({
+  id: z.string(),
+  correlationId: z.string(),
+  command: typedCommandSchema,
+  riskTier: z.enum(["low", "medium", "high"]),
+  createdAt: z.string(),
+  status: pendingActionStatusSchema,
+});
+
+const actionHistoryEntrySchema: z.ZodType<ActionHistoryEntry> = z.object({
+  id: z.string(),
+  timestamp: z.string(),
+  actor: actorRefSchema,
+  command: typedCommandSchema,
+  diff: diffSummarySchema,
+});
+
+const agentIntentSchema: z.ZodType<AgentIntent> = z.object({
+  rawInput: z.string(),
+  parsedCommands: z.array(typedCommandSchema),
+  confidence: z.number(),
+});
+
 const sessionDocumentSchema: z.ZodType<SessionDocument> = z.object({
   schemaVersion: z.number(),
   sessionId: z.string(),
@@ -167,6 +234,9 @@ const sessionDocumentSchema: z.ZodType<SessionDocument> = z.object({
   variations: z.array(variationDefinitionSchema),
   ownershipRules: z.array(ownershipRuleSchema),
   runtimeStatus: z.array(runtimeStatusSchema),
+  agentFrozen: z.boolean(),
+  pendingActions: z.array(pendingActionSchema),
+  actionHistory: z.array(actionHistoryEntrySchema),
 });
 
 async function invokeSession(command: string, args?: Record<string, unknown>) {
@@ -212,4 +282,33 @@ export async function panicAudioRuntime(): Promise<SessionDocument> {
 
 export async function applyPerformanceCommand(command: PerformanceCommand): Promise<SessionDocument> {
   return invokeSession("apply_performance_command", { command });
+}
+
+const agentMessageResponseSchema = z.object({
+  session: sessionDocumentSchema,
+  intent: agentIntentSchema,
+});
+
+export async function sendAgentMessage(message: string): Promise<{ session: SessionDocument; intent: AgentIntent }> {
+  const payload = await invoke("send_agent_message", { message });
+  return agentMessageResponseSchema.parse(payload);
+}
+
+export async function toggleAgentFreeze(): Promise<SessionDocument> {
+  return invokeSession("toggle_agent_freeze");
+}
+
+export async function reclaimOwnership(nodeIds?: string[], targetController?: string): Promise<SessionDocument> {
+  return invokeSession("reclaim_ownership", {
+    nodeIds: nodeIds ?? null,
+    targetController: targetController ?? null,
+  });
+}
+
+export async function approvePendingAction(actionId: string): Promise<SessionDocument> {
+  return invokeSession("approve_pending_action", { actionId });
+}
+
+export async function rejectPendingAction(actionId: string): Promise<SessionDocument> {
+  return invokeSession("reject_pending_action", { actionId });
 }

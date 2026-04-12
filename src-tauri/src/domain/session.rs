@@ -27,6 +27,12 @@ pub struct SessionDocument {
     pub variations: Vec<VariationDefinition>,
     pub ownership_rules: Vec<OwnershipRule>,
     pub runtime_status: Vec<RuntimeStatusRef>,
+    #[serde(default)]
+    pub agent_frozen: bool,
+    #[serde(default)]
+    pub pending_actions: Vec<PendingAction>,
+    #[serde(default)]
+    pub action_history: Vec<ActionHistoryEntry>,
 }
 
 impl Default for SessionDocument {
@@ -47,6 +53,9 @@ impl Default for SessionDocument {
             variations: Vec::new(),
             ownership_rules: Vec::new(),
             runtime_status: Vec::new(),
+            agent_frozen: false,
+            pending_actions: Vec::new(),
+            action_history: Vec::new(),
         }
     }
 }
@@ -401,6 +410,74 @@ pub enum PerformanceCommand {
     RestoreVariation { variation_id: String },
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct ActorRef {
+    pub actor_id: String,
+    pub correlation_id: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "type", content = "payload", rename_all = "camelCase")]
+pub enum TypedCommand {
+    GraphEdit(GraphEditCommand),
+    Performance(PerformanceCommand),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentIntent {
+    pub raw_input: String,
+    pub parsed_commands: Vec<TypedCommand>,
+    pub confidence: f64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum RiskTier {
+    Low,
+    Medium,
+    High,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct DiffSummary {
+    pub description: String,
+    pub affected_node_ids: Vec<String>,
+    pub before_snippet: String,
+    pub after_snippet: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum PendingActionStatus {
+    Pending,
+    Approved,
+    Rejected,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct PendingAction {
+    pub id: String,
+    pub correlation_id: String,
+    pub command: TypedCommand,
+    pub risk_tier: RiskTier,
+    pub created_at: String,
+    pub status: PendingActionStatus,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct ActionHistoryEntry {
+    pub id: String,
+    pub timestamp: String,
+    pub actor: ActorRef,
+    pub command: TypedCommand,
+    pub diff: DiffSummary,
+}
+
 fn default_enabled() -> bool {
     true
 }
@@ -460,6 +537,14 @@ pub fn write_generated_typescript_contract() -> std::io::Result<()> {
         RuntimeConnectionState::decl(&cfg),
         GraphEditCommand::decl(&cfg),
         PerformanceCommand::decl(&cfg),
+        ActorRef::decl(&cfg),
+        TypedCommand::decl(&cfg),
+        AgentIntent::decl(&cfg),
+        RiskTier::decl(&cfg),
+        DiffSummary::decl(&cfg),
+        PendingActionStatus::decl(&cfg),
+        PendingAction::decl(&cfg),
+        ActionHistoryEntry::decl(&cfg),
     ]
     .join("\n\n");
 

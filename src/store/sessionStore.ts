@@ -1,8 +1,12 @@
 import { create } from "zustand";
 
 import type {
+  ActionHistoryEntry,
+  AgentIntent,
+  ControllerKind,
   GraphEditCommand,
   Node,
+  PendingAction,
   PerformanceCommand,
   Route,
   SessionDocument,
@@ -10,13 +14,18 @@ import type {
 import {
   applyGraphEdit as applyGraphEditCommand,
   applyPerformanceCommand as applyPerformanceCommandIPC,
+  approvePendingAction as approvePendingActionIPC,
   createDefaultSession,
   getCurrentSession,
   openSessionFromPath,
   panicAudioRuntime,
+  reclaimOwnership as reclaimOwnershipIPC,
+  rejectPendingAction as rejectPendingActionIPC,
   saveSessionToPath,
+  sendAgentMessage as sendAgentMessageIPC,
   startAudioRuntime,
   stopAudioRuntime,
+  toggleAgentFreeze as toggleAgentFreezeIPC,
 } from "../lib/session-client";
 import {
   type AudioRuntimeProjection,
@@ -26,6 +35,14 @@ import {
 } from "./session-projections";
 
 export type WorkspaceView = "graph" | "conversation" | "performance";
+
+export type ConversationMessage = {
+  id: string;
+  role: "user" | "agent";
+  content: string;
+  timestamp: string;
+  intent?: AgentIntent;
+};
 
 type SessionStore = {
   session: SessionDocument | null;
@@ -37,6 +54,10 @@ type SessionStore = {
   isLoading: boolean;
   error: string | null;
   workspaceView: WorkspaceView;
+  conversationMessages: ConversationMessage[];
+  agentFrozen: boolean;
+  pendingActions: PendingAction[];
+  actionHistory: ActionHistoryEntry[];
   bootstrapSession: () => Promise<void>;
   newSession: () => Promise<void>;
   saveSession: (path: string) => Promise<void>;
@@ -57,6 +78,12 @@ type SessionStore = {
   recallScene: (sceneId: string) => Promise<void>;
   saveVariation: (name: string, sceneId: string) => Promise<void>;
   restoreVariation: (variationId: string) => Promise<void>;
+  sendAgentMessage: (message: string) => Promise<void>;
+  toggleFreezeAgent: () => Promise<void>;
+  reclaimOwnership: (nodeIds?: string[], targetController?: ControllerKind) => Promise<void>;
+  setNodeOwnership: (nodeIds: string[], targetController: ControllerKind) => Promise<void>;
+  approvePendingAction: (actionId: string) => Promise<void>;
+  rejectPendingAction: (actionId: string) => Promise<void>;
 };
 
 function applySession(
@@ -86,6 +113,9 @@ function applySession(
     graphEdges: projection.graphEdges,
     audioRuntime: projection.audioRuntime,
     topologySignature: projection.topologySignature,
+    agentFrozen: session.agentFrozen,
+    pendingActions: session.pendingActions,
+    actionHistory: session.actionHistory,
   };
 }
 
@@ -138,6 +168,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   isLoading: false,
   error: null,
   workspaceView: "graph" as WorkspaceView,
+  conversationMessages: [],
+  agentFrozen: false,
+  pendingActions: [],
+  actionHistory: [],
   bootstrapSession: async () => {
     set({ isLoading: true, error: null });
 
@@ -366,6 +400,112 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       set({ ...applySession(session, current.selectedNodeId, current), isLoading: false });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to restore variation.";
+      set({ isLoading: false, error: message });
+    }
+  },
+  sendAgentMessage: async (message) => {
+    const userMessage: ConversationMessage = {
+      id: globalThis.crypto.randomUUID(),
+      role: "user",
+      content: message,
+      timestamp: new Date().toISOString(),
+    };
+
+    set((state) => ({
+      conversationMessages: [...state.conversationMessages, userMessage],
+      isLoading: true,
+      error: null,
+    }));
+
+    try {
+      const { session, intent } = await sendAgentMessageIPC(message);
+      const agentMessage: ConversationMessage = {
+        id: globalThis.crypto.randomUUID(),
+        role: "agent",
+        content: intent.parsedCommands.length > 0
+          ? `Understood ${intent.parsedCommands.length} command(s).`
+          : "No commands parsed from that input.",
+        timestamp: new Date().toISOString(),
+        intent,
+      };
+      const current = get();
+      set({
+        ...applySession(session, current.selectedNodeId, current),
+        conversationMessages: [...current.conversationMessages, agentMessage],
+        isLoading: false,
+      });
+    } catch (error) {
+      const errMessage = error instanceof Error ? error.message : "Unable to send message.";
+      const agentMessage: ConversationMessage = {
+        id: globalThis.crypto.randomUUID(),
+        role: "agent",
+        content: `Error: ${errMessage}`,
+        timestamp: new Date().toISOString(),
+      };
+      set((state) => ({
+        conversationMessages: [...state.conversationMessages, agentMessage],
+        isLoading: false,
+        error: errMessage,
+      }));
+    }
+  },
+  toggleFreezeAgent: async () => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const session = await toggleAgentFreezeIPC();
+      const current = get();
+      set({ ...applySession(session, current.selectedNodeId, current), isLoading: false });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to toggle agent freeze.";
+      set({ isLoading: false, error: message });
+    }
+  },
+  reclaimOwnership: async (nodeIds) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const session = await reclaimOwnershipIPC(nodeIds);
+      const current = get();
+      set({ ...applySession(session, current.selectedNodeId, current), isLoading: false });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to reclaim ownership.";
+      set({ isLoading: false, error: message });
+    }
+  },
+  setNodeOwnership: async (nodeIds, targetController) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const session = await reclaimOwnershipIPC(nodeIds, targetController);
+      const current = get();
+      set({ ...applySession(session, current.selectedNodeId, current), isLoading: false });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to set ownership.";
+      set({ isLoading: false, error: message });
+    }
+  },
+  approvePendingAction: async (actionId) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const session = await approvePendingActionIPC(actionId);
+      const current = get();
+      set({ ...applySession(session, current.selectedNodeId, current), isLoading: false });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to approve action.";
+      set({ isLoading: false, error: message });
+    }
+  },
+  rejectPendingAction: async (actionId) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const session = await rejectPendingActionIPC(actionId);
+      const current = get();
+      set({ ...applySession(session, current.selectedNodeId, current), isLoading: false });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to reject action.";
       set({ isLoading: false, error: message });
     }
   },

@@ -25,6 +25,7 @@ function App() {
     isLoading,
     error,
     workspaceView,
+    actionHistory,
     bootstrapSession,
     newSession,
     saveSession,
@@ -44,6 +45,8 @@ function App() {
     recallScene,
     saveVariation,
     restoreVariation,
+    reclaimOwnership,
+    setNodeOwnership,
   } = useSessionStore();
 
   useEffect(() => {
@@ -125,12 +128,14 @@ function App() {
             }
             onAssignNodeToBus={(nodeId, busId) => void assignNodeToBus(nodeId, busId)}
             onClearNodeBus={(nodeId) => void clearNodeBusAssignment(nodeId)}
+            onReclaimOwnership={(nodeIds) => void reclaimOwnership(nodeIds)}
+            onSetNodeOwnership={(nodeIds, controller) => void setNodeOwnership(nodeIds, controller)}
           />
         </section>
       ) : null}
 
       {workspaceView === "conversation" ? (
-        <ConversationView sessionTitle={session?.title ?? "No session"} />
+        <ConversationView />
       ) : null}
 
       {workspaceView === "performance" ? (
@@ -138,6 +143,7 @@ function App() {
           scenes={session?.scenes ?? []}
           variations={session?.variations ?? []}
           enabledNodes={session?.nodes ?? []}
+          actionHistory={actionHistory}
           isLoading={isLoading}
           onRecallScene={(sceneId) => void recallScene(sceneId)}
           onSaveVariation={(name, sceneId) => void saveVariation(name, sceneId)}

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 
-import type { Node, SceneDefinition, VariationDefinition } from "../../generated/session-types";
+import type { ActionHistoryEntry, Node, SceneDefinition, VariationDefinition } from "../../generated/session-types";
+import { ActivityPanel } from "./ActivityPanel";
 import { ScenePanel } from "./ScenePanel";
 import { VariationPanel } from "./VariationPanel";
 
@@ -8,6 +9,7 @@ type PerformanceViewProps = {
   scenes: SceneDefinition[];
   variations: VariationDefinition[];
   enabledNodes: Node[];
+  actionHistory: ActionHistoryEntry[];
   isLoading: boolean;
   onRecallScene: (sceneId: string) => void;
   onSaveVariation: (name: string, sceneId: string) => void;
@@ -18,6 +20,7 @@ export function PerformanceView({
   scenes,
   variations,
   enabledNodes,
+  actionHistory,
   isLoading,
   onRecallScene,
   onSaveVariation,
@@ -81,6 +84,8 @@ export function PerformanceView({
           />
         </div>
       </div>
+
+      <ActivityPanel actionHistory={actionHistory} />
     </section>
   );
 }

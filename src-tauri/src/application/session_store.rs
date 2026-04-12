@@ -1,12 +1,40 @@
 use crate::audio::runtime_manager::{AudioRuntimeManager, AudioRuntimeManagerError};
 use crate::domain::session::{
-    new_id, AudioBusType, AudioOutputNode, AudioOutputType, AudioPrimitive, AudioRuntimeHealth,
-    AudioRuntimeLifecycle, AudioRuntimeState, AudioSourceNode, AudioSourceType, Bus, ChannelMode,
-    ControllerKind, MacroDefinition, MacroOverride, Node, NodeType, OwnershipAssignment,
-    OwnershipRule, ParameterOverride, ParameterValue, Port, PortDirection, Route,
+    new_id, ActionHistoryEntry, ActorRef, AudioBusType, AudioOutputNode, AudioOutputType,
+    AudioPrimitive, AudioRuntimeHealth, AudioRuntimeLifecycle, AudioRuntimeState, AudioSourceNode,
+    AudioSourceType, Bus, ChannelMode, ControllerKind, DiffSummary, GraphEditCommand,
+    MacroDefinition, MacroOverride, Node, NodeType, OwnershipAssignment, OwnershipRule,
+    ParameterOverride, ParameterValue, PerformanceCommand, Port, PortDirection, Route,
     RuntimeConnectionState, RuntimeKind, RuntimeStatusRef, SceneDefinition, SessionDocument,
-    SignalType, VariationDefinition,
+    SignalType, TypedCommand, VariationDefinition,
 };
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct OwnershipGateError {
+    pub node_id: String,
+    pub reason: OwnershipGateReason,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum OwnershipGateReason {
+    AgentFrozen,
+    LockedNode,
+    AgentBlockedByUserOwnership,
+}
+
+impl std::fmt::Display for OwnershipGateError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.reason {
+            OwnershipGateReason::AgentFrozen => write!(f, "agent is frozen"),
+            OwnershipGateReason::LockedNode => write!(f, "node '{}' is locked", self.node_id),
+            OwnershipGateReason::AgentBlockedByUserOwnership => {
+                write!(f, "node '{}' is user-owned", self.node_id)
+            }
+        }
+    }
+}
+
+impl std::error::Error for OwnershipGateError {}
 
 #[derive(Debug)]
 pub struct SessionStore {
@@ -59,6 +87,151 @@ impl SessionStore {
         mutate(&mut next)?;
         self.current = next.clone();
         Ok(next)
+    }
+
+    pub fn check_ownership(
+        &self,
+        actor: &ActorRef,
+        command: &TypedCommand,
+    ) -> Result<(), Vec<OwnershipGateError>> {
+        if actor.actor_id == "user" {
+            return Ok(());
+        }
+
+        if self.current.agent_frozen {
+            return Err(vec![OwnershipGateError {
+                node_id: String::new(),
+                reason: OwnershipGateReason::AgentFrozen,
+            }]);
+        }
+
+        let target_ids = extract_target_node_ids(command);
+        let mut errors = Vec::new();
+
+        for node_id in &target_ids {
+            if let Some(node) = self.current.nodes.iter().find(|n| &n.id == node_id) {
+                if node.ownership.is_locked {
+                    errors.push(OwnershipGateError {
+                        node_id: node_id.clone(),
+                        reason: OwnershipGateReason::LockedNode,
+                    });
+                } else if node.ownership.controller == ControllerKind::User {
+                    errors.push(OwnershipGateError {
+                        node_id: node_id.clone(),
+                        reason: OwnershipGateReason::AgentBlockedByUserOwnership,
+                    });
+                }
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+
+    pub fn log_action(&mut self, actor: &ActorRef, command: &TypedCommand) {
+        let _ = self.mutate_current(|session| {
+            let diff = generate_diff_summary(command, session);
+            let entry = ActionHistoryEntry {
+                id: new_id(),
+                timestamp: "2026-04-12T00:00:00Z".to_string(),
+                actor: actor.clone(),
+                command: command.clone(),
+                diff,
+            };
+            session.action_history.push(entry);
+            if session.action_history.len() > 200 {
+                session
+                    .action_history
+                    .drain(0..session.action_history.len() - 200);
+            }
+            Ok::<(), ()>(())
+        });
+    }
+}
+
+fn extract_target_node_ids(command: &TypedCommand) -> Vec<String> {
+    match command {
+        TypedCommand::GraphEdit(gec) => match gec {
+            GraphEditCommand::AddNode { .. } => vec![],
+            GraphEditCommand::RemoveNode { node_id } => vec![node_id.clone()],
+            GraphEditCommand::SetNodeEnabled { node_id, .. } => vec![node_id.clone()],
+            GraphEditCommand::SetParameterValue { node_id, .. } => vec![node_id.clone()],
+            GraphEditCommand::AddRoute { route } => {
+                vec![route.source_node_id.clone(), route.target_node_id.clone()]
+            }
+            GraphEditCommand::RemoveRoute { .. } => vec![],
+            GraphEditCommand::AssignNodeToBus { node_id, .. } => vec![node_id.clone()],
+            GraphEditCommand::ClearNodeBusAssignment { node_id } => vec![node_id.clone()],
+        },
+        TypedCommand::Performance(_) => vec![],
+    }
+}
+
+fn generate_diff_summary(command: &TypedCommand, _session: &SessionDocument) -> DiffSummary {
+    let (description, affected_node_ids) = match command {
+        TypedCommand::GraphEdit(GraphEditCommand::AddNode { node }) => (
+            format!(
+                "Added {} node",
+                format!("{:?}", node.node_type).to_lowercase()
+            ),
+            vec![node.id.clone()],
+        ),
+        TypedCommand::GraphEdit(GraphEditCommand::RemoveNode { node_id }) => {
+            (format!("Removed node {}", node_id), vec![node_id.clone()])
+        }
+        TypedCommand::GraphEdit(GraphEditCommand::SetNodeEnabled { node_id, enabled }) => (
+            format!(
+                "Set node {} {}",
+                node_id,
+                if *enabled { "enabled" } else { "disabled" }
+            ),
+            vec![node_id.clone()],
+        ),
+        TypedCommand::GraphEdit(GraphEditCommand::SetParameterValue {
+            node_id,
+            parameter_id,
+            value,
+        }) => (
+            format!("Set parameter {} to {} on {}", parameter_id, value, node_id),
+            vec![node_id.clone()],
+        ),
+        TypedCommand::GraphEdit(GraphEditCommand::AddRoute { route }) => (
+            format!(
+                "Added route from {} to {}",
+                route.source_node_id, route.target_node_id
+            ),
+            vec![route.source_node_id.clone(), route.target_node_id.clone()],
+        ),
+        TypedCommand::GraphEdit(GraphEditCommand::RemoveRoute { route_id }) => {
+            (format!("Removed route {}", route_id), vec![])
+        }
+        TypedCommand::GraphEdit(GraphEditCommand::AssignNodeToBus { node_id, bus_id }) => (
+            format!("Assigned node {} to bus {}", node_id, bus_id),
+            vec![node_id.clone()],
+        ),
+        TypedCommand::GraphEdit(GraphEditCommand::ClearNodeBusAssignment { node_id }) => (
+            format!("Cleared bus assignment for node {}", node_id),
+            vec![node_id.clone()],
+        ),
+        TypedCommand::Performance(PerformanceCommand::RecallScene { scene_id }) => {
+            (format!("Recalled scene {}", scene_id), vec![])
+        }
+        TypedCommand::Performance(PerformanceCommand::SaveVariation { name, .. }) => {
+            (format!("Saved variation '{}'", name), vec![])
+        }
+        TypedCommand::Performance(PerformanceCommand::RestoreVariation { variation_id }) => {
+            (format!("Restored variation {}", variation_id), vec![])
+        }
+    };
+
+    DiffSummary {
+        description,
+        affected_node_ids,
+        before_snippet: String::new(),
+        after_snippet: String::new(),
     }
 }
 

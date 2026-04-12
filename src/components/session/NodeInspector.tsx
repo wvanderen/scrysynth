@@ -1,4 +1,4 @@
-import type { Bus, Node } from "../../generated/session-types";
+import type { Bus, ControllerKind, Node } from "../../generated/session-types";
 
 type NodeInspectorProps = {
   selectedNode: Node | null;
@@ -8,6 +8,8 @@ type NodeInspectorProps = {
   onUpdateParameter: (nodeId: string, parameterId: string, value: number) => void;
   onAssignNodeToBus: (nodeId: string, busId: string) => void;
   onClearNodeBus: (nodeId: string) => void;
+  onReclaimOwnership: (nodeIds: string[]) => void;
+  onSetNodeOwnership: (nodeIds: string[], controller: ControllerKind) => void;
 };
 
 export function NodeInspector({
@@ -18,6 +20,8 @@ export function NodeInspector({
   onUpdateParameter,
   onAssignNodeToBus,
   onClearNodeBus,
+  onReclaimOwnership,
+  onSetNodeOwnership,
 }: NodeInspectorProps) {
   if (!selectedNode) {
     return (
@@ -58,8 +62,29 @@ export function NodeInspector({
 
       <div className="inspector-group">
         <h2>Ownership</h2>
-        <p><strong>controller</strong> {selectedNode.ownership.controller}</p>
-        <p><strong>locked</strong> {selectedNode.ownership.isLocked ? "yes" : "no"}</p>
+        <div className="ownership-row">
+          <span className={`ownership-badge badge-${selectedNode.ownership.controller}`}>
+            {selectedNode.ownership.controller}
+          </span>
+          {selectedNode.ownership.isLocked ? (
+            <span className="lock-indicator">locked</span>
+          ) : null}
+        </div>
+        <div className="ownership-quick-set">
+          {(["user", "agent", "shared"] as const)
+            .filter((c) => c !== selectedNode.ownership.controller)
+            .map((controller: ControllerKind) => (
+              <button
+                key={controller}
+                type="button"
+                className="ownership-set-button"
+                disabled={isLoading}
+                onClick={() => onSetNodeOwnership([selectedNode.id], controller)}
+              >
+                Set {controller}
+              </button>
+            ))}
+        </div>
       </div>
 
       <div className="inspector-group">

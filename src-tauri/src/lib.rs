@@ -7,11 +7,13 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use application::agent_command;
 use application::graph_edit;
 use application::performance_command;
 use application::session_store::SessionStore;
 use domain::session::{
-    write_generated_typescript_contract, GraphEditCommand, PerformanceCommand, SessionDocument,
+    write_generated_typescript_contract, ActorRef, ControllerKind, GraphEditCommand,
+    PerformanceCommand, SessionDocument,
 };
 use persistence::session_file;
 
@@ -102,6 +104,67 @@ fn apply_performance_command(
         .map_err(|err| err.to_string())
 }
 
+#[tauri::command]
+fn send_agent_message(
+    message: String,
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<serde_json::Value, String> {
+    let mut store = state.lock().map_err(|err| err.to_string())?;
+    let session = store.current();
+    let intent = agent_command::parse_agent_intent(&message, &session);
+    let actor = ActorRef {
+        actor_id: "agent".to_string(),
+        correlation_id: domain::session::new_id(),
+    };
+    let _result = agent_command::apply_agent_command(&mut store, actor.clone(), intent.clone())
+        .map_err(|err| err.to_string())?;
+
+    let session = store.current();
+    serde_json::to_value(serde_json::json!({
+        "session": session,
+        "intent": intent,
+    }))
+    .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+fn toggle_agent_freeze(
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<SessionDocument, String> {
+    let mut store = state.lock().map_err(|err| err.to_string())?;
+    agent_command::toggle_agent_freeze(&mut store)
+}
+
+#[tauri::command]
+fn reclaim_ownership(
+    node_ids: Option<Vec<String>>,
+    target_controller: Option<ControllerKind>,
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<SessionDocument, String> {
+    let mut store = state.lock().map_err(|err| err.to_string())?;
+    agent_command::reclaim_ownership(&mut store, node_ids, target_controller)
+}
+
+#[tauri::command]
+fn approve_pending_action(
+    pending_action_id: String,
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<SessionDocument, String> {
+    let mut store = state.lock().map_err(|err| err.to_string())?;
+    agent_command::approve_pending_action(&mut store, &pending_action_id)
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+fn reject_pending_action(
+    pending_action_id: String,
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<SessionDocument, String> {
+    let mut store = state.lock().map_err(|err| err.to_string())?;
+    agent_command::reject_pending_action(&mut store, &pending_action_id)
+        .map_err(|err| err.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _ = write_generated_typescript_contract();
@@ -118,7 +181,12 @@ pub fn run() {
             open_session_from_path,
             start_audio_runtime,
             stop_audio_runtime,
-            panic_audio_runtime
+            panic_audio_runtime,
+            send_agent_message,
+            toggle_agent_freeze,
+            reclaim_ownership,
+            approve_pending_action,
+            reject_pending_action
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,6 +1,6 @@
 // Generated from Rust session contracts.
 
-export type SessionDocument = { schemaVersion: number, sessionId: string, title: string, createdAt: string, updatedAt: string, transport: TransportState, audioRuntime: AudioRuntimeState, nodes: Array<Node>, routes: Array<Route>, buses: Array<Bus>, macros: Array<MacroDefinition>, scenes: Array<SceneDefinition>, variations: Array<VariationDefinition>, ownershipRules: Array<OwnershipRule>, runtimeStatus: Array<RuntimeStatusRef>, };
+export type SessionDocument = { schemaVersion: number, sessionId: string, title: string, createdAt: string, updatedAt: string, transport: TransportState, audioRuntime: AudioRuntimeState, nodes: Array<Node>, routes: Array<Route>, buses: Array<Bus>, macros: Array<MacroDefinition>, scenes: Array<SceneDefinition>, variations: Array<VariationDefinition>, ownershipRules: Array<OwnershipRule>, runtimeStatus: Array<RuntimeStatusRef>, agentFrozen: boolean, pendingActions: Array<PendingAction>, actionHistory: Array<ActionHistoryEntry>, };
 
 export type TransportState = { tempoBpm: number, isPlaying: boolean, positionBeats: number, };
 
@@ -71,3 +71,19 @@ export type RuntimeConnectionState = "disconnected" | "connecting" | "ready" | "
 export type GraphEditCommand = { "type": "addNode", "payload": { node: Node, } } | { "type": "removeNode", "payload": { node_id: string, } } | { "type": "setNodeEnabled", "payload": { node_id: string, enabled: boolean, } } | { "type": "setParameterValue", "payload": { node_id: string, parameter_id: string, value: number, } } | { "type": "addRoute", "payload": { route: Route, } } | { "type": "removeRoute", "payload": { route_id: string, } } | { "type": "assignNodeToBus", "payload": { node_id: string, bus_id: string, } } | { "type": "clearNodeBusAssignment", "payload": { node_id: string, } };
 
 export type PerformanceCommand = { "type": "recallScene", "payload": { scene_id: string, } } | { "type": "saveVariation", "payload": { name: string, scene_id: string, } } | { "type": "restoreVariation", "payload": { variation_id: string, } };
+
+export type ActorRef = { actorId: string, correlationId: string, };
+
+export type TypedCommand = { "type": "graphEdit", "payload": GraphEditCommand } | { "type": "performance", "payload": PerformanceCommand };
+
+export type AgentIntent = { rawInput: string, parsedCommands: Array<TypedCommand>, confidence: number, };
+
+export type RiskTier = "low" | "medium" | "high";
+
+export type DiffSummary = { description: string, affectedNodeIds: Array<string>, beforeSnippet: string, afterSnippet: string, };
+
+export type PendingActionStatus = "pending" | "approved" | "rejected";
+
+export type PendingAction = { id: string, correlationId: string, command: TypedCommand, riskTier: RiskTier, createdAt: string, status: PendingActionStatus, };
+
+export type ActionHistoryEntry = { id: string, timestamp: string, actor: ActorRef, command: TypedCommand, diff: DiffSummary, };

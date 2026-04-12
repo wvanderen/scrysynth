@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Session Core & Recall** - Sessions are canonical, inspectable, and reloadable from app-owned state.
 - [x] **Phase 2: Playable Audio Graph** - Users turn the canonical graph into reliable sound with safe live mutation.
 - [x] **Phase 3: Performance Workspace** - Users move through linked views and recall scenes or variations during a live session.
-- [ ] **Phase 4: Agent Collaboration** - Users co-create through natural language with visible ownership and gated mutations.
+- [x] **Phase 4: Agent Collaboration** - Users co-create through natural language with visible ownership and gated mutations.
 - [ ] **Phase 5: Visual Sync & Cross-Modal Control** - Audio and visuals respond together to shared macros, hardware input, and runtime feedback.
 
 ## Phase Details
@@ -78,7 +78,11 @@ Plans:
   3. User can see which nodes, macros, scenes, or controls are agent-controlled, shared, or user-controlled.
   4. User can approve, reject, or cancel higher-risk agent actions before they mutate the live session.
   5. User can reclaim control from the agent, freeze agent changes, or disable the conductor role without restarting the session.
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [x] `04-agent-collaboration-01-PLAN.md` - Agent command layer, deterministic intent parser, ownership enforcement, freeze toggle, and reclaim ownership.
+- [x] `04-agent-collaboration-02-PLAN.md` - Risk-based approval gates, action history logging, and diff summaries.
+- [x] `04-agent-collaboration-03-PLAN.md` - Conversation view replacement, activity panel, pending action UI, and ownership badges.
 **UI hint**: yes
 
 ### Phase 5: Visual Sync & Cross-Modal Control
@@ -103,5 +107,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 1. Session Core & Recall | 3/3 | Complete | 2026-04-11 |
 | 2. Playable Audio Graph | 3/3 | Complete | 2026-04-12 |
 | 3. Performance Workspace | 3/3 | Complete | 2026-04-11 |
-| 4. Agent Collaboration | 0/TBD | Not started | - |
+| 4. Agent Collaboration | 3/3 | Complete | 2026-04-12 |
 | 5. Visual Sync & Cross-Modal Control | 0/TBD | Not started | - |

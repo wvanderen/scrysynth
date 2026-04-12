@@ -106,6 +106,9 @@ function createSession(overrides: Partial<SessionDocument> = {}): SessionDocumen
     runtimeStatus: [
       { id: "runtime-audio", runtime: "audio", status: "ready", targetId: "audio-runtime", lastError: null },
     ],
+    agentFrozen: false,
+    pendingActions: [],
+    actionHistory: [],
     ...overrides,
   };
 }
@@ -123,6 +126,10 @@ describe("session projections", () => {
       isLoading: false,
       error: null,
       workspaceView: "graph",
+      conversationMessages: [],
+      agentFrozen: false,
+      pendingActions: [],
+      actionHistory: [],
     });
   });
 
@@ -254,6 +261,10 @@ describe("performance workspace", () => {
       isLoading: false,
       error: null,
       workspaceView: "graph",
+      conversationMessages: [],
+      agentFrozen: false,
+      pendingActions: [],
+      actionHistory: [],
     });
   });
 
