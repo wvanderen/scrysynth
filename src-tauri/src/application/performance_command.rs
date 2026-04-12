@@ -2,7 +2,7 @@ use thiserror::Error;
 
 use crate::application::session_store::SessionStore;
 use crate::domain::session::{
-    new_id, MacroOverride, ParameterOverride, PerformanceCommand, SessionDocument,
+    new_id, MacroOverride, MacroTarget, ParameterOverride, PerformanceCommand, SessionDocument,
     VariationDefinition,
 };
 
@@ -77,12 +77,39 @@ fn apply_macro_override(
     let scaled_value = macro_def.range_start
         + (macro_override.value * (macro_def.range_end - macro_def.range_start));
 
-    for target_param_id in &macro_def.target_parameter_ids {
-        for node in &mut session.nodes {
-            for parameter in &mut node.parameters {
-                if parameter.id == *target_param_id {
-                    let clamped = scaled_value.clamp(parameter.min_value, parameter.max_value);
-                    parameter.value = clamped;
+    if !macro_def.targets.is_empty() {
+        for target in &macro_def.targets {
+            match target {
+                MacroTarget::AudioParameter {
+                    node_id,
+                    parameter_id,
+                } => {
+                    for node in &mut session.nodes {
+                        if node.id == *node_id {
+                            for parameter in &mut node.parameters {
+                                if parameter.id == *parameter_id {
+                                    let clamped = scaled_value
+                                        .clamp(parameter.min_value, parameter.max_value);
+                                    parameter.value = clamped;
+                                }
+                            }
+                        }
+                    }
+                }
+                MacroTarget::VisualParameter {
+                    element_id: _,
+                    parameter_id: _,
+                } => {}
+            }
+        }
+    } else {
+        for target_param_id in &macro_def.target_parameter_ids {
+            for node in &mut session.nodes {
+                for parameter in &mut node.parameters {
+                    if parameter.id == *target_param_id {
+                        let clamped = scaled_value.clamp(parameter.min_value, parameter.max_value);
+                        parameter.value = clamped;
+                    }
                 }
             }
         }
@@ -272,6 +299,7 @@ mod tests {
                 target_parameter_ids: vec![param_id.to_string()],
                 range_start: 0.0,
                 range_end: 1.0,
+                targets: vec![],
             }],
             scenes: vec![
                 SceneDefinition {

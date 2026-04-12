@@ -365,6 +365,7 @@ fn build_default_session() -> SessionDocument {
             target_parameter_ids: vec![parameter_id.clone()],
             range_start: 0.0,
             range_end: 1.0,
+            targets: vec![],
         }],
         scenes: vec![SceneDefinition {
             id: scene_id.clone(),

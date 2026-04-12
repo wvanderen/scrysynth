@@ -324,13 +324,51 @@ pub enum AudioBusType {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "kind", content = "config", rename_all = "camelCase")]
+pub enum MacroTarget {
+    AudioParameter {
+        node_id: String,
+        parameter_id: String,
+    },
+    VisualParameter {
+        element_id: String,
+        parameter_id: String,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct MacroDefinition {
     pub id: String,
     pub name: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub target_parameter_ids: Vec<String>,
     pub range_start: f64,
     pub range_end: f64,
+    #[serde(default)]
+    pub targets: Vec<MacroTarget>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "type", content = "payload", rename_all = "camelCase")]
+pub enum MacroCommand {
+    CreateMacro {
+        definition: MacroDefinition,
+    },
+    UpdateMacro {
+        macro_id: String,
+        name: Option<String>,
+        targets: Option<Vec<MacroTarget>>,
+        range_start: Option<f64>,
+        range_end: Option<f64>,
+    },
+    RemoveMacro {
+        macro_id: String,
+    },
+    SetMacroValue {
+        macro_id: String,
+        value: f64,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -579,7 +617,9 @@ pub fn write_generated_typescript_contract() -> std::io::Result<()> {
         Route::decl(&cfg),
         Bus::decl(&cfg),
         AudioBusType::decl(&cfg),
+        MacroTarget::decl(&cfg),
         MacroDefinition::decl(&cfg),
+        MacroCommand::decl(&cfg),
         SceneDefinition::decl(&cfg),
         MacroOverride::decl(&cfg),
         VariationDefinition::decl(&cfg),

@@ -97,6 +97,7 @@ fn performance_test_session() -> SessionDocument {
             target_parameter_ids: vec!["param-freq".to_string()],
             range_start: 100.0,
             range_end: 2000.0,
+            targets: vec![],
         }],
         scenes: vec![
             SceneDefinition {

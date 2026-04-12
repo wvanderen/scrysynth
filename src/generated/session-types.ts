@@ -54,7 +54,11 @@ export type Bus = { id: string, name: string, channels: number, busType: AudioBu
 
 export type AudioBusType = "auxiliary" | "main" | "cue";
 
-export type MacroDefinition = { id: string, name: string, targetParameterIds: Array<string>, rangeStart: number, rangeEnd: number, };
+export type MacroTarget = { "kind": "audioParameter", "config": { node_id: string, parameter_id: string, } } | { "kind": "visualParameter", "config": { element_id: string, parameter_id: string, } };
+
+export type MacroDefinition = { id: string, name: string, targetParameterIds?: Array<string>, rangeStart: number, rangeEnd: number, targets: Array<MacroTarget>, };
+
+export type MacroCommand = { "type": "createMacro", "payload": { definition: MacroDefinition, } } | { "type": "updateMacro", "payload": { macro_id: string, name: string | null, targets: Array<MacroTarget> | null, range_start: number | null, range_end: number | null, } } | { "type": "removeMacro", "payload": { macro_id: string, } } | { "type": "setMacroValue", "payload": { macro_id: string, value: number, } };
 
 export type SceneDefinition = { id: string, name: string, activeNodeIds: Array<string>, macroOverrides: Array<MacroOverride>, };
 

@@ -10,11 +10,12 @@ use std::sync::Mutex;
 
 use application::agent_command;
 use application::graph_edit;
+use application::macro_command;
 use application::performance_command;
 use application::session_store::SessionStore;
 use domain::session::{
     write_generated_typescript_contract, ActorRef, AgentRuntimeState, ControllerKind,
-    GraphEditCommand, PerformanceCommand, SessionDocument,
+    GraphEditCommand, MacroCommand, PerformanceCommand, SessionDocument,
 };
 use persistence::session_file;
 
@@ -191,6 +192,15 @@ fn panic_visual_runtime(
 }
 
 #[tauri::command]
+fn apply_macro_command(
+    command: MacroCommand,
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<SessionDocument, String> {
+    let mut store = state.lock().map_err(|err| err.to_string())?;
+    macro_command::apply_macro_command(&mut store, command).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
 fn get_agent_runtime_state(
     state: tauri::State<'_, Mutex<SessionStore>>,
 ) -> Result<AgentRuntimeState, String> {
@@ -223,6 +233,7 @@ pub fn run() {
             start_visual_runtime,
             stop_visual_runtime,
             panic_visual_runtime,
+            apply_macro_command,
             get_agent_runtime_state
         ])
         .run(tauri::generate_context!())
