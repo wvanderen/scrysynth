@@ -1,6 +1,7 @@
 pub mod application;
 pub mod audio;
 pub mod domain;
+pub mod hardware;
 pub mod persistence;
 pub mod visual;
 

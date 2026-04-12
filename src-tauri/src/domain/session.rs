@@ -37,6 +37,8 @@ pub struct SessionDocument {
     pub pending_actions: Vec<PendingAction>,
     #[serde(default)]
     pub action_history: Vec<ActionHistoryEntry>,
+    #[serde(default)]
+    pub hardware_bindings: Vec<HardwareBinding>,
 }
 
 impl Default for SessionDocument {
@@ -62,6 +64,7 @@ impl Default for SessionDocument {
             agent_frozen: false,
             pending_actions: Vec::new(),
             action_history: Vec::new(),
+            hardware_bindings: Vec::new(),
         }
     }
 }
@@ -563,6 +566,54 @@ pub struct ActionHistoryEntry {
     pub diff: DiffSummary,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "kind", content = "config", rename_all = "camelCase")]
+pub enum HardwareSource {
+    MidiCc { channel: u8, controller: u8 },
+    MidiNote { channel: u8, note: u8 },
+    MidiPitchBend { channel: u8 },
+    OscAddress { address: String },
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "kind", content = "config", rename_all = "camelCase")]
+pub enum BindingTarget {
+    Macro { macro_id: String },
+    SceneRecall { scene_id: String },
+    TransportPlay,
+    TransportStop,
+    TransportPanic,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct ValueTransform {
+    pub input_min: f64,
+    pub input_max: f64,
+    pub output_min: f64,
+    pub output_max: f64,
+}
+
+impl Default for ValueTransform {
+    fn default() -> Self {
+        Self {
+            input_min: 0.0,
+            input_max: 127.0,
+            output_min: 0.0,
+            output_max: 1.0,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct HardwareBinding {
+    pub id: String,
+    pub source: HardwareSource,
+    pub target: BindingTarget,
+    pub transform: ValueTransform,
+}
+
 fn default_enabled() -> bool {
     true
 }
@@ -640,6 +691,10 @@ pub fn write_generated_typescript_contract() -> std::io::Result<()> {
         PendingActionStatus::decl(&cfg),
         PendingAction::decl(&cfg),
         ActionHistoryEntry::decl(&cfg),
+        HardwareSource::decl(&cfg),
+        BindingTarget::decl(&cfg),
+        ValueTransform::decl(&cfg),
+        HardwareBinding::decl(&cfg),
     ]
     .join("\n\n");
 
