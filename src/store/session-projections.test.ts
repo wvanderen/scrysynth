@@ -4,6 +4,7 @@ import type { GraphEditCommand, SessionDocument } from "../generated/session-typ
 
 const clientMocks = vi.hoisted(() => ({
   applyGraphEdit: vi.fn<(command: GraphEditCommand) => Promise<SessionDocument>>(),
+  applyPerformanceCommand: vi.fn<(command: import("../generated/session-types").PerformanceCommand) => Promise<SessionDocument>>(),
   createDefaultSession: vi.fn<() => Promise<SessionDocument>>(),
   getCurrentSession: vi.fn<() => Promise<SessionDocument>>(),
   openSessionFromPath: vi.fn<(path: string) => Promise<SessionDocument>>(),
@@ -15,7 +16,7 @@ const clientMocks = vi.hoisted(() => ({
 
 vi.mock("../lib/session-client", () => clientMocks);
 
-import { projectSessionState } from "./session-projections";
+import { projectSessionState, deriveActiveSceneId } from "./session-projections";
 import { useSessionStore } from "./sessionStore";
 
 function createSession(overrides: Partial<SessionDocument> = {}): SessionDocument {
@@ -121,6 +122,7 @@ describe("session projections", () => {
       audioRuntime: null,
       isLoading: false,
       error: null,
+      workspaceView: "graph",
     });
   });
 
@@ -236,5 +238,154 @@ describe("session projections", () => {
     expect(state.graphNodes).toBe(previousNodes);
     expect(state.graphEdges).toBe(previousEdges);
     expect(state.error).toContain("route cycle rejected");
+  });
+});
+
+describe("performance workspace", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useSessionStore.setState({
+      session: null,
+      selectedNodeId: null,
+      graphNodes: [],
+      graphEdges: [],
+      selectedNode: null,
+      audioRuntime: null,
+      isLoading: false,
+      error: null,
+      workspaceView: "graph",
+    });
+  });
+
+  it("scene recall updates the session state through the store", async () => {
+    const initial = createSession({
+      scenes: [
+        { id: "scene-a", name: "Scene A", activeNodeIds: ["source-1", "output-1"], macroOverrides: [] },
+        { id: "scene-b", name: "Scene B", activeNodeIds: ["output-1"], macroOverrides: [] },
+      ],
+    });
+
+    const afterRecall = createSession({
+      scenes: [
+        { id: "scene-a", name: "Scene A", activeNodeIds: ["source-1", "output-1"], macroOverrides: [] },
+        { id: "scene-b", name: "Scene B", activeNodeIds: ["output-1"], macroOverrides: [] },
+      ],
+      nodes: initial.nodes.map((node) => ({
+        ...node,
+        enabled: node.id === "output-1",
+      })),
+    });
+
+    clientMocks.getCurrentSession.mockResolvedValue(initial);
+    clientMocks.applyPerformanceCommand.mockResolvedValue(afterRecall);
+
+    await useSessionStore.getState().bootstrapSession();
+    await useSessionStore.getState().recallScene("scene-b");
+
+    const state = useSessionStore.getState();
+    expect(state.session?.nodes.find((n) => n.id === "source-1")?.enabled).toBe(false);
+    expect(state.session?.nodes.find((n) => n.id === "output-1")?.enabled).toBe(true);
+    expect(state.error).toBeNull();
+  });
+
+  it("variation save adds a new variation to the session", async () => {
+    const initial = createSession();
+    const withVariation = createSession({
+      variations: [
+        { id: "var-1", name: "soft", sceneId: "scene-1", parameterOverrides: [{ parameterId: "source-1-level", value: 0.3 }] },
+      ],
+    });
+
+    clientMocks.getCurrentSession.mockResolvedValue(initial);
+    clientMocks.applyPerformanceCommand.mockResolvedValue(withVariation);
+
+    await useSessionStore.getState().bootstrapSession();
+    await useSessionStore.getState().saveVariation("soft", "scene-1");
+
+    const state = useSessionStore.getState();
+    expect(state.session?.variations).toHaveLength(1);
+    expect(state.session?.variations[0]?.name).toBe("soft");
+  });
+
+  it("variation restore updates parameters in the session", async () => {
+    const initial = createSession({
+      variations: [
+        { id: "var-1", name: "soft", sceneId: "scene-1", parameterOverrides: [{ parameterId: "source-1-level", value: 0.3 }] },
+      ],
+    });
+
+    const afterRestore = createSession({
+      variations: initial.variations,
+      nodes: initial.nodes.map((node) =>
+        node.id === "source-1"
+          ? {
+              ...node,
+              parameters: node.parameters.map((p) =>
+                p.id === "source-1-level" ? { ...p, value: 0.3 } : p,
+              ),
+            }
+          : node,
+      ),
+    });
+
+    clientMocks.getCurrentSession.mockResolvedValue(initial);
+    clientMocks.applyPerformanceCommand.mockResolvedValue(afterRestore);
+
+    await useSessionStore.getState().bootstrapSession();
+    await useSessionStore.getState().restoreVariation("var-1");
+
+    const state = useSessionStore.getState();
+    const param = state.session?.nodes
+      .find((n) => n.id === "source-1")
+      ?.parameters.find((p) => p.id === "source-1-level");
+    expect(param?.value).toBe(0.3);
+  });
+
+  it("performance command error surfaces error message without changing state", async () => {
+    const initial = createSession();
+
+    clientMocks.getCurrentSession.mockResolvedValue(initial);
+    clientMocks.applyPerformanceCommand.mockRejectedValue(new Error("scene not found"));
+
+    await useSessionStore.getState().bootstrapSession();
+    const previousVariations = useSessionStore.getState().session?.variations ?? [];
+
+    await useSessionStore.getState().recallScene("nonexistent");
+
+    const state = useSessionStore.getState();
+    expect(state.error).toContain("scene not found");
+    expect(state.session?.variations).toEqual(previousVariations);
+  });
+
+  it("deriveActiveSceneId returns the best matching scene", () => {
+    const session = createSession({
+      scenes: [
+        { id: "scene-a", name: "Scene A", activeNodeIds: ["source-1", "output-1"], macroOverrides: [] },
+        { id: "scene-b", name: "Scene B", activeNodeIds: ["output-1"], macroOverrides: [] },
+      ],
+    });
+
+    expect(deriveActiveSceneId(session)).toBe("scene-a");
+
+    const onlyOutput = createSession({
+      ...session,
+      nodes: session.nodes.map((n) => ({
+        ...n,
+        enabled: n.id === "output-1",
+      })),
+    });
+
+    expect(deriveActiveSceneId(onlyOutput)).toBe("scene-b");
+  });
+
+  it("view switching changes workspaceView state", () => {
+    useSessionStore.setState({ workspaceView: "graph" });
+    expect(useSessionStore.getState().workspaceView).toBe("graph");
+
+    useSessionStore.getState().setWorkspaceView("performance");
+    expect(useSessionStore.getState().workspaceView).toBe("performance");
+
+    useSessionStore.getState().setWorkspaceView("conversation");
+    expect(useSessionStore.getState().workspaceView).toBe("conversation");
   });
 });

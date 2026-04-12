@@ -13,8 +13,8 @@ Scrysynth reaches v1 by first making the session graph canonical and reloadable,
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Session Core & Recall** - Sessions are canonical, inspectable, and reloadable from app-owned state.
-- [ ] **Phase 2: Playable Audio Graph** - Users turn the canonical graph into reliable sound with safe live mutation.
-- [ ] **Phase 3: Performance Workspace** - Users move through linked views and recall scenes or variations during a live session.
+- [x] **Phase 2: Playable Audio Graph** - Users turn the canonical graph into reliable sound with safe live mutation.
+- [x] **Phase 3: Performance Workspace** - Users move through linked views and recall scenes or variations during a live session.
 - [ ] **Phase 4: Agent Collaboration** - Users co-create through natural language with visible ownership and gated mutations.
 - [ ] **Phase 5: Visual Sync & Cross-Modal Control** - Audio and visuals respond together to shared macros, hardware input, and runtime feedback.
 
@@ -48,9 +48,9 @@ Plans:
   5. User can stop all sound immediately with a panic-safe control that returns the app to a known safe state.
 **Plans**: 3 plans
 Plans:
-- [ ] `02-playable-audio-graph-01-PLAN.md` - Expand the canonical session with bounded v1 audio primitives, validation, and graph-edit commands.
-- [ ] `02-playable-audio-graph-02-PLAN.md` - Add the supervised SuperCollider runtime foundation, deterministic graph compilation, and panic-safe transport.
-- [ ] `02-playable-audio-graph-03-PLAN.md` - Wire live playback controls into the workspace with incremental parameter and routing updates.
+- [x] `02-playable-audio-graph-01-PLAN.md` - Expand the canonical session with bounded v1 audio primitives, validation, and graph-edit commands.
+- [x] `02-playable-audio-graph-02-PLAN.md` - Add the supervised SuperCollider runtime foundation, deterministic graph compilation, and panic-safe transport.
+- [x] `02-playable-audio-graph-03-PLAN.md` - Wire live playback controls into the workspace with incremental parameter and routing updates.
 **UI hint**: yes
 
 ### Phase 3: Performance Workspace
@@ -61,7 +61,11 @@ Plans:
   1. User can switch between conversation, graph, and performance views that all reflect the same live session state.
   2. User can trigger scenes that recall predefined session states for live performance.
   3. User can save a variation or snapshot of the current session and restore it later during the same working session.
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [x] `03-performance-workspace-01-PLAN.md` - Scene and variation backend commands with validation and transactional safety.
+- [x] `03-performance-workspace-02-PLAN.md` - View switching workspace layout with graph, conversation, and performance views.
+- [x] `03-performance-workspace-03-PLAN.md` - Performance view scene and variation controls with active scene derivation.
 **UI hint**: yes
 
 ### Phase 4: Agent Collaboration
@@ -97,7 +101,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Session Core & Recall | 3/3 | Complete | 2026-04-11 |
-| 2. Playable Audio Graph | 0/3 | Planned | - |
-| 3. Performance Workspace | 0/TBD | Not started | - |
+| 2. Playable Audio Graph | 3/3 | Complete | 2026-04-12 |
+| 3. Performance Workspace | 3/3 | Complete | 2026-04-11 |
 | 4. Agent Collaboration | 0/TBD | Not started | - |
 | 5. Visual Sync & Cross-Modal Control | 0/TBD | Not started | - |

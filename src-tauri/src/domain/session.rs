@@ -393,6 +393,14 @@ pub enum GraphEditCommand {
     },
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "type", content = "payload", rename_all = "camelCase")]
+pub enum PerformanceCommand {
+    RecallScene { scene_id: String },
+    SaveVariation { name: String, scene_id: String },
+    RestoreVariation { variation_id: String },
+}
+
 fn default_enabled() -> bool {
     true
 }
@@ -451,6 +459,7 @@ pub fn write_generated_typescript_contract() -> std::io::Result<()> {
         RuntimeKind::decl(&cfg),
         RuntimeConnectionState::decl(&cfg),
         GraphEditCommand::decl(&cfg),
+        PerformanceCommand::decl(&cfg),
     ]
     .join("\n\n");
 

@@ -8,8 +8,11 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use application::graph_edit;
+use application::performance_command;
 use application::session_store::SessionStore;
-use domain::session::{write_generated_typescript_contract, GraphEditCommand, SessionDocument};
+use domain::session::{
+    write_generated_typescript_contract, GraphEditCommand, PerformanceCommand, SessionDocument,
+};
 use persistence::session_file;
 
 #[tauri::command]
@@ -89,6 +92,16 @@ fn panic_audio_runtime(
     store.panic_audio_runtime().map_err(|err| err.to_string())
 }
 
+#[tauri::command]
+fn apply_performance_command(
+    command: PerformanceCommand,
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<SessionDocument, String> {
+    let mut store = state.lock().map_err(|err| err.to_string())?;
+    performance_command::apply_performance_command(&mut store, command)
+        .map_err(|err| err.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _ = write_generated_typescript_contract();
@@ -100,6 +113,7 @@ pub fn run() {
             create_default_session,
             get_current_session,
             apply_graph_edit,
+            apply_performance_command,
             save_session_to_path,
             open_session_from_path,
             start_audio_runtime,

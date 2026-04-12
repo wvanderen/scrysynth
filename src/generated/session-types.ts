@@ -69,3 +69,5 @@ export type RuntimeKind = "audio" | "visual" | "agent";
 export type RuntimeConnectionState = "disconnected" | "connecting" | "ready" | "error";
 
 export type GraphEditCommand = { "type": "addNode", "payload": { node: Node, } } | { "type": "removeNode", "payload": { node_id: string, } } | { "type": "setNodeEnabled", "payload": { node_id: string, enabled: boolean, } } | { "type": "setParameterValue", "payload": { node_id: string, parameter_id: string, value: number, } } | { "type": "addRoute", "payload": { route: Route, } } | { "type": "removeRoute", "payload": { route_id: string, } } | { "type": "assignNodeToBus", "payload": { node_id: string, bus_id: string, } } | { "type": "clearNodeBusAssignment", "payload": { node_id: string, } };
+
+export type PerformanceCommand = { "type": "recallScene", "payload": { scene_id: string, } } | { "type": "saveVariation", "payload": { name: string, scene_id: string, } } | { "type": "restoreVariation", "payload": { variation_id: string, } };

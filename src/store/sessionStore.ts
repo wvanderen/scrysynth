@@ -3,11 +3,13 @@ import { create } from "zustand";
 import type {
   GraphEditCommand,
   Node,
+  PerformanceCommand,
   Route,
   SessionDocument,
 } from "../generated/session-types";
 import {
   applyGraphEdit as applyGraphEditCommand,
+  applyPerformanceCommand as applyPerformanceCommandIPC,
   createDefaultSession,
   getCurrentSession,
   openSessionFromPath,
@@ -23,6 +25,8 @@ import {
   projectSessionState,
 } from "./session-projections";
 
+export type WorkspaceView = "graph" | "conversation" | "performance";
+
 type SessionStore = {
   session: SessionDocument | null;
   selectedNodeId: string | null;
@@ -32,6 +36,7 @@ type SessionStore = {
   audioRuntime: AudioRuntimeProjection | null;
   isLoading: boolean;
   error: string | null;
+  workspaceView: WorkspaceView;
   bootstrapSession: () => Promise<void>;
   newSession: () => Promise<void>;
   saveSession: (path: string) => Promise<void>;
@@ -48,6 +53,10 @@ type SessionStore = {
   startAudio: () => Promise<void>;
   stopAudio: () => Promise<void>;
   panicAudio: () => Promise<void>;
+  setWorkspaceView: (view: WorkspaceView) => void;
+  recallScene: (sceneId: string) => Promise<void>;
+  saveVariation: (name: string, sceneId: string) => Promise<void>;
+  restoreVariation: (variationId: string) => Promise<void>;
 };
 
 function applySession(
@@ -128,6 +137,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   audioRuntime: null,
   isLoading: false,
   error: null,
+  workspaceView: "graph" as WorkspaceView,
   bootstrapSession: async () => {
     set({ isLoading: true, error: null });
 
@@ -314,6 +324,48 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       set({ ...applySession(session, current.selectedNodeId, current), isLoading: false });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to panic audio runtime.";
+      set({ isLoading: false, error: message });
+    }
+  },
+  setWorkspaceView: (view) => {
+    set({ workspaceView: view });
+  },
+  recallScene: async (sceneId) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const command: PerformanceCommand = { type: "recallScene", payload: { scene_id: sceneId } };
+      const session = await applyPerformanceCommandIPC(command);
+      const current = get();
+      set({ ...applySession(session, current.selectedNodeId, current), isLoading: false });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to recall scene.";
+      set({ isLoading: false, error: message });
+    }
+  },
+  saveVariation: async (name, sceneId) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const command: PerformanceCommand = { type: "saveVariation", payload: { name, scene_id: sceneId } };
+      const session = await applyPerformanceCommandIPC(command);
+      const current = get();
+      set({ ...applySession(session, current.selectedNodeId, current), isLoading: false });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to save variation.";
+      set({ isLoading: false, error: message });
+    }
+  },
+  restoreVariation: async (variationId) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const command: PerformanceCommand = { type: "restoreVariation", payload: { variation_id: variationId } };
+      const session = await applyPerformanceCommandIPC(command);
+      const current = get();
+      set({ ...applySession(session, current.selectedNodeId, current), isLoading: false });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to restore variation.";
       set({ isLoading: false, error: message });
     }
   },

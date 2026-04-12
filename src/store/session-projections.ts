@@ -161,3 +161,43 @@ function projectAudioRuntime(session: SessionDocument): AudioRuntimeProjection {
     canStop: lifecycle === "booting" || lifecycle === "running" || lifecycle === "recovering",
   };
 }
+
+export function deriveActiveSceneId(session: SessionDocument): string | null {
+  const enabledIds = new Set(
+    session.nodes.filter((node) => node.enabled).map((node) => node.id),
+  );
+
+  if (enabledIds.size === 0) {
+    return null;
+  }
+
+  let bestMatch: { sceneId: string; score: number } | null = null;
+
+  for (const scene of session.scenes) {
+    const sceneIds = new Set(scene.activeNodeIds);
+    let matchCount = 0;
+    let mismatchCount = 0;
+
+    for (const id of enabledIds) {
+      if (sceneIds.has(id)) {
+        matchCount++;
+      } else {
+        mismatchCount++;
+      }
+    }
+
+    for (const id of sceneIds) {
+      if (!enabledIds.has(id)) {
+        mismatchCount++;
+      }
+    }
+
+    const score = matchCount - mismatchCount;
+
+    if (!bestMatch || score > bestMatch.score) {
+      bestMatch = { sceneId: scene.id, score };
+    }
+  }
+
+  return bestMatch?.sceneId ?? null;
+}

@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { z } from "zod";
 
-import type { GraphEditCommand, SessionDocument } from "../generated/session-types";
+import type { GraphEditCommand, PerformanceCommand, SessionDocument } from "../generated/session-types";
 
 const transportStateSchema = z.object({
   tempoBpm: z.number(),
@@ -208,4 +208,8 @@ export async function stopAudioRuntime(): Promise<SessionDocument> {
 
 export async function panicAudioRuntime(): Promise<SessionDocument> {
   return invokeSession("panic_audio_runtime");
+}
+
+export async function applyPerformanceCommand(command: PerformanceCommand): Promise<SessionDocument> {
+  return invokeSession("apply_performance_command", { command });
 }

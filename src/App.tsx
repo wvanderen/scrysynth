@@ -8,6 +8,9 @@ import { PrimitivePalette } from "./components/audio/PrimitivePalette";
 import { GraphViewport } from "./components/session/GraphViewport";
 import { NodeInspector } from "./components/session/NodeInspector";
 import { SessionToolbar } from "./components/session/SessionToolbar";
+import { ConversationView } from "./components/workspace/ConversationView";
+import { PerformanceView } from "./components/workspace/PerformanceView";
+import { WorkspaceViewSwitcher } from "./components/workspace/WorkspaceViewSwitcher";
 import { useSessionStore } from "./store/sessionStore";
 
 const DEFAULT_SAVE_PATH = "./scrysynth-session.json";
@@ -21,6 +24,7 @@ function App() {
     audioRuntime,
     isLoading,
     error,
+    workspaceView,
     bootstrapSession,
     newSession,
     saveSession,
@@ -36,6 +40,10 @@ function App() {
     startAudio,
     stopAudio,
     panicAudio,
+    setWorkspaceView,
+    recallScene,
+    saveVariation,
+    restoreVariation,
   } = useSessionStore();
 
   useEffect(() => {
@@ -88,34 +96,54 @@ function App() {
         onPanic={() => void panicAudio()}
       />
 
-      <section className="workspace-grid">
-        <div className="workspace-main-column">
-          <GraphViewport
-            graphNodes={graphNodes}
-            graphEdges={graphEdges}
-            onSelectNode={selectNode}
-            onConnect={handleConnect}
-          />
-          <PrimitivePalette
-            session={session}
+      <WorkspaceViewSwitcher currentView={workspaceView} onViewChange={setWorkspaceView} />
+
+      {workspaceView === "graph" ? (
+        <section className="workspace-grid">
+          <div className="workspace-main-column">
+            <GraphViewport
+              graphNodes={graphNodes}
+              graphEdges={graphEdges}
+              onSelectNode={selectNode}
+              onConnect={handleConnect}
+            />
+            <PrimitivePalette
+              session={session}
+              selectedNode={selectedNode}
+              isLoading={isLoading}
+              onAddNode={(node) => void addNode(node)}
+              onRemoveNode={(nodeId) => void removeNode(nodeId)}
+            />
+          </div>
+          <NodeInspector
             selectedNode={selectedNode}
+            buses={session?.buses ?? []}
             isLoading={isLoading}
-            onAddNode={(node) => void addNode(node)}
-            onRemoveNode={(nodeId) => void removeNode(nodeId)}
+            onToggleEnabled={(nodeId, enabled) => void toggleNodeEnabled(nodeId, enabled)}
+            onUpdateParameter={(nodeId, parameterId, value) =>
+              void updateNodeParameter(nodeId, parameterId, value)
+            }
+            onAssignNodeToBus={(nodeId, busId) => void assignNodeToBus(nodeId, busId)}
+            onClearNodeBus={(nodeId) => void clearNodeBusAssignment(nodeId)}
           />
-        </div>
-        <NodeInspector
-          selectedNode={selectedNode}
-          buses={session?.buses ?? []}
+        </section>
+      ) : null}
+
+      {workspaceView === "conversation" ? (
+        <ConversationView sessionTitle={session?.title ?? "No session"} />
+      ) : null}
+
+      {workspaceView === "performance" ? (
+        <PerformanceView
+          scenes={session?.scenes ?? []}
+          variations={session?.variations ?? []}
+          enabledNodes={session?.nodes ?? []}
           isLoading={isLoading}
-          onToggleEnabled={(nodeId, enabled) => void toggleNodeEnabled(nodeId, enabled)}
-          onUpdateParameter={(nodeId, parameterId, value) =>
-            void updateNodeParameter(nodeId, parameterId, value)
-          }
-          onAssignNodeToBus={(nodeId, busId) => void assignNodeToBus(nodeId, busId)}
-          onClearNodeBus={(nodeId) => void clearNodeBusAssignment(nodeId)}
+          onRecallScene={(sceneId) => void recallScene(sceneId)}
+          onSaveVariation={(name, sceneId) => void saveVariation(name, sceneId)}
+          onRestoreVariation={(variationId) => void restoreVariation(variationId)}
         />
-      </section>
+      ) : null}
 
       <footer className="runtime-strip">
         {(session?.runtimeStatus ?? []).map((runtime) => (

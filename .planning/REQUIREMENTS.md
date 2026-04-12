@@ -23,15 +23,15 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Interface
 
-- [ ] **UI-01**: User can switch between conversation, graph, and performance views that all reflect the same live session state.
+- [x] **UI-01**: User can switch between conversation, graph, and performance views that all reflect the same live session state.
 - [ ] **UI-02**: User can see current runtime health, activity, and error status for the audio runtime, visual runtime, and agent system.
 - [ ] **UI-03**: User can inspect what changed in the session after a user or agent action through visible diffs, activity history, or equivalent structured feedback.
 
 ### Performance Control
 
 - [ ] **CTRL-01**: User can create and adjust macros that map one control to multiple audio and visual parameters.
-- [ ] **CTRL-02**: User can trigger scenes that recall predefined session states for live performance.
-- [ ] **CTRL-03**: User can save a variation or snapshot of the current session and restore it later during the same working session.
+- [x] **CTRL-02**: User can trigger scenes that recall predefined session states for live performance.
+- [x] **CTRL-03**: User can save a variation or snapshot of the current session and restore it later during the same working session.
 - [ ] **CTRL-04**: User can bind supported hardware control input through MIDI or OSC learn to v1 macros or performance actions.
 
 ### Agent Collaboration
@@ -88,12 +88,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUD-02 | Phase 2 | Complete |
 | AUD-03 | Phase 2 | Complete |
 | AUD-04 | Phase 2 | Complete |
-| UI-01 | Phase 3 | Pending |
+| UI-01 | Phase 3 | Complete |
 | UI-02 | Phase 5 | Pending |
 | UI-03 | Phase 4 | Pending |
 | CTRL-01 | Phase 5 | Pending |
-| CTRL-02 | Phase 3 | Pending |
-| CTRL-03 | Phase 3 | Pending |
+| CTRL-02 | Phase 3 | Complete |
+| CTRL-03 | Phase 3 | Complete |
 | CTRL-04 | Phase 5 | Pending |
 | AGNT-01 | Phase 4 | Pending |
 | AGNT-02 | Phase 4 | Pending |
