@@ -114,4 +114,202 @@ mod audio_runtime {
             assert!(error.to_string().contains("bus-main"));
         }
     }
+
+    mod lifecycle {
+        use std::sync::{Arc, Mutex};
+
+        use super::super::*;
+        use scrysynth_lib::application::session_store::SessionStore;
+        use scrysynth_lib::audio::runtime_manager::{
+            AudioRuntimeAdapter, AudioRuntimeManager, RuntimeAdapterStatus,
+        };
+        use scrysynth_lib::domain::session::{
+            AudioRuntimeHealth, AudioRuntimeLifecycle, RuntimeConnectionState,
+        };
+
+        #[derive(Clone, Debug, PartialEq)]
+        enum AdapterAction {
+            Start,
+            Stop,
+            Panic,
+            LoadTopology,
+        }
+
+        #[derive(Clone)]
+        struct FakeAdapter {
+            actions: Arc<Mutex<Vec<AdapterAction>>>,
+            next_statuses: Arc<Mutex<Vec<RuntimeAdapterStatus>>>,
+        }
+
+        impl FakeAdapter {
+            fn with_statuses(statuses: Vec<RuntimeAdapterStatus>) -> Self {
+                Self {
+                    actions: Arc::new(Mutex::new(Vec::new())),
+                    next_statuses: Arc::new(Mutex::new(statuses)),
+                }
+            }
+
+            fn actions(&self) -> Vec<AdapterAction> {
+                self.actions.lock().expect("actions lock").clone()
+            }
+
+            fn take_status(&self) -> RuntimeAdapterStatus {
+                self.next_statuses.lock().expect("status lock").remove(0)
+            }
+        }
+
+        impl AudioRuntimeAdapter for FakeAdapter {
+            fn start(&mut self) -> Result<RuntimeAdapterStatus, String> {
+                self.actions
+                    .lock()
+                    .expect("actions lock")
+                    .push(AdapterAction::Start);
+                Ok(self.take_status())
+            }
+
+            fn load_topology(
+                &mut self,
+                _topology: &scrysynth_lib::audio::compiler::CompiledTopology,
+            ) -> Result<RuntimeAdapterStatus, String> {
+                self.actions
+                    .lock()
+                    .expect("actions lock")
+                    .push(AdapterAction::LoadTopology);
+                Ok(self.take_status())
+            }
+
+            fn stop(&mut self) -> Result<RuntimeAdapterStatus, String> {
+                self.actions
+                    .lock()
+                    .expect("actions lock")
+                    .push(AdapterAction::Stop);
+                Ok(self.take_status())
+            }
+
+            fn panic(&mut self) -> Result<RuntimeAdapterStatus, String> {
+                self.actions
+                    .lock()
+                    .expect("actions lock")
+                    .push(AdapterAction::Panic);
+                Ok(self.take_status())
+            }
+        }
+
+        #[test]
+        fn start_audio_runtime_transitions_booting_to_ready() {
+            let adapter = FakeAdapter::with_statuses(vec![
+                RuntimeAdapterStatus::Booted {
+                    sample_rate_hz: 48_000,
+                    block_size: 64,
+                },
+                RuntimeAdapterStatus::Ready {
+                    active_patch_id: "patch-ready".to_string(),
+                },
+            ]);
+            let mut manager = AudioRuntimeManager::new_for_tests(adapter.clone());
+            let mut store = SessionStore::new_default();
+
+            let session = manager.start(&mut store).expect("runtime starts");
+
+            assert_eq!(
+                session.audio_runtime.lifecycle,
+                AudioRuntimeLifecycle::Ready
+            );
+            assert_eq!(session.audio_runtime.health, AudioRuntimeHealth::Healthy);
+            assert_eq!(session.audio_runtime.sample_rate_hz, Some(48_000));
+            assert_eq!(session.audio_runtime.block_size, Some(64));
+            assert_eq!(
+                audio_runtime_status(&session),
+                RuntimeConnectionState::Ready,
+                "ready connection state"
+            );
+            assert_eq!(
+                adapter.actions(),
+                vec![AdapterAction::Start, AdapterAction::LoadTopology]
+            );
+        }
+
+        #[test]
+        fn panic_audio_runtime_recovers_to_known_safe_state_and_allows_restart() {
+            let adapter = FakeAdapter::with_statuses(vec![
+                RuntimeAdapterStatus::Booted {
+                    sample_rate_hz: 48_000,
+                    block_size: 64,
+                },
+                RuntimeAdapterStatus::Ready {
+                    active_patch_id: "patch-a".to_string(),
+                },
+                RuntimeAdapterStatus::Panicked,
+                RuntimeAdapterStatus::Booted {
+                    sample_rate_hz: 48_000,
+                    block_size: 64,
+                },
+                RuntimeAdapterStatus::Ready {
+                    active_patch_id: "patch-b".to_string(),
+                },
+            ]);
+            let mut manager = AudioRuntimeManager::new_for_tests(adapter.clone());
+            let mut store = SessionStore::new_default();
+
+            manager.start(&mut store).expect("initial start");
+            let recovered = manager.panic(&mut store).expect("panic succeeds");
+
+            assert_eq!(
+                recovered.audio_runtime.lifecycle,
+                AudioRuntimeLifecycle::Idle
+            );
+            assert_eq!(
+                recovered.audio_runtime.health,
+                AudioRuntimeHealth::PanicRecovered
+            );
+            assert_eq!(recovered.audio_runtime.active_patch_id, None);
+            assert_eq!(recovered.audio_runtime.panic_recovery_count, 1, "panic");
+
+            let restarted = manager.start(&mut store).expect("restart succeeds");
+
+            assert_eq!(
+                restarted.audio_runtime.lifecycle,
+                AudioRuntimeLifecycle::Ready
+            );
+            assert_eq!(
+                restarted.audio_runtime.active_patch_id.as_deref(),
+                Some("patch-b")
+            );
+        }
+
+        #[test]
+        fn start_audio_runtime_marks_degraded_when_adapter_fails() {
+            let adapter = FakeAdapter::with_statuses(vec![RuntimeAdapterStatus::Failed {
+                message: "scsynth not found".to_string(),
+            }]);
+            let mut manager = AudioRuntimeManager::new_for_tests(adapter);
+            let mut store = SessionStore::new_default();
+
+            let session = manager.start(&mut store).expect("failure is recorded");
+
+            assert_eq!(
+                session.audio_runtime.lifecycle,
+                AudioRuntimeLifecycle::Failed
+            );
+            assert_eq!(session.audio_runtime.health, AudioRuntimeHealth::Degraded);
+            assert_eq!(
+                session.audio_runtime.last_error.as_deref(),
+                Some("scsynth not found")
+            );
+            assert_eq!(
+                audio_runtime_status(&session),
+                RuntimeConnectionState::Error
+            );
+        }
+
+        fn audio_runtime_status(session: &SessionDocument) -> RuntimeConnectionState {
+            session
+                .runtime_status
+                .iter()
+                .find(|status| status.runtime == scrysynth_lib::domain::session::RuntimeKind::Audio)
+                .expect("audio runtime status")
+                .status
+                .clone()
+        }
+    }
 }
