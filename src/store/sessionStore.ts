@@ -3,6 +3,7 @@ import { create } from "zustand";
 import type {
   ActionHistoryEntry,
   AgentIntent,
+  AgentRuntimeState,
   ControllerKind,
   GraphEditCommand,
   Node,
@@ -17,20 +18,26 @@ import {
   approvePendingAction as approvePendingActionIPC,
   createDefaultSession,
   getCurrentSession,
+  getAgentRuntimeState,
   openSessionFromPath,
   panicAudioRuntime,
+  panicVisualRuntime as panicVisualRuntimeIPC,
   reclaimOwnership as reclaimOwnershipIPC,
   rejectPendingAction as rejectPendingActionIPC,
   saveSessionToPath,
   sendAgentMessage as sendAgentMessageIPC,
   startAudioRuntime,
+  startVisualRuntime as startVisualRuntimeIPC,
   stopAudioRuntime,
+  stopVisualRuntime as stopVisualRuntimeIPC,
   toggleAgentFreeze as toggleAgentFreezeIPC,
 } from "../lib/session-client";
 import {
+  type AgentRuntimeProjection,
   type AudioRuntimeProjection,
   type GraphEdge,
   type GraphNode,
+  type VisualRuntimeProjection,
   projectSessionState,
 } from "./session-projections";
 
@@ -51,6 +58,8 @@ type SessionStore = {
   graphEdges: GraphEdge[];
   selectedNode: Node | null;
   audioRuntime: AudioRuntimeProjection | null;
+  visualRuntime: VisualRuntimeProjection | null;
+  agentRuntime: AgentRuntimeProjection | null;
   isLoading: boolean;
   error: string | null;
   workspaceView: WorkspaceView;
@@ -74,6 +83,10 @@ type SessionStore = {
   startAudio: () => Promise<void>;
   stopAudio: () => Promise<void>;
   panicAudio: () => Promise<void>;
+  startVisual: () => Promise<void>;
+  stopVisual: () => Promise<void>;
+  panicVisual: () => Promise<void>;
+  refreshAgentRuntime: () => Promise<void>;
   setWorkspaceView: (view: WorkspaceView) => void;
   recallScene: (sceneId: string) => Promise<void>;
   saveVariation: (name: string, sceneId: string) => Promise<void>;
@@ -112,6 +125,8 @@ function applySession(
     graphNodes: projection.graphNodes,
     graphEdges: projection.graphEdges,
     audioRuntime: projection.audioRuntime,
+    visualRuntime: projection.visualRuntime,
+    agentRuntime: projection.agentRuntime,
     topologySignature: projection.topologySignature,
     agentFrozen: session.agentFrozen,
     pendingActions: session.pendingActions,
@@ -158,6 +173,22 @@ function createRouteFromNodes(session: SessionDocument, sourceNodeId: string, ta
   };
 }
 
+function projectAgentRuntimeFromState(state: AgentRuntimeState): import("./session-projections").AgentRuntimeProjection {
+  let status = "Available";
+  if (state.isFrozen) {
+    status = "Frozen";
+  } else if (state.pendingActionCount > 0) {
+    status = `${state.pendingActionCount} pending action(s)`;
+  }
+
+  return {
+    isAvailable: state.isAvailable,
+    pendingActionCount: state.pendingActionCount,
+    isFrozen: state.isFrozen,
+    status,
+  };
+}
+
 export const useSessionStore = create<SessionStore>((set, get) => ({
   session: null,
   selectedNodeId: null,
@@ -165,6 +196,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   graphEdges: [],
   selectedNode: null,
   audioRuntime: null,
+  visualRuntime: null,
+  agentRuntime: null,
   isLoading: false,
   error: null,
   workspaceView: "graph" as WorkspaceView,
@@ -359,6 +392,50 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to panic audio runtime.";
       set({ isLoading: false, error: message });
+    }
+  },
+  startVisual: async () => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const session = await startVisualRuntimeIPC();
+      const current = get();
+      set({ ...applySession(session, current.selectedNodeId, current), isLoading: false });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to start visual runtime.";
+      set({ isLoading: false, error: message });
+    }
+  },
+  stopVisual: async () => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const session = await stopVisualRuntimeIPC();
+      const current = get();
+      set({ ...applySession(session, current.selectedNodeId, current), isLoading: false });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to stop visual runtime.";
+      set({ isLoading: false, error: message });
+    }
+  },
+  panicVisual: async () => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const session = await panicVisualRuntimeIPC();
+      const current = get();
+      set({ ...applySession(session, current.selectedNodeId, current), isLoading: false });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to panic visual runtime.";
+      set({ isLoading: false, error: message });
+    }
+  },
+  refreshAgentRuntime: async () => {
+    try {
+      const agentState = await getAgentRuntimeState();
+      set({ agentRuntime: projectAgentRuntimeFromState(agentState) });
+    } catch {
+      // agent state refresh is non-critical
     }
   },
   setWorkspaceView: (view) => {

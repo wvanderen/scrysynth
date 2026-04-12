@@ -4,13 +4,13 @@ import { z } from "zod";
 import type {
   ActionHistoryEntry,
   AgentIntent,
+  AgentRuntimeState,
   GraphEditCommand,
   PerformanceCommand,
   PendingAction,
   SessionDocument,
   TypedCommand,
 } from "../generated/session-types";
-
 const transportStateSchema = z.object({
   tempoBpm: z.number(),
   isPlaying: z.boolean(),
@@ -159,6 +159,21 @@ const audioRuntimeSchema = z.object({
   panicRecoveryCount: z.number(),
 });
 
+const visualRuntimeStateSchema = z.object({
+  lifecycle: z.enum(["idle", "starting", "ready", "rendering", "failed"]),
+  health: z.enum(["unknown", "healthy", "degraded", "error"]),
+  activeSceneId: z.string().nullable(),
+  fps: z.number().nullable(),
+  lastError: z.string().nullable(),
+  renderer: z.string().nullable(),
+});
+
+const agentRuntimeStateSchema = z.object({
+  isAvailable: z.boolean(),
+  pendingActionCount: z.number(),
+  isFrozen: z.boolean(),
+});
+
 const graphEditCommandSchema: z.ZodType<GraphEditCommand> = z.discriminatedUnion("type", [
   z.object({ type: z.literal("addNode"), payload: z.object({ node: nodeSchema }) }),
   z.object({ type: z.literal("removeNode"), payload: z.object({ node_id: z.string() }) }),
@@ -226,6 +241,8 @@ const sessionDocumentSchema: z.ZodType<SessionDocument> = z.object({
   updatedAt: z.string(),
   transport: transportStateSchema,
   audioRuntime: audioRuntimeSchema,
+  visualRuntime: visualRuntimeStateSchema,
+  agentRuntime: agentRuntimeStateSchema,
   nodes: z.array(nodeSchema),
   routes: z.array(routeSchema),
   buses: z.array(busSchema),
@@ -311,4 +328,27 @@ export async function approvePendingAction(actionId: string): Promise<SessionDoc
 
 export async function rejectPendingAction(actionId: string): Promise<SessionDocument> {
   return invokeSession("reject_pending_action", { actionId });
+}
+
+export async function startVisualRuntime(): Promise<SessionDocument> {
+  return invokeSession("start_visual_runtime");
+}
+
+export async function stopVisualRuntime(): Promise<SessionDocument> {
+  return invokeSession("stop_visual_runtime");
+}
+
+export async function panicVisualRuntime(): Promise<SessionDocument> {
+  return invokeSession("panic_visual_runtime");
+}
+
+const agentRuntimeStateResponseSchema: z.ZodType<AgentRuntimeState> = z.object({
+  isAvailable: z.boolean(),
+  pendingActionCount: z.number(),
+  isFrozen: z.boolean(),
+});
+
+export async function getAgentRuntimeState(): Promise<AgentRuntimeState> {
+  const payload = await invoke("get_agent_runtime_state");
+  return agentRuntimeStateResponseSchema.parse(payload);
 }

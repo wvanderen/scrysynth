@@ -44,6 +44,19 @@ function createSession(overrides: Partial<SessionDocument> = {}): SessionDocumen
       lastError: null,
       panicRecoveryCount: 0,
     },
+    visualRuntime: {
+      lifecycle: "idle",
+      health: "unknown",
+      activeSceneId: null,
+      fps: null,
+      lastError: null,
+      renderer: null,
+    },
+    agentRuntime: {
+      isAvailable: true,
+      pendingActionCount: 0,
+      isFrozen: false,
+    },
     nodes: [
       {
         id: "source-1",
@@ -83,6 +96,8 @@ describe("agent collaboration store actions", () => {
       graphEdges: [],
       selectedNode: null,
       audioRuntime: null,
+      visualRuntime: null,
+      agentRuntime: null,
       isLoading: false,
       error: null,
       workspaceView: "graph",

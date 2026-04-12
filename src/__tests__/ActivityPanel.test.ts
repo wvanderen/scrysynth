@@ -14,6 +14,13 @@ function createSession(overrides: Partial<SessionDocument> = {}): SessionDocumen
       lifecycle: "idle", health: "unknown", sampleRateHz: null, blockSize: null,
       activePatchId: null, lastError: null, panicRecoveryCount: 0,
     },
+    visualRuntime: {
+      lifecycle: "idle", health: "unknown", activeSceneId: null, fps: null,
+      lastError: null, renderer: null,
+    },
+    agentRuntime: {
+      isAvailable: true, pendingActionCount: 0, isFrozen: false,
+    },
     nodes: [],
     routes: [],
     buses: [],

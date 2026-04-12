@@ -1,4 +1,5 @@
 import type { WorkspaceView } from "../../store/sessionStore";
+import { RuntimeHealthPanel } from "./RuntimeHealthPanel";
 
 type WorkspaceViewSwitcherProps = {
   currentView: WorkspaceView;
@@ -13,17 +14,20 @@ const VIEWS: { id: WorkspaceView; label: string }[] = [
 
 export function WorkspaceViewSwitcher({ currentView, onViewChange }: WorkspaceViewSwitcherProps) {
   return (
-    <nav className="view-switcher">
-      {VIEWS.map((view) => (
-        <button
-          key={view.id}
-          type="button"
-          className={`view-tab ${currentView === view.id ? "view-tab-active" : ""}`}
-          onClick={() => onViewChange(view.id)}
-        >
-          {view.label}
-        </button>
-      ))}
-    </nav>
+    <div>
+      <nav className="view-switcher">
+        {VIEWS.map((view) => (
+          <button
+            key={view.id}
+            type="button"
+            className={`view-tab ${currentView === view.id ? "view-tab-active" : ""}`}
+            onClick={() => onViewChange(view.id)}
+          >
+            {view.label}
+          </button>
+        ))}
+      </nav>
+      <RuntimeHealthPanel />
+    </div>
   );
 }

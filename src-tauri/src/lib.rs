@@ -13,8 +13,8 @@ use application::graph_edit;
 use application::performance_command;
 use application::session_store::SessionStore;
 use domain::session::{
-    write_generated_typescript_contract, ActorRef, ControllerKind, GraphEditCommand,
-    PerformanceCommand, SessionDocument,
+    write_generated_typescript_contract, ActorRef, AgentRuntimeState, ControllerKind,
+    GraphEditCommand, PerformanceCommand, SessionDocument,
 };
 use persistence::session_file;
 
@@ -166,6 +166,38 @@ fn reject_pending_action(
         .map_err(|err| err.to_string())
 }
 
+#[tauri::command]
+fn start_visual_runtime(
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<SessionDocument, String> {
+    let mut store = state.lock().map_err(|err| err.to_string())?;
+    store.start_visual_runtime().map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+fn stop_visual_runtime(
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<SessionDocument, String> {
+    let mut store = state.lock().map_err(|err| err.to_string())?;
+    store.stop_visual_runtime().map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+fn panic_visual_runtime(
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<SessionDocument, String> {
+    let mut store = state.lock().map_err(|err| err.to_string())?;
+    store.panic_visual_runtime().map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+fn get_agent_runtime_state(
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<AgentRuntimeState, String> {
+    let store = state.lock().map_err(|err| err.to_string())?;
+    Ok(store.derive_agent_runtime_state())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _ = write_generated_typescript_contract();
@@ -187,7 +219,11 @@ pub fn run() {
             toggle_agent_freeze,
             reclaim_ownership,
             approve_pending_action,
-            reject_pending_action
+            reject_pending_action,
+            start_visual_runtime,
+            stop_visual_runtime,
+            panic_visual_runtime,
+            get_agent_runtime_state
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,13 +1,14 @@
 use crate::audio::runtime_manager::{AudioRuntimeManager, AudioRuntimeManagerError};
 use crate::domain::session::{
-    new_id, ActionHistoryEntry, ActorRef, AudioBusType, AudioOutputNode, AudioOutputType,
-    AudioPrimitive, AudioRuntimeHealth, AudioRuntimeLifecycle, AudioRuntimeState, AudioSourceNode,
-    AudioSourceType, Bus, ChannelMode, ControllerKind, DiffSummary, GraphEditCommand,
-    MacroDefinition, MacroOverride, Node, NodeType, OwnershipAssignment, OwnershipRule,
-    ParameterOverride, ParameterValue, PerformanceCommand, Port, PortDirection, Route,
-    RuntimeConnectionState, RuntimeKind, RuntimeStatusRef, SceneDefinition, SessionDocument,
+    new_id, ActionHistoryEntry, ActorRef, AgentRuntimeState, AudioBusType, AudioOutputNode,
+    AudioOutputType, AudioPrimitive, AudioRuntimeHealth, AudioRuntimeLifecycle, AudioRuntimeState,
+    AudioSourceNode, AudioSourceType, Bus, ChannelMode, ControllerKind, DiffSummary,
+    GraphEditCommand, MacroDefinition, MacroOverride, Node, NodeType, OwnershipAssignment,
+    OwnershipRule, ParameterOverride, ParameterValue, PerformanceCommand, Port, PortDirection,
+    Route, RuntimeConnectionState, RuntimeKind, RuntimeStatusRef, SceneDefinition, SessionDocument,
     SignalType, TypedCommand, VariationDefinition,
 };
+use crate::visual::runtime_manager::{VisualRuntimeManager, VisualRuntimeManagerError};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OwnershipGateError {
@@ -40,6 +41,7 @@ impl std::error::Error for OwnershipGateError {}
 pub struct SessionStore {
     current: SessionDocument,
     audio_runtime_manager: AudioRuntimeManager,
+    visual_runtime_manager: VisualRuntimeManager,
 }
 
 impl SessionStore {
@@ -47,6 +49,7 @@ impl SessionStore {
         Self {
             current: build_default_session(),
             audio_runtime_manager: AudioRuntimeManager::default(),
+            visual_runtime_manager: VisualRuntimeManager::default(),
         }
     }
 
@@ -77,6 +80,35 @@ impl SessionStore {
         let result = manager.panic(self);
         self.audio_runtime_manager = manager;
         result
+    }
+
+    pub fn start_visual_runtime(&mut self) -> Result<SessionDocument, VisualRuntimeManagerError> {
+        let mut manager = std::mem::take(&mut self.visual_runtime_manager);
+        let result = manager.start(self);
+        self.visual_runtime_manager = manager;
+        result
+    }
+
+    pub fn stop_visual_runtime(&mut self) -> Result<SessionDocument, VisualRuntimeManagerError> {
+        let mut manager = std::mem::take(&mut self.visual_runtime_manager);
+        let result = manager.stop(self);
+        self.visual_runtime_manager = manager;
+        result
+    }
+
+    pub fn panic_visual_runtime(&mut self) -> Result<SessionDocument, VisualRuntimeManagerError> {
+        let mut manager = std::mem::take(&mut self.visual_runtime_manager);
+        let result = manager.panic(self);
+        self.visual_runtime_manager = manager;
+        result
+    }
+
+    pub fn derive_agent_runtime_state(&self) -> AgentRuntimeState {
+        AgentRuntimeState {
+            is_available: true,
+            pending_action_count: self.current.pending_actions.len() as u32,
+            is_frozen: self.current.agent_frozen,
+        }
     }
 
     pub fn mutate_current<F, E>(&mut self, mutate: F) -> Result<SessionDocument, E>

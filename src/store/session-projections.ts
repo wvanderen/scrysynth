@@ -21,6 +21,22 @@ export type AudioRuntimeProjection = {
   canStop: boolean;
 };
 
+export type VisualRuntimeProjection = {
+  lifecycle: SessionDocument["visualRuntime"]["lifecycle"];
+  health: SessionDocument["visualRuntime"]["health"];
+  status: string;
+  detail: string;
+  canStart: boolean;
+  canStop: boolean;
+};
+
+export type AgentRuntimeProjection = {
+  isAvailable: boolean;
+  pendingActionCount: number;
+  isFrozen: boolean;
+  status: string;
+};
+
 export type SessionProjection = {
   session: SessionDocument;
   selectedNodeId: string | null;
@@ -28,6 +44,8 @@ export type SessionProjection = {
   graphNodes: GraphNode[];
   graphEdges: GraphEdge[];
   audioRuntime: AudioRuntimeProjection;
+  visualRuntime: VisualRuntimeProjection;
+  agentRuntime: AgentRuntimeProjection;
   topologySignature: string;
 };
 
@@ -51,6 +69,8 @@ export function projectSessionState(
     graphNodes: canReuseGraph ? previous.graphNodes : projectGraphNodes(session, resolvedSelectedNodeId),
     graphEdges: canReuseGraph ? previous.graphEdges : projectGraphEdges(session),
     audioRuntime: projectAudioRuntime(session),
+    visualRuntime: projectVisualRuntime(session),
+    agentRuntime: projectAgentRuntime(session),
     topologySignature,
   };
 }
@@ -200,4 +220,47 @@ export function deriveActiveSceneId(session: SessionDocument): string | null {
   }
 
   return bestMatch?.sceneId ?? null;
+}
+
+function projectVisualRuntime(session: SessionDocument): VisualRuntimeProjection {
+  const { health, lastError, lifecycle } = session.visualRuntime;
+
+  let detail = "Visual runtime idle.";
+  if (lastError) {
+    detail = lastError;
+  } else if (session.visualRuntime.activeSceneId) {
+    detail = `Scene ${session.visualRuntime.activeSceneId} loaded.`;
+    if (session.visualRuntime.fps != null) {
+      detail += ` ${session.visualRuntime.fps} FPS.`;
+    }
+  }
+
+  return {
+    lifecycle,
+    health,
+    status: `${lifecycle.replace(/_/g, " ")} / ${health.replace(/_/g, " ")}`,
+    detail,
+    canStart: lifecycle === "idle" || lifecycle === "failed",
+    canStop: lifecycle === "starting" || lifecycle === "ready" || lifecycle === "rendering",
+  };
+}
+
+function projectAgentRuntime(session: SessionDocument): AgentRuntimeProjection {
+  const isAvailable = session.agentRuntime?.isAvailable ?? true;
+  const pendingActionCount = session.agentRuntime?.pendingActionCount ?? session.pendingActions.length;
+  const isFrozen = session.agentRuntime?.isFrozen ?? session.agentFrozen;
+
+  let status = "Available";
+  if (isFrozen) {
+    status = "Frozen";
+  } else if (pendingActionCount > 0) {
+    status = `${pendingActionCount} pending action(s)`;
+  }
+
+  return {
+    isAvailable,
+    pendingActionCount,
+    isFrozen,
+    status,
+  };
 }
