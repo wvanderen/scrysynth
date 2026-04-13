@@ -32,6 +32,7 @@ function createSession(overrides: Partial<SessionDocument> = {}): SessionDocumen
     agentFrozen: false,
     pendingActions: [],
     actionHistory: [],
+    hardwareBindings: [],
     ...overrides,
   };
 }

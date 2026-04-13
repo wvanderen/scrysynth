@@ -4,8 +4,10 @@ import type {
   ActionHistoryEntry,
   AgentIntent,
   AgentRuntimeState,
+  BindingTarget,
   ControllerKind,
   GraphEditCommand,
+  HardwareBinding,
   MacroCommand,
   MacroDefinition,
   MacroTarget,
@@ -26,13 +28,17 @@ import {
   openSessionFromPath,
   panicAudioRuntime,
   panicVisualRuntime as panicVisualRuntimeIPC,
+  pollHardwareEvents as pollHardwareEventsIPC,
   reclaimOwnership as reclaimOwnershipIPC,
   rejectPendingAction as rejectPendingActionIPC,
+  removeHardwareBinding as removeHardwareBindingIPC,
   saveSessionToPath,
   sendAgentMessage as sendAgentMessageIPC,
   startAudioRuntime,
+  startHardwareLearn as startHardwareLearnIPC,
   startVisualRuntime as startVisualRuntimeIPC,
   stopAudioRuntime,
+  stopHardwareLearn as stopHardwareLearnIPC,
   stopVisualRuntime as stopVisualRuntimeIPC,
   toggleAgentFreeze as toggleAgentFreezeIPC,
 } from "../lib/session-client";
@@ -66,6 +72,9 @@ type SessionStore = {
   visualRuntime: VisualRuntimeProjection | null;
   agentRuntime: AgentRuntimeProjection | null;
   macros: MacroProjection[];
+  hardwareBindings: HardwareBinding[];
+  midiLearnActive: boolean;
+  midiLearnTarget: BindingTarget | null;
   isLoading: boolean;
   error: string | null;
   workspaceView: WorkspaceView;
@@ -107,6 +116,9 @@ type SessionStore = {
   updateMacro: (macroId: string, updates: { name?: string; targets?: MacroTarget[]; rangeStart?: number; rangeEnd?: number }) => Promise<void>;
   removeMacro: (macroId: string) => Promise<void>;
   setMacroValue: (macroId: string, value: number) => Promise<void>;
+  startMidiLearn: (target: BindingTarget) => Promise<void>;
+  stopMidiLearn: () => Promise<void>;
+  removeHardwareBinding: (bindingId: string) => Promise<void>;
 };
 
 function applySession(
@@ -142,6 +154,7 @@ function applySession(
     agentFrozen: session.agentFrozen,
     pendingActions: session.pendingActions,
     actionHistory: session.actionHistory,
+    hardwareBindings: session.hardwareBindings ?? [],
   };
 }
 
@@ -217,6 +230,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   agentFrozen: false,
   pendingActions: [],
   actionHistory: [],
+  hardwareBindings: [],
+  midiLearnActive: false,
+  midiLearnTarget: null,
   bootstrapSession: async () => {
     set({ isLoading: true, error: null });
 
@@ -657,4 +673,73 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       set({ error: message });
     }
   },
+  startMidiLearn: async (target) => {
+    try {
+      await startHardwareLearnIPC(target);
+      set({ midiLearnActive: true, midiLearnTarget: target });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to start MIDI learn.";
+      set({ error: message });
+    }
+  },
+  stopMidiLearn: async () => {
+    try {
+      await stopHardwareLearnIPC();
+      set({ midiLearnActive: false, midiLearnTarget: null });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to stop MIDI learn.";
+      set({ error: message });
+    }
+  },
+  removeHardwareBinding: async (bindingId) => {
+    try {
+      const session = await removeHardwareBindingIPC(bindingId);
+      const current = get();
+      set({ ...applySession(session, current.selectedNodeId, current) });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to remove binding.";
+      set({ error: message });
+    }
+  },
 }));
+
+let hardwarePollInterval: ReturnType<typeof setInterval> | null = null;
+
+export function startHardwarePolling() {
+  stopHardwarePolling();
+  hardwarePollInterval = setInterval(async () => {
+    const state = useSessionStore.getState();
+    if (!state.midiLearnActive && (state.hardwareBindings ?? []).length === 0) {
+      stopHardwarePolling();
+      return;
+    }
+    try {
+      const session = await pollHardwareEventsIPC();
+      const current = useSessionStore.getState();
+      const hadLearnActive = current.midiLearnActive;
+      const newBindings = session.hardwareBindings ?? [];
+      const prevBindings = current.hardwareBindings ?? [];
+
+      if (hadLearnActive && newBindings.length > prevBindings.length) {
+        useSessionStore.setState({
+          ...applySession(session, current.selectedNodeId, current),
+          midiLearnActive: false,
+          midiLearnTarget: null,
+        });
+      } else {
+        useSessionStore.setState({
+          ...applySession(session, current.selectedNodeId, current),
+        });
+      }
+    } catch {
+      // polling errors are non-critical
+    }
+  }, 100);
+}
+
+export function stopHardwarePolling() {
+  if (hardwarePollInterval !== null) {
+    clearInterval(hardwarePollInterval);
+    hardwarePollInterval = null;
+  }
+}

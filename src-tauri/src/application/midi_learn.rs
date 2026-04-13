@@ -24,6 +24,22 @@ pub struct HardwareInputRouter {
     pub osc_rx: Option<Receiver<OscLearnEvent>>,
 }
 
+impl std::fmt::Debug for HardwareInputRouter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HardwareInputRouter")
+            .field("learn_state", &self.learn_state)
+            .field(
+                "midi_rx",
+                &self.midi_rx.as_ref().map(|_| "Receiver<MidiLearnEvent>"),
+            )
+            .field(
+                "osc_rx",
+                &self.osc_rx.as_ref().map(|_| "Receiver<OscLearnEvent>"),
+            )
+            .finish()
+    }
+}
+
 impl HardwareInputRouter {
     pub fn new() -> Self {
         Self {

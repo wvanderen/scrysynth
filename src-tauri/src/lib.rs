@@ -15,8 +15,8 @@ use application::macro_command;
 use application::performance_command;
 use application::session_store::SessionStore;
 use domain::session::{
-    write_generated_typescript_contract, ActorRef, AgentRuntimeState, ControllerKind,
-    GraphEditCommand, MacroCommand, PerformanceCommand, SessionDocument,
+    write_generated_typescript_contract, ActorRef, AgentRuntimeState, BindingTarget,
+    ControllerKind, GraphEditCommand, MacroCommand, PerformanceCommand, SessionDocument,
 };
 use persistence::session_file;
 
@@ -209,6 +209,42 @@ fn get_agent_runtime_state(
     Ok(store.derive_agent_runtime_state())
 }
 
+#[tauri::command]
+fn start_hardware_learn(
+    target: BindingTarget,
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<(), String> {
+    let mut store = state.lock().map_err(|err| err.to_string())?;
+    store.start_hardware_learn(target);
+    Ok(())
+}
+
+#[tauri::command]
+fn stop_hardware_learn(state: tauri::State<'_, Mutex<SessionStore>>) -> Result<(), String> {
+    let mut store = state.lock().map_err(|err| err.to_string())?;
+    store.stop_hardware_learn();
+    Ok(())
+}
+
+#[tauri::command]
+fn poll_hardware_events(
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<SessionDocument, String> {
+    let mut store = state.lock().map_err(|err| err.to_string())?;
+    store.poll_hardware_events();
+    Ok(store.current())
+}
+
+#[tauri::command]
+fn remove_hardware_binding(
+    binding_id: String,
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<SessionDocument, String> {
+    let mut store = state.lock().map_err(|err| err.to_string())?;
+    store.remove_hardware_binding(&binding_id);
+    Ok(store.current())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _ = write_generated_typescript_contract();
@@ -235,7 +271,11 @@ pub fn run() {
             stop_visual_runtime,
             panic_visual_runtime,
             apply_macro_command,
-            get_agent_runtime_state
+            get_agent_runtime_state,
+            start_hardware_learn,
+            stop_hardware_learn,
+            poll_hardware_events,
+            remove_hardware_binding
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,12 +1,13 @@
+use crate::application::midi_learn::HardwareInputRouter;
 use crate::audio::runtime_manager::{AudioRuntimeManager, AudioRuntimeManagerError};
 use crate::domain::session::{
     new_id, ActionHistoryEntry, ActorRef, AgentRuntimeState, AudioBusType, AudioOutputNode,
     AudioOutputType, AudioPrimitive, AudioRuntimeHealth, AudioRuntimeLifecycle, AudioRuntimeState,
-    AudioSourceNode, AudioSourceType, Bus, ChannelMode, ControllerKind, DiffSummary,
-    GraphEditCommand, MacroDefinition, MacroOverride, Node, NodeType, OwnershipAssignment,
-    OwnershipRule, ParameterOverride, ParameterValue, PerformanceCommand, Port, PortDirection,
-    Route, RuntimeConnectionState, RuntimeKind, RuntimeStatusRef, SceneDefinition, SessionDocument,
-    SignalType, TypedCommand, VariationDefinition,
+    AudioSourceNode, AudioSourceType, BindingTarget, Bus, ChannelMode, ControllerKind, DiffSummary,
+    GraphEditCommand, HardwareBinding, MacroDefinition, MacroOverride, Node, NodeType,
+    OwnershipAssignment, OwnershipRule, ParameterOverride, ParameterValue, PerformanceCommand,
+    Port, PortDirection, Route, RuntimeConnectionState, RuntimeKind, RuntimeStatusRef,
+    SceneDefinition, SessionDocument, SignalType, TypedCommand, VariationDefinition,
 };
 use crate::visual::runtime_manager::{VisualRuntimeManager, VisualRuntimeManagerError};
 
@@ -42,6 +43,8 @@ pub struct SessionStore {
     current: SessionDocument,
     audio_runtime_manager: AudioRuntimeManager,
     visual_runtime_manager: VisualRuntimeManager,
+    #[allow(dead_code)]
+    hardware_router: HardwareInputRouter,
 }
 
 impl SessionStore {
@@ -50,6 +53,7 @@ impl SessionStore {
             current: build_default_session(),
             audio_runtime_manager: AudioRuntimeManager::default(),
             visual_runtime_manager: VisualRuntimeManager::default(),
+            hardware_router: HardwareInputRouter::new(),
         }
     }
 
@@ -101,6 +105,32 @@ impl SessionStore {
         let result = manager.panic(self);
         self.visual_runtime_manager = manager;
         result
+    }
+
+    pub fn start_hardware_learn(&mut self, target: BindingTarget) {
+        self.hardware_router.start_learn(target);
+    }
+
+    pub fn stop_hardware_learn(&mut self) {
+        self.hardware_router.stop_learn();
+    }
+
+    pub fn poll_hardware_events(&mut self) -> Option<HardwareBinding> {
+        self.hardware_router.poll_and_route(&mut self.current)
+    }
+
+    pub fn remove_hardware_binding(&mut self, binding_id: &str) -> bool {
+        let index = self
+            .current
+            .hardware_bindings
+            .iter()
+            .position(|b| b.id == binding_id);
+        if let Some(i) = index {
+            self.current.hardware_bindings.remove(i);
+            true
+        } else {
+            false
+        }
     }
 
     pub fn derive_agent_runtime_state(&self) -> AgentRuntimeState {

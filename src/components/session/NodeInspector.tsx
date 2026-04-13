@@ -20,7 +20,7 @@ export function NodeInspector({
   onUpdateParameter,
   onAssignNodeToBus,
   onClearNodeBus,
-  onReclaimOwnership,
+  onReclaimOwnership: _onReclaimOwnership,
   onSetNodeOwnership,
 }: NodeInspectorProps) {
   if (!selectedNode) {

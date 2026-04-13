@@ -51,6 +51,9 @@ function App() {
     updateMacro,
     removeMacro,
     setMacroValue,
+    hardwareBindings,
+    startMidiLearn,
+    removeHardwareBinding,
   } = useSessionStore();
 
   useEffect(() => {
@@ -158,6 +161,9 @@ function App() {
           onUpdateMacro={(macroId, updates) => void updateMacro(macroId, updates)}
           onRemoveMacro={(macroId) => void removeMacro(macroId)}
           onSetMacroValue={(macroId, value) => void setMacroValue(macroId, value)}
+          hardwareBindings={hardwareBindings ?? []}
+          onStartMidiLearn={(target) => void startMidiLearn(target)}
+          onRemoveHardwareBinding={(bindingId) => void removeHardwareBinding(bindingId)}
         />
       ) : null}
 

@@ -1,6 +1,6 @@
 // Generated from Rust session contracts.
 
-export type SessionDocument = { schemaVersion: number, sessionId: string, title: string, createdAt: string, updatedAt: string, transport: TransportState, audioRuntime: AudioRuntimeState, nodes: Array<Node>, routes: Array<Route>, buses: Array<Bus>, macros: Array<MacroDefinition>, scenes: Array<SceneDefinition>, variations: Array<VariationDefinition>, ownershipRules: Array<OwnershipRule>, runtimeStatus: Array<RuntimeStatusRef>, visualRuntime: VisualRuntimeState, agentRuntime: AgentRuntimeState, agentFrozen: boolean, pendingActions: Array<PendingAction>, actionHistory: Array<ActionHistoryEntry>, };
+export type SessionDocument = { schemaVersion: number, sessionId: string, title: string, createdAt: string, updatedAt: string, transport: TransportState, audioRuntime: AudioRuntimeState, nodes: Array<Node>, routes: Array<Route>, buses: Array<Bus>, macros: Array<MacroDefinition>, scenes: Array<SceneDefinition>, variations: Array<VariationDefinition>, ownershipRules: Array<OwnershipRule>, runtimeStatus: Array<RuntimeStatusRef>, visualRuntime: VisualRuntimeState, agentRuntime: AgentRuntimeState, agentFrozen: boolean, pendingActions: Array<PendingAction>, actionHistory: Array<ActionHistoryEntry>, hardwareBindings: Array<HardwareBinding>, };
 
 export type TransportState = { tempoBpm: number, isPlaying: boolean, positionBeats: number, };
 
@@ -99,3 +99,11 @@ export type PendingActionStatus = "pending" | "approved" | "rejected";
 export type PendingAction = { id: string, correlationId: string, command: TypedCommand, riskTier: RiskTier, createdAt: string, status: PendingActionStatus, };
 
 export type ActionHistoryEntry = { id: string, timestamp: string, actor: ActorRef, command: TypedCommand, diff: DiffSummary, };
+
+export type HardwareSource = { "kind": "midiCc", "config": { channel: number, controller: number, } } | { "kind": "midiNote", "config": { channel: number, note: number, } } | { "kind": "midiPitchBend", "config": { channel: number, } } | { "kind": "oscAddress", "config": { address: string, } };
+
+export type BindingTarget = { "kind": "macro", "config": { macro_id: string, } } | { "kind": "sceneRecall", "config": { scene_id: string, } } | { "kind": "transportPlay" } | { "kind": "transportStop" } | { "kind": "transportPanic" };
+
+export type ValueTransform = { inputMin: number, inputMax: number, outputMin: number, outputMax: number, };
+
+export type HardwareBinding = { id: string, source: HardwareSource, target: BindingTarget, transform: ValueTransform, };

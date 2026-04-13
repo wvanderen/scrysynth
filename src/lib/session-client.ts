@@ -5,7 +5,9 @@ import type {
   ActionHistoryEntry,
   AgentIntent,
   AgentRuntimeState,
+  BindingTarget,
   GraphEditCommand,
+  HardwareBinding,
   MacroCommand,
   PerformanceCommand,
   PendingAction,
@@ -268,6 +270,35 @@ const agentIntentSchema: z.ZodType<AgentIntent> = z.object({
   confidence: z.number(),
 });
 
+const hardwareSourceSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("midiCc"), config: z.object({ channel: z.number(), controller: z.number() }) }),
+  z.object({ kind: z.literal("midiNote"), config: z.object({ channel: z.number(), note: z.number() }) }),
+  z.object({ kind: z.literal("midiPitchBend"), config: z.object({ channel: z.number() }) }),
+  z.object({ kind: z.literal("oscAddress"), config: z.object({ address: z.string() }) }),
+]);
+
+const bindingTargetSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("macro"), config: z.object({ macro_id: z.string() }) }),
+  z.object({ kind: z.literal("sceneRecall"), config: z.object({ scene_id: z.string() }) }),
+  z.object({ kind: z.literal("transportPlay") }),
+  z.object({ kind: z.literal("transportStop") }),
+  z.object({ kind: z.literal("transportPanic") }),
+]);
+
+const valueTransformSchema = z.object({
+  inputMin: z.number(),
+  inputMax: z.number(),
+  outputMin: z.number(),
+  outputMax: z.number(),
+});
+
+const hardwareBindingSchema: z.ZodType<HardwareBinding> = z.object({
+  id: z.string(),
+  source: hardwareSourceSchema,
+  target: bindingTargetSchema,
+  transform: valueTransformSchema,
+});
+
 const sessionDocumentSchema: z.ZodType<SessionDocument> = z.object({
   schemaVersion: z.number(),
   sessionId: z.string(),
@@ -289,6 +320,7 @@ const sessionDocumentSchema: z.ZodType<SessionDocument> = z.object({
   agentFrozen: z.boolean(),
   pendingActions: z.array(pendingActionSchema),
   actionHistory: z.array(actionHistoryEntrySchema),
+  hardwareBindings: z.array(hardwareBindingSchema).default([]),
 });
 
 async function invokeSession(command: string, args?: Record<string, unknown>) {
@@ -391,4 +423,21 @@ const agentRuntimeStateResponseSchema: z.ZodType<AgentRuntimeState> = z.object({
 export async function getAgentRuntimeState(): Promise<AgentRuntimeState> {
   const payload = await invoke("get_agent_runtime_state");
   return agentRuntimeStateResponseSchema.parse(payload);
+}
+
+export async function startHardwareLearn(target: BindingTarget): Promise<void> {
+  bindingTargetSchema.parse(target);
+  await invoke("start_hardware_learn", { target });
+}
+
+export async function stopHardwareLearn(): Promise<void> {
+  await invoke("stop_hardware_learn");
+}
+
+export async function pollHardwareEvents(): Promise<SessionDocument> {
+  return invokeSession("poll_hardware_events");
+}
+
+export async function removeHardwareBinding(bindingId: string): Promise<SessionDocument> {
+  return invokeSession("remove_hardware_binding", { bindingId });
 }
