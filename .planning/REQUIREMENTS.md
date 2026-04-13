@@ -32,7 +32,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **CTRL-01**: User can create and adjust macros that map one control to multiple audio and visual parameters.
 - [x] **CTRL-02**: User can trigger scenes that recall predefined session states for live performance.
 - [x] **CTRL-03**: User can save a variation or snapshot of the current session and restore it later during the same working session.
-- [ ] **CTRL-04**: User can bind supported hardware control input through MIDI or OSC learn to v1 macros or performance actions.
+- [x] **CTRL-04**: User can bind supported hardware control input through MIDI or OSC learn to v1 macros or performance actions.
 
 ### Agent Collaboration
 
@@ -94,7 +94,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CTRL-01 | Phase 5 | Complete |
 | CTRL-02 | Phase 3 | Complete |
 | CTRL-03 | Phase 3 | Complete |
-| CTRL-04 | Phase 5 | Pending |
+| CTRL-04 | Phase 5 | Complete |
 | AGNT-01 | Phase 4 | Pending |
 | AGNT-02 | Phase 4 | Pending |
 | AGNT-03 | Phase 4 | Pending |

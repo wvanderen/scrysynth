@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Playable Audio Graph** - Users turn the canonical graph into reliable sound with safe live mutation.
 - [x] **Phase 3: Performance Workspace** - Users move through linked views and recall scenes or variations during a live session.
 - [x] **Phase 4: Agent Collaboration** - Users co-create through natural language with visible ownership and gated mutations.
-- [ ] **Phase 5: Visual Sync & Cross-Modal Control** - Audio and visuals respond together to shared macros, hardware input, and runtime feedback.
+- [x] **Phase 5: Visual Sync & Cross-Modal Control** - Audio and visuals respond together to shared macros, hardware input, and runtime feedback. (completed 2026-04-13)
 
 ## Phase Details
 
@@ -112,4 +112,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 2. Playable Audio Graph | 3/3 | Complete | 2026-04-12 |
 | 3. Performance Workspace | 3/3 | Complete | 2026-04-11 |
 | 4. Agent Collaboration | 3/3 | Complete | 2026-04-12 |
-| 5. Visual Sync & Cross-Modal Control | 0/TBD | Not started | - |
+| 5. Visual Sync & Cross-Modal Control | 3/3 | Complete   | 2026-04-13 |
