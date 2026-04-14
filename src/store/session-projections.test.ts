@@ -241,6 +241,15 @@ describe("session projections", () => {
     expect(nextProjection.selectedNode?.parameters[0]?.value).toBe(0.55);
   });
 
+  it("deriveSelectedNode returns null when selectedNodeId is null or not found", () => {
+    const session = createSession();
+    const withNullId = projectSessionState(session, null);
+    expect(withNullId.selectedNode).toBeNull();
+
+    const withBadId = projectSessionState(session, "nonexistent-node-id");
+    expect(withBadId.selectedNode).toBeNull();
+  });
+
   it("rejected edits keep the previous store state and surface an error banner message", async () => {
     const initial = createSession();
 

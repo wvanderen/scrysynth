@@ -144,10 +144,10 @@ function labelForNode(node: Node) {
 
 function deriveSelectedNode(session: SessionDocument, selectedNodeId: string | null): Node | null {
   if (!selectedNodeId) {
-    return session.nodes[0] ?? null;
+    return null;
   }
 
-  return session.nodes.find((node) => node.id === selectedNodeId) ?? session.nodes[0] ?? null;
+  return session.nodes.find((node) => node.id === selectedNodeId) ?? null;
 }
 
 function buildTopologySignature(session: SessionDocument): string {
