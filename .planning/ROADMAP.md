@@ -29,11 +29,14 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. User can inspect the current session as visible graph nodes and connections instead of hidden runtime-only state.
   3. User can inspect a node's identity, type, ports, parameters, runtime target, scene membership, and ownership metadata.
   4. User can save, close, and reload a session with graph structure, macro definitions, scene data, ownership rules, and runtime mapping state restored.
-**Plans**: 3 plans
+**Plans**: 6 plans
 Plans:
 - [x] `01-session-core-recall-01-PLAN.md` — Define the canonical Rust session schema, managed store, and fail-loud TS contract generation.
 - [x] `01-session-core-recall-02-PLAN.md` — Add versioned JSON save/open persistence with typed file errors and round-trip recall tests.
 - [x] `01-session-core-recall-03-PLAN.md` — Build the Phase 1 session workspace with native file dialogs, graph inspection, and tested selection behavior.
+- [x] `01-session-core-recall-04-PLAN.md` — Fix graph node labels for React Flow default renderer (gap closure).
+- [ ] `01-session-core-recall-05-PLAN.md` — Fix selection clearing + replace browser prompts with native Tauri file dialogs (gap closure).
+- [ ] `01-session-core-recall-06-PLAN.md` — Make contract generation fail loudly + add build-time schema guard (gap closure).
 **UI hint**: yes
 
 ### Phase 2: Playable Audio Graph
