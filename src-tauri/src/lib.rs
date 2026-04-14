@@ -247,7 +247,11 @@ fn remove_hardware_binding(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let _ = write_generated_typescript_contract();
+    if let Err(err) = write_generated_typescript_contract() {
+        eprintln!("ERROR: Failed to write TypeScript type contract: {err}");
+        eprintln!("Run `cargo test write_generated_typescript_contract --manifest-path src-tauri/Cargo.toml` to diagnose.");
+        std::process::exit(1);
+    }
 
     tauri::Builder::default()
         .manage(Mutex::new(SessionStore::new_default()))
