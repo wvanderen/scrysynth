@@ -12,11 +12,10 @@ The instrument must let a human and agent shape a live audiovisual session toget
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] A canonical session graph models audio, visual, control, scene, variation, and ownership state inside the app. (Validated in Phase 1: Session Core & Recall)
 
 ### Active
 
-- [ ] A canonical session graph models audio, visual, control, scene, variation, and ownership state inside the app.
 - [ ] The desktop UI supports linked conversation, graph, and performance views over the same live session.
 - [ ] A v1 runtime foundation executes audio through SuperCollider, coordinates a separate visual runtime, and supports meaningful agent-driven mutation through stable primitives.
 
@@ -76,4 +75,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-11 after initialization*
+*Last updated: 2026-04-14 after Phase 1 completion*
