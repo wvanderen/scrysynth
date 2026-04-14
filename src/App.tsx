@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 
 import type { Connection } from "@xyflow/react";
+import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 
 import "./App.css";
 import { AudioTransportStrip } from "./components/audio/AudioTransportStrip";
@@ -60,8 +61,11 @@ function App() {
     void bootstrapSession();
   }, [bootstrapSession]);
 
-  const handleSaveSession = () => {
-    const path = window.prompt("Save session to path", DEFAULT_SAVE_PATH);
+  const handleSaveSession = async () => {
+    const path = await saveDialog({
+      defaultPath: DEFAULT_SAVE_PATH,
+      filters: [{ name: "Session", extensions: ["json"] }],
+    });
     if (!path) {
       return;
     }
@@ -69,8 +73,11 @@ function App() {
     void saveSession(path);
   };
 
-  const handleOpenSession = () => {
-    const path = window.prompt("Open session from path", DEFAULT_SAVE_PATH);
+  const handleOpenSession = async () => {
+    const path = await openDialog({
+      filters: [{ name: "Session", extensions: ["json"] }],
+      multiple: false,
+    });
     if (!path) {
       return;
     }
