@@ -11,6 +11,7 @@ export type MacroProjection = {
 };
 
 export type GraphNodeData = {
+  label: string;
   title: string;
   subtitle: string;
   isSelected: boolean;
@@ -95,6 +96,7 @@ function projectGraphNodes(session: SessionDocument, selectedNodeId: string | nu
     draggable: false,
     selectable: true,
     data: {
+      label: labelForNode(node),
       title: labelForNode(node),
       subtitle: `${node.nodeType} / ${node.ownership.controller}`,
       isSelected: selectedNodeId === node.id,
