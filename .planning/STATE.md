@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 5 complete — all plans executed
-stopped_at: Completed 05-visual-sync-cross-modal-03-PLAN.md
-last_updated: "2026-04-13T00:06:29.634Z"
-last_activity: 2026-04-12
+status: executing
+stopped_at: Completed 01-session-core-recall-04-PLAN.md
+last_updated: "2026-04-14T00:57:17.601Z"
+last_activity: 2026-04-14
 progress:
   total_phases: 5
   completed_phases: 5
-  total_plans: 15
-  completed_plans: 15
-  percent: 100
+  total_plans: 16
+  completed_plans: 16
+  percent: 92
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-04-11)
 
 **Core value:** The instrument must let a human and agent shape a live audiovisual session together through conversation, graph structure, and direct performance control without losing legibility or human override.
-**Current focus:** Phase 4 complete. Phase 5 - Visual Sync & Cross-Modal Control is next.
+**Current focus:** Phase 01 — session-core-recall
 
 ## Current Position
 
-Phase: 5 of 5 (Visual Sync & Cross-Modal Control)
-Plan: 0/3 executed
-Status: Phase 5 planned — ready for execution
-Last activity: 2026-04-12
+Phase: 01 (session-core-recall) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
+Last activity: 2026-04-14
 
 Progress: [█████████░] 92%
 
@@ -51,6 +51,7 @@ Progress: [█████████░] 92%
 | Phase 05 P01 | 1093 | 3 tasks | 14 files |
 | Phase 05-visual-sync-cross-modal P02 | 14min | 3 tasks | 14 files |
 | Phase 05 P03 | 1103 | 3 tasks | 15 files |
+| Phase 01-session-core-recall P04 | 1min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,7 @@ Recent decisions affecting current work:
 - [Phase 05]: Backward compat: serde(default) on targets field; old macros with target_parameter_ids load and work via fallback
 - [Phase 05]: midir 0.10 uses MidiInputPort objects, not usize indices, for port selection
 - [Phase 05]: std::sync::mpsc channels for MIDI callbacks (midir callback runs on non-async thread); frontend polling at 100ms for event routing
+- [Phase 01-session-core-recall]: Set data.label to labelForNode(node) to satisfy React Flow default node renderer without custom components
 
 ### Pending Todos
 
@@ -85,6 +87,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-13T00:06:29.632Z
-Stopped at: Completed 05-visual-sync-cross-modal-03-PLAN.md
+Last session: 2026-04-14T00:57:17.599Z
+Stopped at: Completed 01-session-core-recall-04-PLAN.md
 Resume file: None
