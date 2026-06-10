@@ -29,7 +29,8 @@ must_haves:
     - User can activate OSC learn mode, send an OSC message, and have it bound to a macro or performance action.
     - Bound hardware input triggers the target action in real-time during performance (MIDI CC → macro value, MIDI note → scene recall, etc.).
     - Hardware bindings persist in the session document and survive save/load.
-    - MIDI input runs on a background thread with tokio channel bridging to avoid blocking the UI or session store.
+    - Bound hardware input routes to its target in real-time during performance (continuous polling when bindings exist).
+    - MIDI input runs on a background thread with std::sync::mpsc channel bridging to avoid blocking the UI or session store.
     - Removing a hardware binding stops it from triggering.
   artifacts:
     - path: src-tauri/src/domain/session.rs
@@ -53,7 +54,7 @@ must_haves:
   key_links:
     - from: src-tauri/src/hardware/midi_input.rs
       to: src-tauri/src/application/midi_learn.rs
-      via: tokio::sync::mpsc channel carrying MidiLearnEvent
+      via: std::sync::mpsc channel carrying MidiLearnEvent (bridged from midir callback thread)
       pattern: "MidiLearnEvent.*mpsc"
     - from: src-tauri/src/application/midi_learn.rs
       to: src-tauri/src/application/macro_command.rs
@@ -66,11 +67,11 @@ must_haves:
 ---
 
 <objective>
-Add MIDI and OSC hardware input binding with a learn state machine, tokio channel bridge for thread-safe input, and a UI overlay for learn mode activation.
+Add MIDI and OSC hardware input binding with a learn state machine, std::sync::mpsc channel bridge for thread-safe input, continuous live routing during performance, and a UI overlay for learn mode activation.
 
 Purpose: Enables tactile hardware control of macros and performance actions — the final piece of cross-modal performance control.
 
-Output: HardwareBinding domain types, MIDI input manager with tokio bridge, learn state machine, MidiLearnOverlay UI, integration tests.
+Output: HardwareBinding domain types, MIDI input manager with std::sync::mpsc bridge, learn state machine, continuous live routing, MidiLearnOverlay UI, integration tests.
 </objective>
 
 <execution_context>
@@ -256,8 +257,12 @@ pub enum MacroCommand {
      - `startMidiLearn(target)`: calls `startMidiLearn(target)` IPC, sets midiLearnActive=true, midiLearnTarget=target.
      - `stopMidiLearn()`: calls `stopMidiLearn()` IPC, sets midiLearnActive=false, midiLearnTarget=null.
      - `removeHardwareBinding(bindingId)`: calls IPC, updates session.
-   - Add polling mechanism: when midiLearnActive is true, set up a setInterval (200ms) that calls `pollHardwareEvents()` IPC. When a binding is captured (new binding appears in session.hardware_bindings), stop polling and show the captured binding. Clear interval on stopMidiLearn.
-   - Derive `hardwareBindings` from session in `applySession`.
+    - Add polling mechanism: set up a setInterval (100ms) that calls `pollHardwareEvents()` IPC whenever `hardwareBindings.length > 0` OR `midiLearnActive === true`. This ensures:
+      - During learn mode: events are captured for binding creation.
+      - During performance: bound hardware events are routed to their targets in real-time.
+      - When no bindings exist and learn is inactive: no polling overhead.
+      When a binding is captured during learn, update midiLearnActive. Clear interval when store is unmounted or no longer needed.
+    - Derive `hardwareBindings` from session in `applySession`.
 
 5. Create `src/components/workspace/MidiLearnOverlay.tsx`:
    - Shows when `midiLearnActive` is true.
@@ -300,6 +305,7 @@ Create integration tests in `src-tauri/tests/midi_learn.rs`:
 10. Test ValueTransform scaling: input_min=0, input_max=127, output_min=0, output_max=1, input=63 → ~0.496, input=0 → 0, input=127 → 1.
 11. Test SessionDocument with hardware_bindings field loads correctly from JSON (backward compat: no hardware_bindings → empty vec via serde default).
 12. Test TypeScript contract generation includes HardwareBinding, HardwareSource, BindingTarget, ValueTransform types.
+13. Test live routing: create a session with existing HardwareBinding (MidiCc → Macro), construct a matching MidiLearnEvent, call poll_and_route in Idle state, verify SetMacroValue is dispatched with correctly scaled value.
 
 Note: These tests do NOT require actual MIDI hardware. They test the parsing, state machine, and persistence logic using constructed events.
   </action>
@@ -316,7 +322,8 @@ Note: These tests do NOT require actual MIDI hardware. They test the parsing, st
 2. `cd src-tauri && cargo build` — compiles with midir dependency.
 3. `npx tsc --noEmit` — TypeScript compiles.
 4. MIDI learn flow: start learn → simulated event → binding created → binding visible in UI.
-5. Hardware bindings persist in session save/load.
+5. Live routing flow: existing binding → simulated event → macro value updated → visual/audio responds.
+6. Hardware bindings persist in session save/load.
 6. Existing functionality unaffected.
 </verification>
 

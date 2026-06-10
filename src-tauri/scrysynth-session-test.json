@@ -1,0 +1,237 @@
+{
+  "schemaVersion": 1,
+  "sessionId": "f90ba0b5-b823-4f21-afc3-c1f4120db63b",
+  "title": "Default Scrysynth Session",
+  "createdAt": "2026-04-11T00:00:00Z",
+  "updatedAt": "2026-04-11T00:00:00Z",
+  "transport": {
+    "tempoBpm": 120.0,
+    "isPlaying": false,
+    "positionBeats": 0.0
+  },
+  "audioRuntime": {
+    "lifecycle": "ready",
+    "health": "healthy",
+    "sampleRateHz": 48000,
+    "blockSize": 64,
+    "activePatchId": "patch-2",
+    "lastError": null,
+    "panicRecoveryCount": 0
+  },
+  "nodes": [
+    {
+      "id": "effect-eff31ccb",
+      "nodeType": "effect",
+      "ports": [
+        {
+          "id": "effect-eff31ccb-in",
+          "name": "signal_in",
+          "direction": "input",
+          "signalType": "audio"
+        },
+        {
+          "id": "effect-eff31ccb-out",
+          "name": "signal_out",
+          "direction": "output",
+          "signalType": "audio"
+        }
+      ],
+      "parameters": [
+        {
+          "id": "effect-eff31ccb-mix",
+          "name": "mix",
+          "value": 0.4,
+          "defaultValue": 0.4,
+          "minValue": 0.0,
+          "maxValue": 1.0,
+          "unit": "ratio"
+        }
+      ],
+      "runtimeTarget": "audio/effect/effect-eff31ccb",
+      "sceneMembership": ["a7a0657a-843d-4784-914c-1bc131e73f16"],
+      "ownership": {
+        "controller": "shared",
+        "isLocked": false
+      },
+      "enabled": true,
+      "audioPrimitive": {
+        "kind": "effect",
+        "config": {
+          "effectType": "delay",
+          "bypassed": false,
+          "busTargetId": "e435762d-1277-47f3-8a05-1cb2548fe3de"
+        }
+      }
+    },
+    {
+      "id": "source-755cafcd",
+      "nodeType": "source",
+      "ports": [
+        {
+          "id": "source-755cafcd-out",
+          "name": "main_out",
+          "direction": "output",
+          "signalType": "audio"
+        }
+      ],
+      "parameters": [
+        {
+          "id": "source-755cafcd-level",
+          "name": "level",
+          "value": 0.75,
+          "defaultValue": 0.75,
+          "minValue": 0.0,
+          "maxValue": 1.0,
+          "unit": "linear"
+        }
+      ],
+      "runtimeTarget": "audio/source/source-755cafcd",
+      "sceneMembership": ["a7a0657a-843d-4784-914c-1bc131e73f16"],
+      "ownership": {
+        "controller": "shared",
+        "isLocked": false
+      },
+      "enabled": true,
+      "audioPrimitive": {
+        "kind": "source",
+        "config": {
+          "sourceType": "oscillator",
+          "channelMode": "mono",
+          "busTargetId": "e435762d-1277-47f3-8a05-1cb2548fe3de"
+        }
+      }
+    },
+    {
+      "id": "source-ee14acd8",
+      "nodeType": "source",
+      "ports": [
+        {
+          "id": "source-ee14acd8-out",
+          "name": "main_out",
+          "direction": "output",
+          "signalType": "audio"
+        }
+      ],
+      "parameters": [
+        {
+          "id": "source-ee14acd8-level",
+          "name": "level",
+          "value": 0.75,
+          "defaultValue": 0.75,
+          "minValue": 0.0,
+          "maxValue": 1.0,
+          "unit": "linear"
+        }
+      ],
+      "runtimeTarget": "audio/source/source-ee14acd8",
+      "sceneMembership": ["a7a0657a-843d-4784-914c-1bc131e73f16"],
+      "ownership": {
+        "controller": "shared",
+        "isLocked": false
+      },
+      "enabled": true,
+      "audioPrimitive": {
+        "kind": "source",
+        "config": {
+          "sourceType": "oscillator",
+          "channelMode": "mono",
+          "busTargetId": "e435762d-1277-47f3-8a05-1cb2548fe3de"
+        }
+      }
+    }
+  ],
+  "routes": [],
+  "buses": [
+    {
+      "id": "e435762d-1277-47f3-8a05-1cb2548fe3de",
+      "name": "master_bus",
+      "channels": 2,
+      "busType": "main",
+      "isEnabled": true
+    }
+  ],
+  "macros": [
+    {
+      "id": "d531e79f-d1d1-4b9d-85c5-1bcaf3985e0a",
+      "name": "energy",
+      "targetParameterIds": ["193d89b0-35ce-44cb-a0a0-9440f647c2ec"],
+      "rangeStart": 0.0,
+      "rangeEnd": 1.0,
+      "targets": []
+    }
+  ],
+  "scenes": [
+    {
+      "id": "a7a0657a-843d-4784-914c-1bc131e73f16",
+      "name": "intro",
+      "activeNodeIds": ["7b9229cd-24e3-4f11-8b1a-42e39ffc1fea"],
+      "macroOverrides": [
+        {
+          "macroId": "d531e79f-d1d1-4b9d-85c5-1bcaf3985e0a",
+          "value": 0.65
+        }
+      ]
+    }
+  ],
+  "variations": [
+    {
+      "id": "a5c7b28b-e5a5-4c2d-97ed-61545ee1f216",
+      "name": "intro-alt",
+      "sceneId": "a7a0657a-843d-4784-914c-1bc131e73f16",
+      "parameterOverrides": [
+        {
+          "parameterId": "193d89b0-35ce-44cb-a0a0-9440f647c2ec",
+          "value": 0.55
+        }
+      ]
+    }
+  ],
+  "ownershipRules": [
+    {
+      "id": "ce3f43e9-3766-44bd-b79c-ed975788918e",
+      "scope": "graph:master",
+      "controller": "shared",
+      "canOverride": true
+    }
+  ],
+  "runtimeStatus": [
+    {
+      "id": "0b4a4843-e624-4e1c-8a2b-ae71d423cd03",
+      "runtime": "audio",
+      "status": "ready",
+      "targetId": "audio-runtime",
+      "lastError": null
+    },
+    {
+      "id": "5f611ae2-1266-4c73-a6a4-4cc0b78b3822",
+      "runtime": "visual",
+      "status": "disconnected",
+      "targetId": "visual-runtime",
+      "lastError": null
+    },
+    {
+      "id": "4fdf1d2e-538f-4310-8156-b88f12524840",
+      "runtime": "agent",
+      "status": "disconnected",
+      "targetId": "agent-runtime",
+      "lastError": null
+    }
+  ],
+  "visualRuntime": {
+    "lifecycle": "idle",
+    "health": "unknown",
+    "activeSceneId": null,
+    "fps": null,
+    "lastError": null,
+    "renderer": null
+  },
+  "agentRuntime": {
+    "isAvailable": false,
+    "pendingActionCount": 0,
+    "isFrozen": false
+  },
+  "agentFrozen": false,
+  "pendingActions": [],
+  "actionHistory": [],
+  "hardwareBindings": []
+}
