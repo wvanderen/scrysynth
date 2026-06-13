@@ -1,93 +1,86 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.0
-milestone_name: milestone
-status: executing
-stopped_at: Completed 01-session-core-recall-06-PLAN.md
-last_updated: "2026-04-14T01:58:07.292Z"
-last_activity: 2026-04-14
+milestone_name: v1 runtime hardening
+status: planning
+stopped_at: Consolidated foundation-complete audit and runtime-hardening roadmap
+last_updated: "2026-06-12T00:00:00-05:00"
+last_activity: 2026-06-12
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 18
-  completed_plans: 18
-  percent: 92
+  foundation_phases_total: 5
+  foundation_phases_completed: 5
+  hardening_phases_total: 6
+  hardening_phases_completed: 0
+  current_stage: foundation complete; runtime hardening next
 ---
 
 # Project State
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-04-11)
+See `.planning/PROJECT.md` and `.planning/ROADMAP.md`.
 
 **Core value:** The instrument must let a human and agent shape a live audiovisual session together through conversation, graph structure, and direct performance control without losing legibility or human override.
-**Current focus:** Phase 01 — session-core-recall
+
+**Current focus:** v1 runtime hardening.
 
 ## Current Position
 
-Phase: 02
-Plan: Not started
-Status: Executing Phase 01
-Last activity: 2026-04-14
+Scrysynth is a late foundation prototype. The planned foundation phases have produced a canonical app-owned session model, React workspace, Tauri command layer, persistence, graph editing, scene/variation controls, agent safety scaffolding, visual-runtime scaffolding, macro controls, and MIDI/OSC binding models.
 
-Progress: [█████████░] 92%
+The project is not yet a complete local audiovisual instrument. Runtime execution still needs to be made real:
 
-## Performance Metrics
+- Audio can launch `scsynth`, but topology loading currently marks the runtime ready without applying real synthdefs, OSC bundles, buses, groups, or node controls.
+- Visual runtime management exists, but no `scrysynth-visual` sidecar is included and scene/parameter updates are stubs.
+- MIDI/OSC managers and routing code exist, but app-level listener startup/configuration and receiver wiring need production implementation.
+- Agent collaboration is deterministic parser plus safety policy, not a real session-aware LLM/orchestrator.
 
-**Velocity:**
+## Completed Foundation
 
-- Total plans completed: 12
-- Total execution time: ~1.0 hours
+| Phase | Status | Result |
+|-------|--------|--------|
+| 1. Session Core & Recall | Complete | Canonical session schema, generated TS contracts, JSON persistence, graph/inspector workspace. |
+| 2. Playable Audio Graph Foundation | Complete | Graph edit commands, audio primitive model, topology compiler, runtime lifecycle shell, transport/panic controls. |
+| 3. Performance Workspace | Complete | Conversation/graph/performance view switching, scene recall, variation save/restore. |
+| 4. Agent Collaboration Scaffold | Complete | Deterministic intent parser, ownership gates, approvals, action history, conversation UI. |
+| 5. Visual Sync & Cross-Modal Control Scaffold | Complete | Visual adapter shell, runtime health panel, cross-domain macros, MIDI/OSC binding models. |
 
-**By Phase:**
+## Active Hardening Work
 
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 1. Session Core & Recall | 3 | 1082s | 361s |
-| 2. Playable Audio Graph | 3 | ~12m | ~4m |
-| 3. Performance Workspace | 3 | ~12m | ~4m |
-| 4. Agent Collaboration | 3 | ~10m | ~3m |
-| 5. Visual Sync & Cross-Modal Control | 0 | - | - |
-| Phase 05 P01 | 1093 | 3 tasks | 14 files |
-| Phase 05-visual-sync-cross-modal P02 | 14min | 3 tasks | 14 files |
-| Phase 05 P03 | 1103 | 3 tasks | 15 files |
-| Phase 01-session-core-recall P04 | 1min | 1 tasks | 1 files |
+1. Local developer readiness and docs.
+2. Real SuperCollider execution through OSC.
+3. Real visual sidecar/protocol.
+4. Hardware listener lifecycle and runtime wiring.
+5. Session-aware agent orchestration.
+6. Packaging, UAT, and release readiness.
 
-## Accumulated Context
+## Recent Audit Findings
 
-### Decisions
+- `README.md` was still the default Tauri template before this consolidation.
+- `ROADMAP.md`, `STATE.md`, and `REQUIREMENTS.md` had drifted from one another.
+- `ROADMAP.md` showed all five phases complete in the progress table, while some plan checkboxes remained unchecked.
+- `STATE.md` still claimed Phase 01/02 execution even though later phase summaries and code exist.
+- `REQUIREMENTS.md` marked several Phase 4 agent/interface requirements pending despite implemented Phase 4 scaffold work.
+- Local verification in the audit shell was blocked by missing dependencies/tooling: no `node_modules`, no `cargo` on `PATH`.
 
-Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
+## Decisions
 
-- [Phase 1]: Roadmap starts with canonical session state and recall before runtime depth.
-- [Phase 2]: Reliable SuperCollider playback and panic-safe recovery come before richer collaboration features.
-- [Phase 3]: Scene recall uses hard-cuts for v1 (immediate state swap); crossfading and morphing deferred to Phase 5.
-- [Phase 3]: Active scene derived from enabled-node matching rather than stored active state to stay canonical.
-- [Phase 3]: View switching is purely frontend; all views share the same Zustand mirror store with no separate state slices.
-- [Phase 3]: Performance commands reuse the same clone-and-replace mutation pattern as graph edits.
-- [Phase 3]: Variation save snapshots all parameters for a scene's active nodes; variation restore applies with range validation.
-- [Phase 4]: Conversation view uses a local message list in Zustand alongside the canonical session state.
-- [Phase 05]: Visual adapter mirrors AudioRuntimeAdapter pattern exactly (trait + manager + sidecar)
-- [Phase 05]: AgentRuntimeState derived from session rather than stored (computed on demand)
-- [Phase 05]: Visual compiler maps node types to shapes for v1 (source=sphere, effect=box, mixer=ring, output=plane)
-- [Phase 05]: MacroTarget tagged serde enum for cross-domain parameter addressing (AudioParameter/VisualParameter)
-- [Phase 05]: Backward compat: serde(default) on targets field; old macros with target_parameter_ids load and work via fallback
-- [Phase 05]: midir 0.10 uses MidiInputPort objects, not usize indices, for port selection
-- [Phase 05]: std::sync::mpsc channels for MIDI callbacks (midir callback runs on non-async thread); frontend polling at 100ms for event routing
-- [Phase 01-session-core-recall]: Set data.label to labelForNode(node) to satisfy React Flow default node renderer without custom components
-- [Phase 01]: deriveSelectedNode returns null (not first node) for null/unfound selection — inspector empty state is correct UX
+- Treat Phases 1-5 as **foundation complete**, not as proof of release-ready runtime behavior.
+- Track the next milestone as **v1 runtime hardening**.
+- Keep the canonical app-owned session model as the source of truth.
+- Preserve SuperCollider as the v1 audio execution target, but require real OSC/resource application before claiming playable audio.
+- Preserve the separate visual runtime boundary, but require an actual sidecar/protocol before claiming visual execution.
+- Keep human override, ownership, freeze/reclaim, and approval gates as non-negotiable product constraints.
 
-### Pending Todos
+## Pending Todos
 
-None yet.
-
-### Blockers/Concerns
-
-- Phase 5 planning should validate the visual runtime contract before deeper scope grows.
+- Install local frontend dependencies and confirm `npm test` plus `npm run build`.
+- Ensure Rust stable/cargo is installed and confirm `cargo test --manifest-path src-tauri/Cargo.toml`.
+- Implement or document the expected SuperCollider runtime behavior precisely.
+- Decide whether `scrysynth-visual` is built in-repo as a workspace crate or supplied externally.
+- Add user-facing runtime setup diagnostics for missing `scsynth`, missing visual sidecar, and unavailable hardware input.
 
 ## Session Continuity
 
-Last session: 2026-04-14T01:56:33.443Z
-Stopped at: Completed 01-session-core-recall-06-PLAN.md
-Resume file: None
+Last consolidated: 2026-06-12.
+Current td issue: `td-c20fe5`.

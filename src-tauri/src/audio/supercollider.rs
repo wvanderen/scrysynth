@@ -7,6 +7,7 @@ use crate::audio::runtime_manager::{AudioRuntimeAdapter, RuntimeAdapterStatus};
 
 const SCSYNTH_OVERRIDE_ENV: &str = "SCRYSYNTH_SCSYNTH_PATH";
 const SCSYNTH_BIN: &str = "scsynth";
+const MACOS_APP_BUNDLE_SCSYNTH: &str = "/Applications/SuperCollider.app/Contents/Resources/scsynth";
 
 #[derive(Debug, Default)]
 pub struct SuperColliderAdapter {
@@ -82,11 +83,16 @@ fn resolve_scsynth_executable() -> Option<PathBuf> {
         }
     }
 
-    env::var_os("PATH").and_then(|path_var| {
-        env::split_paths(&path_var)
-            .map(|entry| entry.join(SCSYNTH_BIN))
-            .find(|candidate| is_executable(candidate))
-    })
+    env::var_os("PATH")
+        .and_then(|path_var| {
+            env::split_paths(&path_var)
+                .map(|entry| entry.join(SCSYNTH_BIN))
+                .find(|candidate| is_executable(candidate))
+        })
+        .or_else(|| {
+            let app_bundle_path = PathBuf::from(MACOS_APP_BUNDLE_SCSYNTH);
+            is_executable(&app_bundle_path).then_some(app_bundle_path)
+        })
 }
 
 fn is_executable(path: &Path) -> bool {

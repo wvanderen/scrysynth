@@ -1,118 +1,122 @@
 # Roadmap: Scrysynth
 
-## Overview
+## Current Picture
 
-Scrysynth reaches v1 by first making the session graph canonical and reloadable, then turning that graph into a safe playable audio instrument, then adding the linked performance workspace, agent collaboration, and finally cross-modal visual/control integration. The phase order follows the product's trust chain: semantics first, sound second, shared surfaces third, collaborative mutation fourth, and audiovisual coordination last.
+Scrysynth has completed its foundation pass: the canonical session graph, desktop workspace, command handlers, persistence, performance surfaces, agent safety scaffolding, runtime health projections, cross-domain macros, and hardware-binding data paths are implemented.
 
-## Phases
+The project is now in **v1 runtime hardening**, not feature-complete release. The main gap is that several completed requirements are complete as app state, UI, command, and test seams, but not yet as production runtime behavior.
 
-**Phase Numbering:**
-- Integer phases (1, 2, 3): Planned milestone work
-- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
+Core distinction:
 
-Decimal phases appear between their surrounding integers in numeric order.
+- **Foundation complete:** canonical state, UI projections, command APIs, tests, and adapter boundaries exist.
+- **Runtime incomplete:** SuperCollider topology application, Bevy visual execution, hardware listener lifecycle, and real agent orchestration still need production implementation.
+
+## Completed Foundation Phases
 
 - [x] **Phase 1: Session Core & Recall** - Sessions are canonical, inspectable, and reloadable from app-owned state.
-- [x] **Phase 2: Playable Audio Graph** - Users turn the canonical graph into reliable sound with safe live mutation.
-- [x] **Phase 3: Performance Workspace** - Users move through linked views and recall scenes or variations during a live session.
-- [x] **Phase 4: Agent Collaboration** - Users co-create through natural language with visible ownership and gated mutations.
-- [x] **Phase 5: Visual Sync & Cross-Modal Control** - Audio and visuals respond together to shared macros, hardware input, and runtime feedback. (completed 2026-04-13)
+- [x] **Phase 2: Playable Audio Graph Foundation** - Users can edit supported graph primitives and drive audio-runtime lifecycle state.
+- [x] **Phase 3: Performance Workspace** - Users can move through graph, conversation, and performance views and recall scenes/variations.
+- [x] **Phase 4: Agent Collaboration Scaffold** - Users can send natural-language instructions through deterministic parsing, inspect diffs/history, approve high-risk pending actions, freeze/reclaim ownership, and see ownership badges.
+- [x] **Phase 5: Visual Sync & Cross-Modal Control Scaffold** - Visual runtime health, cross-domain macro structures, MIDI/OSC binding models, and performance UI are in place.
 
-## Phase Details
+## Foundation Deliverables
 
-### Phase 1: Session Core & Recall
-**Goal**: Users can create, inspect, save, and reopen a canonical Scrysynth session without runtime engines becoming the source of truth.
-**Depends on**: Nothing (first phase)
-**Requirements**: SESS-01, SESS-02, SESS-03, PERS-01
-**Success Criteria** (what must be TRUE):
-  1. User can create or open a session whose app-owned state includes nodes, routes, buses, macros, scenes, variations, ownership rules, and runtime status references.
-  2. User can inspect the current session as visible graph nodes and connections instead of hidden runtime-only state.
-  3. User can inspect a node's identity, type, ports, parameters, runtime target, scene membership, and ownership metadata.
-  4. User can save, close, and reload a session with graph structure, macro definitions, scene data, ownership rules, and runtime mapping state restored.
-**Plans**: 6 plans
-Plans:
-- [x] `01-session-core-recall-01-PLAN.md` — Define the canonical Rust session schema, managed store, and fail-loud TS contract generation.
-- [x] `01-session-core-recall-02-PLAN.md` — Add versioned JSON save/open persistence with typed file errors and round-trip recall tests.
-- [x] `01-session-core-recall-03-PLAN.md` — Build the Phase 1 session workspace with native file dialogs, graph inspection, and tested selection behavior.
-- [x] `01-session-core-recall-04-PLAN.md` — Fix graph node labels for React Flow default renderer (gap closure).
-- [ ] `01-session-core-recall-05-PLAN.md` — Fix selection clearing + replace browser prompts with native Tauri file dialogs (gap closure).
-- [ ] `01-session-core-recall-06-PLAN.md` — Make contract generation fail loudly + add build-time schema guard (gap closure).
-**UI hint**: yes
+| Area | Current status | Notes |
+|------|----------------|-------|
+| Canonical session graph | Complete foundation | Rust owns `SessionDocument`; TypeScript contract is generated from Rust. |
+| Session persistence | Complete foundation | JSON save/open with schema version validation. |
+| Graph workspace | Complete foundation | React Flow projection, inspector, primitive palette, route gestures. |
+| Audio runtime | Scaffolded | Can launch/stop/panic `scsynth` when installed; topology load currently marks ready without real OSC resource application. |
+| Performance workspace | Complete foundation | Scenes, variations, active scene derivation, macro controls. |
+| Agent collaboration | Scaffolded | Deterministic parser, ownership gates, pending approvals, action history, freeze/reclaim. No real LLM/orchestrator yet. |
+| Visual runtime | Scaffolded | Adapter and health model exist; no bundled `scrysynth-visual` sidecar; scene and parameter delivery are stubs. |
+| Hardware bindings | Partial foundation | MIDI/OSC managers and router exist; app needs production listener startup/configuration and receiver wiring. |
+| Testing | Broad but environment-dependent | Rust and frontend tests exist, but require local `cargo` and installed npm dependencies. |
+| Documentation | In progress | README and planning docs now reflect foundation-vs-runtime status. |
 
-### Phase 2: Playable Audio Graph
-**Goal**: Users can build, hear, and safely recover a live audio patch driven by the canonical session graph.
-**Depends on**: Phase 1
-**Requirements**: SESS-04, AUD-01, AUD-02, AUD-03, AUD-04
-**Success Criteria** (what must be TRUE):
-  1. User can create, remove, enable, and re-route supported v1 graph primitives without editing raw runtime internals.
-  2. User can hear playable audio from supported source, effect, and routing primitives executed through the SuperCollider adapter.
-  3. User can update supported audio parameters during playback and hear the result without rebuilding the whole session.
-  4. User can route supported audio nodes through buses and grouped processing defined by the canonical session graph.
-  5. User can stop all sound immediately with a panic-safe control that returns the app to a known safe state.
-**Plans**: 3 plans
-Plans:
-- [x] `02-playable-audio-graph-01-PLAN.md` - Expand the canonical session with bounded v1 audio primitives, validation, and graph-edit commands.
-- [x] `02-playable-audio-graph-02-PLAN.md` - Add the supervised SuperCollider runtime foundation, deterministic graph compilation, and panic-safe transport.
-- [x] `02-playable-audio-graph-03-PLAN.md` - Wire live playback controls into the workspace with incremental parameter and routing updates.
-**UI hint**: yes
+## Next Milestone: v1 Runtime Hardening
 
-### Phase 3: Performance Workspace
-**Goal**: Users can navigate the live instrument as one coherent workspace and recall structured performance states during a session.
-**Depends on**: Phase 2
-**Requirements**: UI-01, CTRL-02, CTRL-03
-**Success Criteria** (what must be TRUE):
-  1. User can switch between conversation, graph, and performance views that all reflect the same live session state.
-  2. User can trigger scenes that recall predefined session states for live performance.
-  3. User can save a variation or snapshot of the current session and restore it later during the same working session.
-**Plans**: 3 plans
-Plans:
-- [x] `03-performance-workspace-01-PLAN.md` - Scene and variation backend commands with validation and transactional safety.
-- [x] `03-performance-workspace-02-PLAN.md` - View switching workspace layout with graph, conversation, and performance views.
-- [x] `03-performance-workspace-03-PLAN.md` - Performance view scene and variation controls with active scene derivation.
-**UI hint**: yes
+### Phase 6: Local Developer Readiness
 
-### Phase 4: Agent Collaboration
-**Goal**: Users can direct Scrysynth in natural language while keeping changes, ownership, and override behavior legible and safe.
-**Depends on**: Phase 3
-**Requirements**: UI-03, AGNT-01, AGNT-02, AGNT-03, AGNT-04
-**Success Criteria** (what must be TRUE):
-  1. User can direct the system in natural language and receive proposed or applied changes against the current canonical session.
-  2. User can inspect what changed after a user or agent action through visible diffs, activity history, or equivalent structured feedback.
-  3. User can see which nodes, macros, scenes, or controls are agent-controlled, shared, or user-controlled.
-  4. User can approve, reject, or cancel higher-risk agent actions before they mutate the live session.
-  5. User can reclaim control from the agent, freeze agent changes, or disable the conductor role without restarting the session.
-**Plans**: 3 plans
-Plans:
-- [x] `04-agent-collaboration-01-PLAN.md` - Agent command layer, deterministic intent parser, ownership enforcement, freeze toggle, and reclaim ownership.
-- [x] `04-agent-collaboration-02-PLAN.md` - Risk-based approval gates, action history logging, and diff summaries.
-- [x] `04-agent-collaboration-03-PLAN.md` - Conversation view replacement, activity panel, pending action UI, and ownership badges.
-**UI hint**: yes
+**Goal:** A developer can clone, install, verify, and launch the app with clear diagnostics.
 
-### Phase 5: Visual Sync & Cross-Modal Control
-**Goal**: Users can extend the live session into visuals and cross-modal performance control through the shared workspace.
-**Depends on**: Phase 4
-**Requirements**: UI-02, CTRL-01, CTRL-04, PERS-02
-**Success Criteria** (what must be TRUE):
-  1. User can run a basic visual runtime that responds to shared session events, scenes, or macros without making the visual engine the source of truth.
-  2. User can create and adjust macros that map one control to multiple audio and visual parameters.
-  3. User can bind supported MIDI or OSC input through learn to v1 macros or performance actions and use that input during performance.
-  4. User can see runtime health, activity, and error status for the audio runtime, visual runtime, and agent system from the shared workspace.
-**Plans**: 3 plans
-Plans:
-- [ ] `05-visual-sync-cross-modal-01-PLAN.md` — Visual Runtime Adapter + Runtime Health Dashboard (PERS-02, UI-02)
-- [ ] `05-visual-sync-cross-modal-02-PLAN.md` — Cross-Modal Macro System with CRUD + live sliders (CTRL-01)
-- [ ] `05-visual-sync-cross-modal-03-PLAN.md` — Hardware Input Binding — MIDI/OSC Learn (CTRL-04)
-**UI hint**: yes
+Success criteria:
 
-## Progress
+1. README accurately lists required local toolchains and optional runtime binaries.
+2. `npm install`, `npm test`, `npm run build`, and `cargo test --manifest-path src-tauri/Cargo.toml` are the documented verification path.
+3. Missing `cargo`, missing `node_modules`, missing `scsynth`, or missing visual sidecar produce clear setup guidance.
+4. Planning docs agree on current phase, completed work, and remaining runtime gaps.
 
-**Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
+### Phase 7: Real SuperCollider Execution
 
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. Session Core & Recall | 3/3 | Complete | 2026-04-11 |
-| 2. Playable Audio Graph | 3/3 | Complete | 2026-04-12 |
-| 3. Performance Workspace | 3/3 | Complete | 2026-04-11 |
-| 4. Agent Collaboration | 3/3 | Complete | 2026-04-12 |
-| 5. Visual Sync & Cross-Modal Control | 3/3 | Complete   | 2026-04-13 |
+**Goal:** The canonical audio graph produces actual sound through SuperCollider.
+
+Success criteria:
+
+1. Compile graph topology into SC synthdefs/resources, groups, buses, and node launch order.
+2. Send OSC bundles to `scsynth` for boot, resource creation, routing, parameter updates, and teardown.
+3. Apply live parameter edits and reroutes without pretending topology load succeeded.
+4. Add runtime feedback, `/sync` handling, degraded states, and failure diagnostics.
+5. Verify audible playback and panic recovery on a real local SuperCollider install.
+
+### Phase 8: Real Visual Runtime Path
+
+**Goal:** Visuals run through a separate process that consumes canonical scene/control projections.
+
+Success criteria:
+
+1. Provide or document the `scrysynth-visual` sidecar executable.
+2. Replace visual scene-load and parameter-update stubs with a typed local protocol.
+3. Drive visual scene state from session nodes, scenes, macros, and runtime events.
+4. Surface visual runtime errors and reconnect/restart behavior in the health panel.
+
+### Phase 9: Hardware Input Runtime Wiring
+
+**Goal:** MIDI/OSC learn works against live devices and senders in the desktop app.
+
+Success criteria:
+
+1. Add app commands/settings for MIDI port selection and OSC listen port configuration.
+2. Start/stop MIDI and OSC listeners as part of runtime state, not only in tests.
+3. Wire listener receivers into `SessionStore`/router lifecycle.
+4. Verify macro, scene, transport, and panic targets from real or virtual hardware.
+
+### Phase 10: Session-Aware Agent Orchestration
+
+**Goal:** Agent collaboration becomes meaningfully intelligent while preserving human override.
+
+Success criteria:
+
+1. Replace or augment the deterministic parser with a session-aware agent planning layer.
+2. Keep all agent changes flowing through typed commands, ownership gates, risk tiers, and approvals.
+3. Show structured proposed changes before high-risk mutation.
+4. Preserve action history and readable diffs for both user and agent actions.
+
+### Phase 11: Release Readiness
+
+**Goal:** The project can be packaged and evaluated as a v1 desktop instrument.
+
+Success criteria:
+
+1. Tauri packaging works for the target OS.
+2. Runtime dependency discovery and error messages are polished.
+3. Manual UAT covers save/open, graph edit, audio playback, scene/variation recall, macro control, hardware learn, agent approval, and panic recovery.
+4. README, planning docs, and release notes describe actual supported behavior without overstating stubs.
+
+## Deferred Beyond v1
+
+- Multiplayer collaboration.
+- Full DAW-style timeline/arrangement.
+- Deep projection mapping or media-server workflows.
+- General plugin marketplace.
+- Fine-grained ownership policies beyond v1 freeze/reclaim/approval.
+- Advanced visual graph editing and sophisticated transition/morph authoring.
+
+## Recent Audit Notes
+
+Audit date: 2026-06-12.
+
+- `td` is available for task tracking, but the GSD slash-command workflow is not callable from the shell environment.
+- The local checkout initially lacked `node_modules`, so `npm test` and `npm run build` could not run until dependencies are installed.
+- `cargo` was not on `PATH` in the audit shell, so Rust tests could not be executed there.
+- Worktree status during audit: branch `main`, tracking `origin/main`; `AGENTS.md` was untracked.
