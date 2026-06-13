@@ -30,6 +30,7 @@ pub enum RuntimeAdapterStatus {
     Panicked,
     Failed {
         message: String,
+        active_patch_id: Option<String>,
     },
 }
 
@@ -66,12 +67,22 @@ where
         &mut self,
         store: &mut SessionStore,
     ) -> Result<SessionDocument, AudioRuntimeManagerError> {
-        let topology = compile_session_to_topology(&store.current())?;
-
         let _ = store.mutate_current(|session| {
             set_runtime_connecting(session);
             Ok::<(), AudioRuntimeManagerError>(())
         })?;
+
+        let topology = match compile_session_to_topology(&store.current()) {
+            Ok(topology) => topology,
+            Err(error) => {
+                return Ok(mark_runtime_failed(
+                    store,
+                    AudioRuntimeHealth::Degraded,
+                    format!("failed to compile audio topology: {error}"),
+                    store.current().audio_runtime.active_patch_id.clone(),
+                )?);
+            }
+        };
 
         let boot_status = self
             .adapter
@@ -88,11 +99,15 @@ where
                     Ok::<(), AudioRuntimeManagerError>(())
                 })?;
             }
-            RuntimeAdapterStatus::Failed { message } => {
+            RuntimeAdapterStatus::Failed {
+                message,
+                active_patch_id,
+            } => {
                 return Ok(mark_runtime_failed(
                     store,
                     AudioRuntimeHealth::Degraded,
                     message,
+                    active_patch_id,
                 )?);
             }
             _ => {
@@ -100,6 +115,7 @@ where
                     store,
                     AudioRuntimeHealth::Degraded,
                     "unexpected runtime boot status".to_string(),
+                    None,
                 )?);
             }
         }
@@ -120,15 +136,20 @@ where
                     Ok::<(), AudioRuntimeManagerError>(())
                 })
                 .map_err(Into::into),
-            RuntimeAdapterStatus::Failed { message } => Ok(mark_runtime_failed(
+            RuntimeAdapterStatus::Failed {
+                message,
+                active_patch_id,
+            } => Ok(mark_runtime_failed(
                 store,
                 AudioRuntimeHealth::Degraded,
                 message,
+                active_patch_id,
             )?),
             _ => Ok(mark_runtime_failed(
                 store,
                 AudioRuntimeHealth::Degraded,
                 "unexpected runtime topology load status".to_string(),
+                store.current().audio_runtime.active_patch_id.clone(),
             )?),
         }
     }
@@ -142,7 +163,7 @@ where
             .stop()
             .map_err(AudioRuntimeManagerError::Adapter)?;
         let error = match status {
-            RuntimeAdapterStatus::Failed { message } => Some(message),
+            RuntimeAdapterStatus::Failed { message, .. } => Some(message),
             _ => None,
         };
 
@@ -166,7 +187,7 @@ where
     ) -> Result<SessionDocument, AudioRuntimeManagerError> {
         let panic_result = self.adapter.panic();
         let error = match panic_result {
-            Ok(RuntimeAdapterStatus::Failed { message }) => Some(message),
+            Ok(RuntimeAdapterStatus::Failed { message, .. }) => Some(message),
             Err(message) => Some(message),
             _ => None,
         };
@@ -198,12 +219,13 @@ fn mark_runtime_failed(
     store: &mut SessionStore,
     health: AudioRuntimeHealth,
     message: String,
+    active_patch_id: Option<String>,
 ) -> Result<SessionDocument, AudioRuntimeManagerError> {
     store
         .mutate_current(|session| {
             session.audio_runtime.lifecycle = AudioRuntimeLifecycle::Failed;
             session.audio_runtime.health = health.clone();
-            session.audio_runtime.active_patch_id = None;
+            session.audio_runtime.active_patch_id = active_patch_id.clone();
             session.audio_runtime.last_error = Some(message.clone());
             set_runtime_status(
                 session,

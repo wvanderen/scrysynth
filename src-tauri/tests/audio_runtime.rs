@@ -275,7 +275,7 @@ mod audio_runtime {
             let topology = compile_session_to_topology(&session).expect("compile succeeds");
             let plan = plan_sc_resources(&topology).expect("plan succeeds");
 
-            assert_eq!(plan.patch_id, "patch-v1-2-1-3");
+            assert!(plan.patch_id.starts_with("patch-v1-"));
             assert_eq!(plan.groups[0].node_id, 1000);
             assert_eq!(
                 plan.synthdefs
@@ -304,6 +304,35 @@ mod audio_runtime {
                 .iter()
                 .any(|control| control.control_key == "node-mixer:param-gain"
                     && control.parameter_name == "level"));
+        }
+
+        #[test]
+        fn resource_plan_patch_id_changes_for_same_shape_topology_changes() {
+            let first_session = deterministic_session();
+            let mut second_session = deterministic_session();
+            second_session.nodes[1].parameters[0].value = 440.0;
+
+            let first_topology =
+                compile_session_to_topology(&first_session).expect("first compile succeeds");
+            let second_topology =
+                compile_session_to_topology(&second_session).expect("second compile succeeds");
+
+            assert_eq!(first_topology.buses.len(), second_topology.buses.len());
+            assert_eq!(
+                first_topology.group_order.len(),
+                second_topology.group_order.len()
+            );
+            assert_eq!(
+                first_topology.node_launch_order.len(),
+                second_topology.node_launch_order.len()
+            );
+
+            let first_plan = plan_sc_resources(&first_topology).expect("first plan succeeds");
+            let second_plan = plan_sc_resources(&second_topology).expect("second plan succeeds");
+
+            assert_ne!(first_plan.patch_id, second_plan.patch_id);
+            assert!(first_plan.patch_id.starts_with("patch-v1-"));
+            assert!(second_plan.patch_id.starts_with("patch-v1-"));
         }
 
         #[test]
@@ -627,6 +656,7 @@ mod audio_runtime {
         fn start_audio_runtime_marks_degraded_when_adapter_fails() {
             let adapter = FakeAdapter::with_statuses(vec![RuntimeAdapterStatus::Failed {
                 message: "scsynth not found".to_string(),
+                active_patch_id: None,
             }]);
             let mut manager = AudioRuntimeManager::new_for_tests(adapter);
             let mut store = SessionStore::new_default();
@@ -657,6 +687,7 @@ mod audio_runtime {
                 },
                 RuntimeAdapterStatus::Failed {
                     message: "topology load: scsynth /sync failed: /sync 1 timed out".to_string(),
+                    active_patch_id: None,
                 },
             ]);
             let mut manager = AudioRuntimeManager::new_for_tests(adapter);
@@ -672,6 +703,184 @@ mod audio_runtime {
             assert_eq!(
                 session.audio_runtime.last_error.as_deref(),
                 Some("topology load: scsynth /sync failed: /sync 1 timed out")
+            );
+            assert_eq!(
+                audio_runtime_status(&session),
+                RuntimeConnectionState::Error
+            );
+        }
+
+        #[test]
+        fn start_audio_runtime_marks_degraded_when_topology_compile_fails() {
+            let adapter = FakeAdapter::with_statuses(vec![]);
+            let mut manager = AudioRuntimeManager::new_for_tests(adapter.clone());
+            let mut store = SessionStore::new_default();
+            let _ = store.mutate_current(|session| {
+                session.nodes[0].runtime_target = None;
+                session.audio_runtime.active_patch_id = Some("patch-a".to_string());
+                Ok::<(), ()>(())
+            });
+
+            let session = manager
+                .start(&mut store)
+                .expect("compile failure is recorded");
+
+            assert_eq!(
+                session.audio_runtime.lifecycle,
+                AudioRuntimeLifecycle::Failed
+            );
+            assert_eq!(session.audio_runtime.health, AudioRuntimeHealth::Degraded);
+            assert_eq!(
+                session.audio_runtime.active_patch_id.as_deref(),
+                Some("patch-a")
+            );
+            let last_error = session
+                .audio_runtime
+                .last_error
+                .as_deref()
+                .expect("compile error is recorded");
+            assert!(last_error.starts_with("failed to compile audio topology: node `"));
+            assert!(last_error.ends_with("` is missing a runtime target"));
+            assert_eq!(
+                audio_runtime_status(&session),
+                RuntimeConnectionState::Error
+            );
+            assert_eq!(adapter.actions(), Vec::<AdapterAction>::new());
+            assert_eq!(store.current(), session);
+        }
+
+        #[test]
+        fn topology_reload_failure_preserves_previous_active_patch_id() {
+            let adapter = FakeAdapter::with_statuses(vec![
+                RuntimeAdapterStatus::Booted {
+                    sample_rate_hz: 48_000,
+                    block_size: 64,
+                },
+                RuntimeAdapterStatus::Ready {
+                    active_patch_id: "patch-a".to_string(),
+                },
+                RuntimeAdapterStatus::Booted {
+                    sample_rate_hz: 48_000,
+                    block_size: 64,
+                },
+                RuntimeAdapterStatus::Failed {
+                    message: "topology unload previous patch: scsynth /sync failed".to_string(),
+                    active_patch_id: Some("patch-a".to_string()),
+                },
+            ]);
+            let mut manager = AudioRuntimeManager::new_for_tests(adapter);
+            let mut store = SessionStore::new_default();
+
+            manager.start(&mut store).expect("initial start succeeds");
+            let session = manager
+                .start(&mut store)
+                .expect("reload failure is recorded");
+
+            assert_eq!(
+                session.audio_runtime.lifecycle,
+                AudioRuntimeLifecycle::Failed
+            );
+            assert_eq!(session.audio_runtime.health, AudioRuntimeHealth::Degraded);
+            assert_eq!(
+                session.audio_runtime.active_patch_id.as_deref(),
+                Some("patch-a")
+            );
+            assert_eq!(
+                session.audio_runtime.last_error.as_deref(),
+                Some("topology unload previous patch: scsynth /sync failed")
+            );
+            assert_eq!(
+                audio_runtime_status(&session),
+                RuntimeConnectionState::Error
+            );
+        }
+
+        #[test]
+        fn topology_reload_boot_failure_preserves_adapter_active_patch_id() {
+            let adapter = FakeAdapter::with_statuses(vec![
+                RuntimeAdapterStatus::Booted {
+                    sample_rate_hz: 48_000,
+                    block_size: 64,
+                },
+                RuntimeAdapterStatus::Ready {
+                    active_patch_id: "patch-a".to_string(),
+                },
+                RuntimeAdapterStatus::Failed {
+                    message: "boot: scsynth /sync failed".to_string(),
+                    active_patch_id: Some("patch-a".to_string()),
+                },
+            ]);
+            let mut manager = AudioRuntimeManager::new_for_tests(adapter.clone());
+            let mut store = SessionStore::new_default();
+
+            manager.start(&mut store).expect("initial start succeeds");
+            let session = manager
+                .start(&mut store)
+                .expect("reload boot failure is recorded");
+
+            assert_eq!(
+                session.audio_runtime.lifecycle,
+                AudioRuntimeLifecycle::Failed
+            );
+            assert_eq!(session.audio_runtime.health, AudioRuntimeHealth::Degraded);
+            assert_eq!(
+                session.audio_runtime.active_patch_id.as_deref(),
+                Some("patch-a")
+            );
+            assert_eq!(
+                session.audio_runtime.last_error.as_deref(),
+                Some("boot: scsynth /sync failed")
+            );
+            assert_eq!(
+                audio_runtime_status(&session),
+                RuntimeConnectionState::Error
+            );
+            assert_eq!(
+                adapter.actions(),
+                vec![
+                    AdapterAction::Start,
+                    AdapterAction::LoadTopology,
+                    AdapterAction::Start
+                ]
+            );
+        }
+
+        #[test]
+        fn topology_reload_failure_clears_active_patch_after_previous_unload_succeeds() {
+            let adapter = FakeAdapter::with_statuses(vec![
+                RuntimeAdapterStatus::Booted {
+                    sample_rate_hz: 48_000,
+                    block_size: 64,
+                },
+                RuntimeAdapterStatus::Ready {
+                    active_patch_id: "patch-a".to_string(),
+                },
+                RuntimeAdapterStatus::Booted {
+                    sample_rate_hz: 48_000,
+                    block_size: 64,
+                },
+                RuntimeAdapterStatus::Failed {
+                    message: "topology load groups: scsynth /sync failed".to_string(),
+                    active_patch_id: None,
+                },
+            ]);
+            let mut manager = AudioRuntimeManager::new_for_tests(adapter);
+            let mut store = SessionStore::new_default();
+
+            manager.start(&mut store).expect("initial start succeeds");
+            let session = manager
+                .start(&mut store)
+                .expect("reload failure is recorded");
+
+            assert_eq!(
+                session.audio_runtime.lifecycle,
+                AudioRuntimeLifecycle::Failed
+            );
+            assert_eq!(session.audio_runtime.health, AudioRuntimeHealth::Degraded);
+            assert_eq!(session.audio_runtime.active_patch_id, None);
+            assert_eq!(
+                session.audio_runtime.last_error.as_deref(),
+                Some("topology load groups: scsynth /sync failed")
             );
             assert_eq!(
                 audio_runtime_status(&session),

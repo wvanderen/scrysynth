@@ -30,7 +30,10 @@ impl AudioRuntimeAdapter for SuperColliderAdapter<UdpOscTransport> {
     fn start(&mut self) -> Result<RuntimeAdapterStatus, String> {
         if self.process.is_some() {
             if let Err(error) = self.sync_scsynth("boot") {
-                return Ok(RuntimeAdapterStatus::Failed { message: error });
+                return Ok(RuntimeAdapterStatus::Failed {
+                    message: error,
+                    active_patch_id: self.active_patch.as_ref().map(|plan| plan.patch_id.clone()),
+                });
             }
 
             return Ok(RuntimeAdapterStatus::Booted {
@@ -46,6 +49,7 @@ impl AudioRuntimeAdapter for SuperColliderAdapter<UdpOscTransport> {
                     message: format!(
                         "scsynth not found on PATH; install SuperCollider or set {SCSYNTH_OVERRIDE_ENV}"
                     ),
+                    active_patch_id: None,
                 });
             }
         };
@@ -66,7 +70,10 @@ impl AudioRuntimeAdapter for SuperColliderAdapter<UdpOscTransport> {
         if let Err(error) = self.sync_scsynth("boot") {
             let _ = terminate_process(&mut self.process);
             self.osc = None;
-            return Ok(RuntimeAdapterStatus::Failed { message: error });
+            return Ok(RuntimeAdapterStatus::Failed {
+                message: error,
+                active_patch_id: None,
+            });
         }
 
         Ok(RuntimeAdapterStatus::Booted {
@@ -82,6 +89,7 @@ impl AudioRuntimeAdapter for SuperColliderAdapter<UdpOscTransport> {
         if !self.is_process_running()? {
             return Ok(RuntimeAdapterStatus::Failed {
                 message: "scsynth process is not running".to_string(),
+                active_patch_id: None,
             });
         }
 
@@ -90,12 +98,16 @@ impl AudioRuntimeAdapter for SuperColliderAdapter<UdpOscTransport> {
             Err(error) => {
                 return Ok(RuntimeAdapterStatus::Failed {
                     message: format!("topology load: {error}"),
+                    active_patch_id: self.active_patch.as_ref().map(|plan| plan.patch_id.clone()),
                 });
             }
         };
 
         if let Err(error) = self.apply_resource_plan(&plan) {
-            return Ok(RuntimeAdapterStatus::Failed { message: error });
+            return Ok(RuntimeAdapterStatus::Failed {
+                message: error,
+                active_patch_id: self.active_patch.as_ref().map(|plan| plan.patch_id.clone()),
+            });
         }
 
         let patch_id = plan.patch_id.clone();
@@ -141,8 +153,9 @@ where
     T: OscTransport,
 {
     fn apply_resource_plan(&mut self, plan: &ScResourcePlan) -> Result<(), String> {
-        if let Some(active_patch) = self.active_patch.take() {
+        if let Some(active_patch) = self.active_patch.clone() {
             self.free_resource_plan(&active_patch, "topology unload previous patch")?;
+            self.active_patch = None;
         }
 
         {
@@ -715,6 +728,40 @@ mod tests {
         assert_eq!(osc_message_int_arg(&sent[9]), Some(2001));
         assert_eq!(osc_message_int_arg(&sent[10]), Some(2000));
         assert_eq!(osc_message_int_arg(&sent[11]), Some(1000));
+    }
+
+    #[test]
+    fn apply_resource_plan_preserves_active_patch_when_previous_unload_fails() {
+        let (transport, sent_packets) = ScriptedOscTransport::new(vec![ScriptedResponse::Timeout]);
+        let active_plan = test_resource_plan();
+        let mut next_plan = test_resource_plan();
+        next_plan.patch_id = "patch-next".to_string();
+        next_plan.groups[0].node_id = 1100;
+        next_plan.synths[0].node_id = 2100;
+        next_plan.synths[0].group_node_id = 1100;
+        next_plan.synths[1].node_id = 2101;
+        next_plan.synths[1].group_node_id = 1100;
+        let mut adapter = SuperColliderAdapter {
+            process: None,
+            osc: Some(ScOscClient::new(transport, Duration::from_millis(20))),
+            active_patch: Some(active_plan.clone()),
+        };
+
+        let error = adapter
+            .apply_resource_plan(&next_plan)
+            .expect_err("previous unload sync fails");
+
+        assert!(error.contains("topology unload previous patch"));
+        assert_eq!(adapter.active_patch, Some(active_plan));
+        let sent = sent_packets.lock().expect("sent packets");
+        assert_eq!(
+            sent.iter()
+                .map(|packet| osc_message_addr(packet)
+                    .expect("message packet")
+                    .to_string())
+                .collect::<Vec<_>>(),
+            vec!["/n_free", "/n_free", "/n_free", "/status", "/sync"]
+        );
     }
 
     fn synced_packet(sync_id: i32) -> rosc::OscPacket {

@@ -228,12 +228,7 @@ pub fn plan_sc_resources(
     }
 
     Ok(ScResourcePlan {
-        patch_id: format!(
-            "patch-v1-{}-{}-{}",
-            topology.buses.len(),
-            topology.group_order.len(),
-            topology.node_launch_order.len()
-        ),
+        patch_id: format!("patch-v1-{}", topology_fingerprint(topology)),
         synthdefs: synthdefs.into_iter().map(synthdef_resource).collect(),
         groups: topology
             .group_order
@@ -458,5 +453,106 @@ fn synthdef_resource(name: &str) -> SynthDefResource {
             relative_path: "resources/synthdefs/v1/scrysynth_v1_output.scsyndef",
         },
         _ => unreachable!("unknown v1 synthdef name"),
+    }
+}
+
+fn topology_fingerprint(topology: &CompiledTopology) -> String {
+    let mut hash = FNV_OFFSET_BASIS;
+
+    hash_bytes(&mut hash, b"buses");
+    for bus in &topology.buses {
+        hash_str(&mut hash, &bus.bus_id);
+        hash_u32(&mut hash, bus.index);
+        hash_u32(&mut hash, bus.channels);
+        hash_str(&mut hash, &format!("{:?}", bus.bus_type));
+    }
+
+    hash_bytes(&mut hash, b"groups");
+    for group in &topology.group_order {
+        hash_str(&mut hash, &group.group_id);
+        for node_id in &group.node_ids {
+            hash_str(&mut hash, node_id);
+        }
+    }
+
+    hash_bytes(&mut hash, b"nodes");
+    for node in &topology.node_launch_order {
+        hash_str(&mut hash, &node.node_id);
+        hash_str(&mut hash, &node.runtime_target);
+        hash_str(&mut hash, &node.group_id);
+        for bus_id in &node.input_bus_ids {
+            hash_str(&mut hash, bus_id);
+        }
+        if let Some(bus_id) = &node.output_bus_id {
+            hash_str(&mut hash, bus_id);
+        }
+        hash_node_kind(&mut hash, &node.node_kind);
+        for parameter in &node.parameters {
+            hash_str(&mut hash, &parameter.parameter_id);
+            hash_str(&mut hash, &parameter.name);
+            hash_u64(&mut hash, parameter.value.to_bits());
+        }
+    }
+
+    format!("{hash:016x}")
+}
+
+const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
+const FNV_PRIME: u64 = 0x00000100000001b3;
+
+fn hash_node_kind(hash: &mut u64, node_kind: &CompiledNodeKind) {
+    match node_kind {
+        CompiledNodeKind::Source {
+            source_type,
+            channel_mode,
+        } => {
+            hash_str(hash, "source");
+            hash_str(hash, &format!("{source_type:?}"));
+            hash_str(hash, &format!("{channel_mode:?}"));
+        }
+        CompiledNodeKind::Effect {
+            effect_type,
+            bypassed,
+        } => {
+            hash_str(hash, "effect");
+            hash_str(hash, &format!("{effect_type:?}"));
+            hash_u8(hash, u8::from(*bypassed));
+        }
+        CompiledNodeKind::Mixer { channel_mode } => {
+            hash_str(hash, "mixer");
+            hash_str(hash, &format!("{channel_mode:?}"));
+        }
+        CompiledNodeKind::Output {
+            output_type,
+            channels,
+        } => {
+            hash_str(hash, "output");
+            hash_str(hash, &format!("{output_type:?}"));
+            hash_u32(hash, *channels);
+        }
+    }
+}
+
+fn hash_str(hash: &mut u64, value: &str) {
+    hash_u64(hash, value.len() as u64);
+    hash_bytes(hash, value.as_bytes());
+}
+
+fn hash_u8(hash: &mut u64, value: u8) {
+    hash_bytes(hash, &[value]);
+}
+
+fn hash_u32(hash: &mut u64, value: u32) {
+    hash_bytes(hash, &value.to_le_bytes());
+}
+
+fn hash_u64(hash: &mut u64, value: u64) {
+    hash_bytes(hash, &value.to_le_bytes());
+}
+
+fn hash_bytes(hash: &mut u64, bytes: &[u8]) {
+    for byte in bytes {
+        *hash ^= u64::from(*byte);
+        *hash = hash.wrapping_mul(FNV_PRIME);
     }
 }
