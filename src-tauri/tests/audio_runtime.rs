@@ -201,8 +201,8 @@ mod audio_runtime {
     mod synthdefs {
         use super::super::*;
         use scrysynth_lib::audio::synthdefs::{
-            plan_sc_resources, FX_DELAY_SYNTHDEF, MIXER_SYNTHDEF, OUTPUT_SYNTHDEF,
-            SOURCE_OSCILLATOR_SYNTHDEF,
+            plan_sc_resources, FX_DELAY_SYNTHDEF, FX_LOWPASS_SYNTHDEF, MIXER_SYNTHDEF,
+            OUTPUT_SYNTHDEF, SOURCE_NOISE_SYNTHDEF, SOURCE_OSCILLATOR_SYNTHDEF,
         };
 
         #[test]
@@ -345,6 +345,66 @@ mod audio_runtime {
                 .args
                 .iter()
                 .any(|arg| arg.name == "delay_time_s" && arg.value == 0.5));
+        }
+
+        #[test]
+        fn checked_in_v1_synthdef_resources_are_present_and_named() {
+            let resources = [
+                (
+                    SOURCE_OSCILLATOR_SYNTHDEF,
+                    "resources/synthdefs/v1/scrysynth_v1_source_oscillator.scsyndef",
+                ),
+                (
+                    SOURCE_NOISE_SYNTHDEF,
+                    "resources/synthdefs/v1/scrysynth_v1_source_noise.scsyndef",
+                ),
+                (
+                    FX_LOWPASS_SYNTHDEF,
+                    "resources/synthdefs/v1/scrysynth_v1_fx_lowpass.scsyndef",
+                ),
+                (
+                    FX_DELAY_SYNTHDEF,
+                    "resources/synthdefs/v1/scrysynth_v1_fx_delay.scsyndef",
+                ),
+                (
+                    MIXER_SYNTHDEF,
+                    "resources/synthdefs/v1/scrysynth_v1_mixer.scsyndef",
+                ),
+                (
+                    OUTPUT_SYNTHDEF,
+                    "resources/synthdefs/v1/scrysynth_v1_output.scsyndef",
+                ),
+            ];
+
+            for (name, relative_path) in resources {
+                let bytes = std::fs::read(
+                    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(relative_path),
+                )
+                .unwrap_or_else(|error| {
+                    panic!("failed to read SynthDef resource {relative_path}: {error}")
+                });
+
+                assert!(
+                    bytes.starts_with(b"SCgf"),
+                    "{relative_path} has SCgf header"
+                );
+                assert_eq!(
+                    i32::from_be_bytes(bytes[4..8].try_into().expect("version bytes")),
+                    2,
+                    "{relative_path} uses SynthDef v2"
+                );
+                assert_eq!(
+                    i16::from_be_bytes(bytes[8..10].try_into().expect("definition count bytes")),
+                    1,
+                    "{relative_path} contains one SynthDef"
+                );
+                let name_length = bytes[10] as usize;
+                assert_eq!(
+                    &bytes[11..11 + name_length],
+                    name.as_bytes(),
+                    "{relative_path} embeds the expected SynthDef name"
+                );
+            }
         }
     }
 
