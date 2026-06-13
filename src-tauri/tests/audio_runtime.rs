@@ -318,6 +318,59 @@ mod audio_runtime {
         }
 
         #[test]
+        fn resource_plan_accepts_known_legacy_runtime_target_aliases() {
+            let mut session = deterministic_session();
+            session.nodes[1].runtime_target = Some("audio/source/default".to_string());
+            let topology = compile_session_to_topology(&session).expect("compile succeeds");
+
+            let plan = plan_sc_resources(&topology).expect("legacy target alias succeeds");
+
+            assert_eq!(plan.synths[0].synthdef_name, SOURCE_OSCILLATOR_SYNTHDEF);
+        }
+
+        #[test]
+        fn resource_plan_fails_loudly_for_unknown_audio_runtime_target() {
+            let mut session = deterministic_session();
+            session.nodes[1].runtime_target = Some("audio/source/granular".to_string());
+            let topology = compile_session_to_topology(&session).expect("compile succeeds");
+
+            let error = plan_sc_resources(&topology).expect_err("unsupported audio target fails");
+
+            assert!(error.to_string().contains("audio/source/granular"));
+        }
+
+        #[test]
+        fn resource_plan_fails_loudly_for_mismatched_runtime_target_and_primitive() {
+            let mut session = deterministic_session();
+            session.nodes[1].runtime_target = Some("audio/source/noise".to_string());
+            let topology = compile_session_to_topology(&session).expect("compile succeeds");
+
+            let error = plan_sc_resources(&topology).expect_err("mismatched target fails");
+
+            assert!(error.to_string().contains("audio/source/noise"));
+        }
+
+        #[test]
+        fn resource_plan_fails_loudly_for_unsupported_parameter_name() {
+            let mut session = deterministic_session();
+            session.nodes[1].parameters.push(ParameterValue {
+                id: "param-grain-size".to_string(),
+                name: "grain_size".to_string(),
+                value: 0.1,
+                default_value: 0.1,
+                min_value: 0.0,
+                max_value: 1.0,
+                unit: "s".to_string(),
+            });
+            let topology = compile_session_to_topology(&session).expect("compile succeeds");
+
+            let error = plan_sc_resources(&topology).expect_err("unsupported parameter fails");
+
+            assert!(error.to_string().contains("param-grain-size"));
+            assert!(error.to_string().contains("grain_size"));
+        }
+
+        #[test]
         fn delay_primitive_uses_delay_synthdef_and_stable_parameter_names() {
             let mut session = deterministic_session();
             session.nodes[0].audio_primitive = Some(AudioPrimitive::Effect(AudioEffectNode {

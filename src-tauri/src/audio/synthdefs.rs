@@ -83,6 +83,14 @@ pub enum ScResourcePlanError {
         node_id: String,
         runtime_target: String,
     },
+    #[error(
+        "node `{node_id}` parameter `{parameter_id}` uses unsupported v1 SuperCollider parameter `{parameter_name}`"
+    )]
+    UnsupportedParameter {
+        node_id: String,
+        parameter_id: String,
+        parameter_name: String,
+    },
 }
 
 pub fn plan_sc_resources(
@@ -95,7 +103,7 @@ pub fn plan_sc_resources(
     let mut controls = Vec::new();
 
     for (index, node) in topology.node_launch_order.iter().enumerate() {
-        validate_runtime_target(&node.node_id, &node.runtime_target)?;
+        validate_runtime_target(&node.node_id, &node.runtime_target, &node.node_kind)?;
         let group_node_id =
             *group_map
                 .get(&node.group_id)
@@ -116,7 +124,7 @@ pub fn plan_sc_resources(
                     &mut args,
                     &mut controls,
                     synth_node_id,
-                );
+                )?;
                 match source_type {
                     AudioSourceType::Oscillator => SOURCE_OSCILLATOR_SYNTHDEF,
                     AudioSourceType::Noise => SOURCE_NOISE_SYNTHDEF,
@@ -138,7 +146,7 @@ pub fn plan_sc_resources(
                     &mut args,
                     &mut controls,
                     synth_node_id,
-                );
+                )?;
                 match effect_type {
                     AudioEffectType::LowPassFilter => FX_LOWPASS_SYNTHDEF,
                     AudioEffectType::Delay => FX_DELAY_SYNTHDEF,
@@ -168,7 +176,7 @@ pub fn plan_sc_resources(
                     &mut args,
                     &mut controls,
                     synth_node_id,
-                );
+                )?;
                 MIXER_SYNTHDEF
             }
             CompiledNodeKind::Output {
@@ -203,7 +211,7 @@ pub fn plan_sc_resources(
                     &mut args,
                     &mut controls,
                     synth_node_id,
-                );
+                )?;
                 OUTPUT_SYNTHDEF
             }
         };
@@ -278,8 +286,51 @@ fn plan_groups(topology: &CompiledTopology) -> Result<BTreeMap<String, i32>, ScR
     Ok(group_map)
 }
 
-fn validate_runtime_target(node_id: &str, runtime_target: &str) -> Result<(), ScResourcePlanError> {
-    if runtime_target.starts_with("audio/") {
+fn validate_runtime_target(
+    node_id: &str,
+    runtime_target: &str,
+    node_kind: &CompiledNodeKind,
+) -> Result<(), ScResourcePlanError> {
+    let supported = match node_kind {
+        CompiledNodeKind::Source {
+            source_type: AudioSourceType::Oscillator,
+            ..
+        } => matches!(
+            runtime_target,
+            "audio/source/oscillator" | "audio/source/default"
+        ),
+        CompiledNodeKind::Source {
+            source_type: AudioSourceType::Noise,
+            ..
+        } => matches!(
+            runtime_target,
+            "audio/source/noise" | "audio/source/default"
+        ),
+        CompiledNodeKind::Effect {
+            effect_type: AudioEffectType::LowPassFilter,
+            ..
+        } => matches!(
+            runtime_target,
+            "audio/effect/low_pass_filter" | "audio/effect/filter"
+        ),
+        CompiledNodeKind::Effect {
+            effect_type: AudioEffectType::Delay,
+            ..
+        } => runtime_target == "audio/effect/delay",
+        CompiledNodeKind::Mixer { .. } => {
+            matches!(runtime_target, "audio/mixer/stereo" | "audio/mixer/submix")
+        }
+        CompiledNodeKind::Output {
+            output_type: AudioOutputType::Master,
+            ..
+        } => runtime_target == "audio/output/master",
+        CompiledNodeKind::Output {
+            output_type: AudioOutputType::Cue,
+            ..
+        } => runtime_target == "audio/output/cue",
+    };
+
+    if supported {
         Ok(())
     } else {
         Err(ScResourcePlanError::UnsupportedRuntimeTarget {
@@ -339,16 +390,14 @@ fn apply_parameters(
     args: &mut Vec<ScSynthArg>,
     controls: &mut Vec<ScControlPlan>,
     synth_node_id: i32,
-) {
+) -> Result<(), ScResourcePlanError> {
     for parameter in parameters {
         let Some(name) = normalize_parameter_name(&parameter.name) else {
-            tracing::warn!(
-                node_id,
-                parameter_id = parameter.parameter_id,
-                parameter_name = parameter.name,
-                "ignoring unsupported v1 SuperCollider parameter"
-            );
-            continue;
+            return Err(ScResourcePlanError::UnsupportedParameter {
+                node_id: node_id.to_string(),
+                parameter_id: parameter.parameter_id.clone(),
+                parameter_name: parameter.name.clone(),
+            });
         };
         args.push(arg(name, parameter.value as f32));
         controls.push(ScControlPlan {
@@ -357,6 +406,7 @@ fn apply_parameters(
             parameter_name: name.to_string(),
         });
     }
+    Ok(())
 }
 
 fn normalize_parameter_name(name: &str) -> Option<&'static str> {

@@ -20,13 +20,13 @@ const OSC_PACKET_BUFFER_SIZE: usize = 1536;
 const INITIAL_SYNC_ID: i32 = 1;
 
 #[derive(Debug)]
-pub struct SuperColliderAdapter {
+pub struct SuperColliderAdapter<T = UdpOscTransport> {
     process: Option<Child>,
-    osc: Option<ScOscClient>,
+    osc: Option<ScOscClient<T>>,
     active_patch: Option<ScResourcePlan>,
 }
 
-impl AudioRuntimeAdapter for SuperColliderAdapter {
+impl AudioRuntimeAdapter for SuperColliderAdapter<UdpOscTransport> {
     fn start(&mut self) -> Result<RuntimeAdapterStatus, String> {
         if self.process.is_some() {
             if let Err(error) = self.sync_scsynth("boot") {
@@ -120,7 +120,7 @@ impl AudioRuntimeAdapter for SuperColliderAdapter {
     }
 }
 
-impl Default for SuperColliderAdapter {
+impl Default for SuperColliderAdapter<UdpOscTransport> {
     fn default() -> Self {
         Self {
             process: None,
@@ -130,14 +130,21 @@ impl Default for SuperColliderAdapter {
     }
 }
 
-impl Drop for SuperColliderAdapter {
+impl<T> Drop for SuperColliderAdapter<T> {
     fn drop(&mut self) {
         let _ = terminate_process(&mut self.process);
     }
 }
 
-impl SuperColliderAdapter {
+impl<T> SuperColliderAdapter<T>
+where
+    T: OscTransport,
+{
     fn apply_resource_plan(&mut self, plan: &ScResourcePlan) -> Result<(), String> {
+        if let Some(active_patch) = self.active_patch.take() {
+            self.free_resource_plan(&active_patch, "topology unload previous patch")?;
+        }
+
         {
             let osc = self
                 .osc
@@ -163,30 +170,36 @@ impl SuperColliderAdapter {
         }
         self.sync_scsynth("topology load synthdefs")?;
 
+        let mut created_group_count = 0;
         {
             let osc = self
                 .osc
                 .as_mut()
                 .ok_or_else(|| "topology load: OSC client is not connected".to_string())?;
             for group in &plan.groups {
-                osc.send_message(
+                if let Err(err) = osc.send_message(
                     "/g_new",
                     vec![
                         rosc::OscType::Int(group.node_id),
                         rosc::OscType::Int(1),
                         rosc::OscType::Int(0),
                     ],
-                )
-                .map_err(|err| {
-                    format!(
+                ) {
+                    let _ = self.free_created_resources(plan, 0, created_group_count);
+                    return Err(format!(
                         "topology load: failed to create group {}: {err}",
                         group.group_key
-                    )
-                })?;
+                    ));
+                }
+                created_group_count += 1;
             }
         }
-        self.sync_scsynth("topology load groups")?;
+        if let Err(error) = self.sync_scsynth("topology load groups") {
+            let _ = self.free_created_resources(plan, 0, created_group_count);
+            return Err(error);
+        }
 
+        let mut created_synth_count = 0;
         {
             let osc = self
                 .osc
@@ -200,15 +213,62 @@ impl SuperColliderAdapter {
                     rosc::OscType::Int(synth.group_node_id),
                 ];
                 args.extend(synth_args_to_osc(&synth.args));
-                osc.send_message("/s_new", args).map_err(|err| {
-                    format!(
+                if let Err(err) = osc.send_message("/s_new", args) {
+                    let _ =
+                        self.free_created_resources(plan, created_synth_count, created_group_count);
+                    return Err(format!(
                         "topology load: failed to create synth for node {}: {err}",
+                        synth.node_key
+                    ));
+                }
+                created_synth_count += 1;
+            }
+        }
+        if let Err(error) = self.sync_scsynth("topology load synths") {
+            let _ = self.free_created_resources(plan, created_synth_count, created_group_count);
+            return Err(error);
+        }
+
+        Ok(())
+    }
+
+    fn free_resource_plan(&mut self, plan: &ScResourcePlan, stage: &str) -> Result<(), String> {
+        self.free_created_resources(plan, plan.synths.len(), plan.groups.len())?;
+        self.sync_scsynth(stage)
+    }
+
+    fn free_created_resources(
+        &mut self,
+        plan: &ScResourcePlan,
+        synth_count: usize,
+        group_count: usize,
+    ) -> Result<(), String> {
+        let osc = self
+            .osc
+            .as_mut()
+            .ok_or_else(|| "topology cleanup: OSC client is not connected".to_string())?;
+
+        for synth in plan.synths.iter().take(synth_count).rev() {
+            osc.send_message("/n_free", vec![rosc::OscType::Int(synth.node_id)])
+                .map_err(|err| {
+                    format!(
+                        "topology cleanup: failed to free synth for node {}: {err}",
                         synth.node_key
                     )
                 })?;
-            }
         }
-        self.sync_scsynth("topology load synths")
+
+        for group in plan.groups.iter().take(group_count).rev() {
+            osc.send_message("/n_free", vec![rosc::OscType::Int(group.node_id)])
+                .map_err(|err| {
+                    format!(
+                        "topology cleanup: failed to free group {}: {err}",
+                        group.group_key
+                    )
+                })?;
+        }
+
+        Ok(())
     }
 
     fn sync_scsynth(&mut self, stage: &str) -> Result<(), String> {
@@ -423,13 +483,13 @@ fn has_matching_synced(packet: &rosc::OscPacket, sync_id: i32) -> Result<bool, S
     }
 }
 
-trait OscTransport {
+pub trait OscTransport {
     fn send(&mut self, bytes: &[u8]) -> io::Result<usize>;
     fn recv(&mut self, buffer: &mut [u8], timeout: Duration) -> io::Result<usize>;
 }
 
 #[derive(Debug)]
-struct UdpOscTransport {
+pub struct UdpOscTransport {
     socket: UdpSocket,
 }
 
@@ -578,6 +638,85 @@ mod tests {
         assert!(matches!(sent[0], rosc::OscPacket::Bundle(_)));
     }
 
+    #[test]
+    fn apply_resource_plan_sends_groups_then_synths_in_plan_order() {
+        let (transport, sent_packets) = ScriptedOscTransport::new(vec![
+            ScriptedResponse::Packet(synced_packet(INITIAL_SYNC_ID)),
+            ScriptedResponse::Packet(synced_packet(INITIAL_SYNC_ID + 1)),
+            ScriptedResponse::Packet(synced_packet(INITIAL_SYNC_ID + 2)),
+        ]);
+        let mut adapter = SuperColliderAdapter {
+            process: None,
+            osc: Some(ScOscClient::new(transport, Duration::from_millis(250))),
+            active_patch: None,
+        };
+        let plan = test_resource_plan();
+
+        adapter
+            .apply_resource_plan(&plan)
+            .expect("resource plan applies");
+
+        let sent = sent_packets.lock().expect("sent packets");
+        assert_eq!(
+            sent.iter()
+                .map(|packet| osc_message_addr(packet)
+                    .expect("message packet")
+                    .to_string())
+                .collect::<Vec<_>>(),
+            vec![
+                "/status", "/sync", "/g_new", "/status", "/sync", "/s_new", "/s_new", "/status",
+                "/sync",
+            ]
+        );
+        assert_eq!(osc_message_int_arg(&sent[2]), Some(1000));
+        assert_eq!(
+            osc_message_string_arg(&sent[5], 0),
+            Some("scrysynth_v1_source_oscillator")
+        );
+        assert_eq!(osc_message_int_arg_at(&sent[5], 1), Some(2000));
+        assert_eq!(
+            osc_message_string_arg(&sent[6], 0),
+            Some("scrysynth_v1_output")
+        );
+        assert_eq!(osc_message_int_arg_at(&sent[6], 1), Some(2001));
+    }
+
+    #[test]
+    fn apply_resource_plan_frees_created_nodes_when_final_sync_fails() {
+        let (transport, sent_packets) = ScriptedOscTransport::new(vec![
+            ScriptedResponse::Packet(synced_packet(INITIAL_SYNC_ID)),
+            ScriptedResponse::Packet(synced_packet(INITIAL_SYNC_ID + 1)),
+            ScriptedResponse::Timeout,
+        ]);
+        let mut adapter = SuperColliderAdapter {
+            process: None,
+            osc: Some(ScOscClient::new(transport, Duration::from_millis(20))),
+            active_patch: None,
+        };
+        let plan = test_resource_plan();
+
+        let error = adapter
+            .apply_resource_plan(&plan)
+            .expect_err("final sync fails");
+
+        assert!(error.contains("topology load synths"));
+        let sent = sent_packets.lock().expect("sent packets");
+        assert_eq!(
+            sent.iter()
+                .map(|packet| osc_message_addr(packet)
+                    .expect("message packet")
+                    .to_string())
+                .collect::<Vec<_>>(),
+            vec![
+                "/status", "/sync", "/g_new", "/status", "/sync", "/s_new", "/s_new", "/status",
+                "/sync", "/n_free", "/n_free", "/n_free",
+            ]
+        );
+        assert_eq!(osc_message_int_arg(&sent[9]), Some(2001));
+        assert_eq!(osc_message_int_arg(&sent[10]), Some(2000));
+        assert_eq!(osc_message_int_arg(&sent[11]), Some(1000));
+    }
+
     fn synced_packet(sync_id: i32) -> rosc::OscPacket {
         rosc::OscPacket::Message(rosc::OscMessage {
             addr: "/synced".to_string(),
@@ -593,12 +732,74 @@ mod tests {
     }
 
     fn osc_message_int_arg(packet: &rosc::OscPacket) -> Option<i32> {
+        osc_message_int_arg_at(packet, 0)
+    }
+
+    fn osc_message_int_arg_at(packet: &rosc::OscPacket, index: usize) -> Option<i32> {
         match packet {
-            rosc::OscPacket::Message(message) => match message.args.as_slice() {
-                [rosc::OscType::Int(value)] => Some(*value),
+            rosc::OscPacket::Message(message) => match message.args.get(index) {
+                Some(rosc::OscType::Int(value)) => Some(*value),
                 _ => None,
             },
             rosc::OscPacket::Bundle(_) => None,
+        }
+    }
+
+    fn osc_message_string_arg(packet: &rosc::OscPacket, index: usize) -> Option<&str> {
+        match packet {
+            rosc::OscPacket::Message(message) => match message.args.get(index) {
+                Some(rosc::OscType::String(value)) => Some(value.as_str()),
+                _ => None,
+            },
+            rosc::OscPacket::Bundle(_) => None,
+        }
+    }
+
+    fn test_resource_plan() -> ScResourcePlan {
+        ScResourcePlan {
+            patch_id: "patch-test".to_string(),
+            synthdefs: Vec::new(),
+            groups: vec![crate::audio::synthdefs::ScGroupPlan {
+                group_key: "group-main-signal".to_string(),
+                node_id: 1000,
+            }],
+            synths: vec![
+                crate::audio::synthdefs::ScSynthPlan {
+                    node_key: "node-source".to_string(),
+                    node_id: 2000,
+                    synthdef_name: "scrysynth_v1_source_oscillator",
+                    group_key: "group-main-signal".to_string(),
+                    group_node_id: 1000,
+                    args: vec![
+                        ScSynthArg {
+                            name: "out_bus".to_string(),
+                            value: 2.0,
+                        },
+                        ScSynthArg {
+                            name: "frequency".to_string(),
+                            value: 220.0,
+                        },
+                    ],
+                },
+                crate::audio::synthdefs::ScSynthPlan {
+                    node_key: "node-output".to_string(),
+                    node_id: 2001,
+                    synthdef_name: "scrysynth_v1_output",
+                    group_key: "group-main-signal".to_string(),
+                    group_node_id: 1000,
+                    args: vec![
+                        ScSynthArg {
+                            name: "in_bus".to_string(),
+                            value: 2.0,
+                        },
+                        ScSynthArg {
+                            name: "hardware_out".to_string(),
+                            value: 0.0,
+                        },
+                    ],
+                },
+            ],
+            controls: Vec::new(),
         }
     }
 
