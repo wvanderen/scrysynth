@@ -302,6 +302,37 @@ mod audio_runtime {
             );
         }
 
+        #[test]
+        fn start_audio_runtime_marks_degraded_when_topology_sync_fails() {
+            let adapter = FakeAdapter::with_statuses(vec![
+                RuntimeAdapterStatus::Booted {
+                    sample_rate_hz: 48_000,
+                    block_size: 64,
+                },
+                RuntimeAdapterStatus::Failed {
+                    message: "topology load: scsynth /sync failed: /sync 1 timed out".to_string(),
+                },
+            ]);
+            let mut manager = AudioRuntimeManager::new_for_tests(adapter);
+            let mut store = SessionStore::new_default();
+
+            let session = manager.start(&mut store).expect("failure is recorded");
+
+            assert_eq!(
+                session.audio_runtime.lifecycle,
+                AudioRuntimeLifecycle::Failed
+            );
+            assert_eq!(session.audio_runtime.health, AudioRuntimeHealth::Degraded);
+            assert_eq!(
+                session.audio_runtime.last_error.as_deref(),
+                Some("topology load: scsynth /sync failed: /sync 1 timed out")
+            );
+            assert_eq!(
+                audio_runtime_status(&session),
+                RuntimeConnectionState::Error
+            );
+        }
+
         fn audio_runtime_status(session: &SessionDocument) -> RuntimeConnectionState {
             session
                 .runtime_status
