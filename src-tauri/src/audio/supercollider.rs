@@ -46,20 +46,28 @@ impl AudioRuntimeAdapter for SuperColliderAdapter<UdpOscTransport> {
             Some(path) => path,
             None => {
                 return Ok(RuntimeAdapterStatus::Failed {
-                    message: format!(
-                        "scsynth not found on PATH; install SuperCollider or set {SCSYNTH_OVERRIDE_ENV}"
-                    ),
+                    message: missing_scsynth_message(),
                     active_patch_id: None,
                 });
             }
         };
 
-        let child = Command::new(executable)
+        let child = Command::new(&executable)
             .args(["-u", &SCSYNTH_UDP_PORT.to_string(), "-l", "1"])
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
-            .map_err(|err| format!("failed to launch scsynth: {err}"))?;
+            .map_err(|err| RuntimeAdapterStatus::Failed {
+                message: format!(
+                    "Failed to spawn scsynth at `{}`: {err}. Set {SCSYNTH_OVERRIDE_ENV} to the full scsynth executable path if this install lives outside PATH or the macOS bundle fallback ({MACOS_APP_BUNDLE_SCSYNTH}).",
+                    executable.display()
+                ),
+                active_patch_id: None,
+            });
+        let child = match child {
+            Ok(child) => child,
+            Err(status) => return Ok(status),
+        };
 
         self.process = Some(child);
         self.osc = Some(ScOscClient::connect(
@@ -88,7 +96,7 @@ impl AudioRuntimeAdapter for SuperColliderAdapter<UdpOscTransport> {
     ) -> Result<RuntimeAdapterStatus, String> {
         if !self.is_process_running()? {
             return Ok(RuntimeAdapterStatus::Failed {
-                message: "scsynth process is not running".to_string(),
+                message: "Runtime server error: scsynth process is not running while applying topology. Start audio again; if this repeats, check the SuperCollider server logs.".to_string(),
                 active_patch_id: None,
             });
         }
@@ -97,7 +105,7 @@ impl AudioRuntimeAdapter for SuperColliderAdapter<UdpOscTransport> {
             Ok(plan) => plan,
             Err(error) => {
                 return Ok(RuntimeAdapterStatus::Failed {
-                    message: format!("topology load: {error}"),
+                    message: format!("Topology apply failure before contacting scsynth: {error}"),
                     active_patch_id: self.active_patch.as_ref().map(|plan| plan.patch_id.clone()),
                 });
             }
@@ -115,6 +123,28 @@ impl AudioRuntimeAdapter for SuperColliderAdapter<UdpOscTransport> {
         Ok(RuntimeAdapterStatus::Ready {
             active_patch_id: patch_id,
         })
+    }
+
+    fn set_parameter_value(
+        &mut self,
+        node_id: &str,
+        parameter_id: &str,
+        value: f64,
+    ) -> Result<RuntimeAdapterStatus, String> {
+        if !self.is_process_running()? {
+            return Ok(RuntimeAdapterStatus::Failed {
+                message: "Runtime server error during live parameter update: scsynth process is not running. Start audio again before applying live controls.".to_string(),
+                active_patch_id: self.active_patch.as_ref().map(|plan| plan.patch_id.clone()),
+            });
+        }
+
+        match self.send_live_parameter(node_id, parameter_id, value) {
+            Ok(active_patch_id) => Ok(RuntimeAdapterStatus::Ready { active_patch_id }),
+            Err(message) => Ok(RuntimeAdapterStatus::Failed {
+                message,
+                active_patch_id: self.active_patch.as_ref().map(|plan| plan.patch_id.clone()),
+            }),
+        }
     }
 
     fn stop(&mut self) -> Result<RuntimeAdapterStatus, String> {
@@ -159,23 +189,23 @@ where
         }
 
         {
-            let osc = self
-                .osc
-                .as_mut()
-                .ok_or_else(|| "topology load: OSC client is not connected".to_string())?;
+            let osc = self.osc.as_mut().ok_or_else(|| {
+                "Audio runtime app state error during topology apply: OSC client is not connected."
+                    .to_string()
+            })?;
 
             for synthdef in &plan.synthdefs {
                 let bytes =
                     fs::read(resolve_resource_path(synthdef.relative_path)).map_err(|err| {
                         format!(
-                            "topology load: failed to read SynthDef resource {}: {err}",
+                            "SynthDef load failure: failed to read bundled SynthDef resource `{}`: {err}. Reinstall Scrysynth or regenerate checked-in synthdefs before starting audio.",
                             synthdef.relative_path
                         )
                     })?;
                 osc.send_message("/d_recv", vec![rosc::OscType::Blob(bytes)])
                     .map_err(|err| {
                         format!(
-                            "topology load: failed to send SynthDef {}: {err}",
+                            "SynthDef load failure: failed to send SynthDef `{}` to scsynth with /d_recv: {err}",
                             synthdef.name
                         )
                     })?;
@@ -185,10 +215,10 @@ where
 
         let mut created_group_count = 0;
         {
-            let osc = self
-                .osc
-                .as_mut()
-                .ok_or_else(|| "topology load: OSC client is not connected".to_string())?;
+            let osc = self.osc.as_mut().ok_or_else(|| {
+                "Audio runtime app state error during topology apply: OSC client is not connected."
+                    .to_string()
+            })?;
             for group in &plan.groups {
                 if let Err(err) = osc.send_message(
                     "/g_new",
@@ -200,7 +230,7 @@ where
                 ) {
                     let _ = self.free_created_resources(plan, 0, created_group_count);
                     return Err(format!(
-                        "topology load: failed to create group {}: {err}",
+                        "Topology apply failure: failed to create SuperCollider group `{}`: {err}",
                         group.group_key
                     ));
                 }
@@ -214,10 +244,10 @@ where
 
         let mut created_synth_count = 0;
         {
-            let osc = self
-                .osc
-                .as_mut()
-                .ok_or_else(|| "topology load: OSC client is not connected".to_string())?;
+            let osc = self.osc.as_mut().ok_or_else(|| {
+                "Audio runtime app state error during topology apply: OSC client is not connected."
+                    .to_string()
+            })?;
             for synth in &plan.synths {
                 let mut args = vec![
                     rosc::OscType::String(synth.synthdef_name.to_string()),
@@ -230,7 +260,7 @@ where
                     let _ =
                         self.free_created_resources(plan, created_synth_count, created_group_count);
                     return Err(format!(
-                        "topology load: failed to create synth for node {}: {err}",
+                        "Topology apply failure: failed to create SuperCollider synth for node `{}`: {err}",
                         synth.node_key
                     ));
                 }
@@ -248,6 +278,54 @@ where
     fn free_resource_plan(&mut self, plan: &ScResourcePlan, stage: &str) -> Result<(), String> {
         self.free_created_resources(plan, plan.synths.len(), plan.groups.len())?;
         self.sync_scsynth(stage)
+    }
+
+    fn send_live_parameter(
+        &mut self,
+        node_id: &str,
+        parameter_id: &str,
+        value: f64,
+    ) -> Result<String, String> {
+        let active_patch = self
+            .active_patch
+            .as_ref()
+            .ok_or_else(|| {
+                "Audio runtime app state error during live parameter update: no active SuperCollider patch is registered."
+                    .to_string()
+            })?;
+        let control_key = format!("{node_id}:{parameter_id}");
+        let control = active_patch
+            .controls
+            .iter()
+            .find(|control| control.control_key == control_key)
+            .ok_or_else(|| {
+                format!(
+                    "Topology apply failure during live parameter update: no SuperCollider control exists for node `{node_id}` parameter `{parameter_id}` in the active patch."
+                )
+            })?;
+        let active_patch_id = active_patch.patch_id.clone();
+        let osc = self
+            .osc
+            .as_mut()
+            .ok_or_else(|| {
+                "Audio runtime app state error during live parameter update: OSC client is not connected."
+                    .to_string()
+            })?;
+
+        osc.send_message(
+            "/n_set",
+            vec![
+                rosc::OscType::Int(control.synth_node_id),
+                rosc::OscType::String(control.parameter_name.clone()),
+                rosc::OscType::Float(value as f32),
+            ],
+        )
+        .map_err(|err| {
+            format!("Runtime server error during live parameter update: failed to send /n_set to scsynth: {err}")
+        })?;
+        self.sync_scsynth("live parameter update")?;
+
+        Ok(active_patch_id)
     }
 
     fn free_created_resources(
@@ -285,16 +363,16 @@ where
     }
 
     fn sync_scsynth(&mut self, stage: &str) -> Result<(), String> {
-        let osc = self
-            .osc
-            .as_mut()
-            .ok_or_else(|| format!("{stage}: OSC client is not connected"))?;
+        let osc = self.osc.as_mut().ok_or_else(|| {
+            format!("Audio runtime app state error during {stage}: OSC client is not connected.")
+        })?;
 
-        osc.send_message("/status", Vec::new())
-            .map_err(|err| format!("{stage}: failed to send /status: {err}"))?;
-        osc.sync()
-            .map(|_| ())
-            .map_err(|err| format!("{stage}: scsynth /sync failed: {err}"))
+        osc.send_message("/status", Vec::new()).map_err(|err| {
+            format!("Runtime server error during {stage}: failed to send /status to scsynth: {err}")
+        })?;
+        osc.sync().map(|_| ()).map_err(|err| {
+            format!("Runtime server error during {stage}: scsynth did not confirm OSC /sync: {err}")
+        })
     }
 
     fn is_process_running(&mut self) -> Result<bool, String> {
@@ -305,8 +383,16 @@ where
         child
             .try_wait()
             .map(|status| status.is_none())
-            .map_err(|err| format!("failed to inspect scsynth process: {err}"))
+            .map_err(|err| {
+                format!("Audio runtime app state error while inspecting scsynth process: {err}")
+            })
     }
+}
+
+fn missing_scsynth_message() -> String {
+    format!(
+        "scsynth not found. Install SuperCollider, put `scsynth` on PATH, or set {SCSYNTH_OVERRIDE_ENV} to the full executable path. On macOS Scrysynth also checks the bundle fallback `{MACOS_APP_BUNDLE_SCSYNTH}`."
+    )
 }
 
 fn synth_args_to_osc(args: &[ScSynthArg]) -> Vec<rosc::OscType> {
@@ -764,6 +850,60 @@ mod tests {
         );
     }
 
+    #[test]
+    fn send_live_parameter_sends_n_set_to_adapter_owned_synth() {
+        let (transport, sent_packets) = ScriptedOscTransport::new(vec![ScriptedResponse::Packet(
+            synced_packet(INITIAL_SYNC_ID),
+        )]);
+        let mut plan = test_resource_plan();
+        plan.controls = vec![crate::audio::synthdefs::ScControlPlan {
+            control_key: "node-source:param-level".to_string(),
+            synth_node_id: 2000,
+            parameter_name: "level".to_string(),
+        }];
+        let mut adapter = SuperColliderAdapter {
+            process: None,
+            osc: Some(ScOscClient::new(transport, Duration::from_millis(250))),
+            active_patch: Some(plan),
+        };
+
+        let active_patch_id = adapter
+            .send_live_parameter("node-source", "param-level", 0.42)
+            .expect("live parameter sends");
+
+        assert_eq!(active_patch_id, "patch-test");
+        let sent = sent_packets.lock().expect("sent packets");
+        assert_eq!(
+            sent.iter()
+                .map(|packet| osc_message_addr(packet)
+                    .expect("message packet")
+                    .to_string())
+                .collect::<Vec<_>>(),
+            vec!["/n_set", "/status", "/sync"]
+        );
+        assert_eq!(osc_message_int_arg(&sent[0]), Some(2000));
+        assert_eq!(osc_message_string_arg(&sent[0], 1), Some("level"));
+        assert!(
+            (osc_message_float_arg(&sent[0], 2).expect("float value") - 0.42).abs() < 0.000_001
+        );
+    }
+
+    #[test]
+    fn send_live_parameter_fails_when_control_is_not_in_active_patch() {
+        let (transport, _sent_packets) = ScriptedOscTransport::new(vec![]);
+        let mut adapter = SuperColliderAdapter {
+            process: None,
+            osc: Some(ScOscClient::new(transport, Duration::from_millis(20))),
+            active_patch: Some(test_resource_plan()),
+        };
+
+        let error = adapter
+            .send_live_parameter("node-source", "missing-param", 0.42)
+            .expect_err("missing control fails");
+
+        assert!(error.contains("no SuperCollider control"));
+    }
+
     fn synced_packet(sync_id: i32) -> rosc::OscPacket {
         rosc::OscPacket::Message(rosc::OscMessage {
             addr: "/synced".to_string(),
@@ -796,6 +936,17 @@ mod tests {
         match packet {
             rosc::OscPacket::Message(message) => match message.args.get(index) {
                 Some(rosc::OscType::String(value)) => Some(value.as_str()),
+                _ => None,
+            },
+            rosc::OscPacket::Bundle(_) => None,
+        }
+    }
+
+    fn osc_message_float_arg(packet: &rosc::OscPacket, index: usize) -> Option<f64> {
+        match packet {
+            rosc::OscPacket::Message(message) => match message.args.get(index) {
+                Some(rosc::OscType::Float(value)) => Some(f64::from(*value)),
+                Some(rosc::OscType::Double(value)) => Some(*value),
                 _ => None,
             },
             rosc::OscPacket::Bundle(_) => None,

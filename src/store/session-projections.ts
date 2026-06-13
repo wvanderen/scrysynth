@@ -174,10 +174,13 @@ function buildTopologySignature(session: SessionDocument): string {
 
 function projectAudioRuntime(session: SessionDocument): AudioRuntimeProjection {
   const { health, lastError, lifecycle } = session.audioRuntime;
+  const runtimeStatusError =
+    session.runtimeStatus.find((runtime) => runtime.runtime === "audio")?.lastError ?? null;
+  const visibleError = lastError ?? runtimeStatusError;
 
   let detail = "Ready for the next transport command.";
-  if (lastError) {
-    detail = lastError;
+  if (visibleError) {
+    detail = visibleError;
   } else if (session.audioRuntime.activePatchId) {
     detail = `Patch ${session.audioRuntime.activePatchId} active.`;
   } else if (session.audioRuntime.panicRecoveryCount > 0) {

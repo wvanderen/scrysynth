@@ -508,6 +508,7 @@ mod audio_runtime {
             Stop,
             Panic,
             LoadTopology,
+            SetParameter,
         }
 
         #[derive(Clone)]
@@ -550,6 +551,19 @@ mod audio_runtime {
                     .lock()
                     .expect("actions lock")
                     .push(AdapterAction::LoadTopology);
+                Ok(self.take_status())
+            }
+
+            fn set_parameter_value(
+                &mut self,
+                _node_id: &str,
+                _parameter_id: &str,
+                _value: f64,
+            ) -> Result<RuntimeAdapterStatus, String> {
+                self.actions
+                    .lock()
+                    .expect("actions lock")
+                    .push(AdapterAction::SetParameter);
                 Ok(self.take_status())
             }
 
@@ -655,7 +669,7 @@ mod audio_runtime {
         #[test]
         fn start_audio_runtime_marks_degraded_when_adapter_fails() {
             let adapter = FakeAdapter::with_statuses(vec![RuntimeAdapterStatus::Failed {
-                message: "scsynth not found".to_string(),
+                message: "scsynth not found. Install SuperCollider, put `scsynth` on PATH, or set SCRYSYNTH_SCSYNTH_PATH to the full executable path. On macOS Scrysynth also checks the bundle fallback `/Applications/SuperCollider.app/Contents/Resources/scsynth`.".to_string(),
                 active_patch_id: None,
             }]);
             let mut manager = AudioRuntimeManager::new_for_tests(adapter);
@@ -670,7 +684,7 @@ mod audio_runtime {
             assert_eq!(session.audio_runtime.health, AudioRuntimeHealth::Degraded);
             assert_eq!(
                 session.audio_runtime.last_error.as_deref(),
-                Some("scsynth not found")
+                Some("scsynth not found. Install SuperCollider, put `scsynth` on PATH, or set SCRYSYNTH_SCSYNTH_PATH to the full executable path. On macOS Scrysynth also checks the bundle fallback `/Applications/SuperCollider.app/Contents/Resources/scsynth`.")
             );
             assert_eq!(
                 audio_runtime_status(&session),
@@ -686,7 +700,7 @@ mod audio_runtime {
                     block_size: 64,
                 },
                 RuntimeAdapterStatus::Failed {
-                    message: "topology load: scsynth /sync failed: /sync 1 timed out".to_string(),
+                    message: "Runtime server error during topology load synthdefs: scsynth did not confirm OSC /sync: /sync 1 timed out after 2s".to_string(),
                     active_patch_id: None,
                 },
             ]);
@@ -702,7 +716,7 @@ mod audio_runtime {
             assert_eq!(session.audio_runtime.health, AudioRuntimeHealth::Degraded);
             assert_eq!(
                 session.audio_runtime.last_error.as_deref(),
-                Some("topology load: scsynth /sync failed: /sync 1 timed out")
+                Some("Runtime server error during topology load synthdefs: scsynth did not confirm OSC /sync: /sync 1 timed out after 2s")
             );
             assert_eq!(
                 audio_runtime_status(&session),
@@ -764,7 +778,7 @@ mod audio_runtime {
                     block_size: 64,
                 },
                 RuntimeAdapterStatus::Failed {
-                    message: "topology unload previous patch: scsynth /sync failed".to_string(),
+                    message: "Runtime server error during topology unload previous patch: scsynth did not confirm OSC /sync".to_string(),
                     active_patch_id: Some("patch-a".to_string()),
                 },
             ]);
@@ -787,7 +801,7 @@ mod audio_runtime {
             );
             assert_eq!(
                 session.audio_runtime.last_error.as_deref(),
-                Some("topology unload previous patch: scsynth /sync failed")
+                Some("Runtime server error during topology unload previous patch: scsynth did not confirm OSC /sync")
             );
             assert_eq!(
                 audio_runtime_status(&session),
@@ -806,7 +820,8 @@ mod audio_runtime {
                     active_patch_id: "patch-a".to_string(),
                 },
                 RuntimeAdapterStatus::Failed {
-                    message: "boot: scsynth /sync failed".to_string(),
+                    message: "Runtime server error during boot: scsynth did not confirm OSC /sync"
+                        .to_string(),
                     active_patch_id: Some("patch-a".to_string()),
                 },
             ]);
@@ -829,7 +844,7 @@ mod audio_runtime {
             );
             assert_eq!(
                 session.audio_runtime.last_error.as_deref(),
-                Some("boot: scsynth /sync failed")
+                Some("Runtime server error during boot: scsynth did not confirm OSC /sync")
             );
             assert_eq!(
                 audio_runtime_status(&session),
@@ -860,7 +875,7 @@ mod audio_runtime {
                     block_size: 64,
                 },
                 RuntimeAdapterStatus::Failed {
-                    message: "topology load groups: scsynth /sync failed".to_string(),
+                    message: "Topology apply failure: failed to create SuperCollider group `main`: connection refused".to_string(),
                     active_patch_id: None,
                 },
             ]);
@@ -880,11 +895,79 @@ mod audio_runtime {
             assert_eq!(session.audio_runtime.active_patch_id, None);
             assert_eq!(
                 session.audio_runtime.last_error.as_deref(),
-                Some("topology load groups: scsynth /sync failed")
+                Some("Topology apply failure: failed to create SuperCollider group `main`: connection refused")
             );
             assert_eq!(
                 audio_runtime_status(&session),
                 RuntimeConnectionState::Error
+            );
+        }
+
+        #[test]
+        fn adapter_start_errors_are_recorded_as_app_state_details() {
+            #[derive(Clone)]
+            struct ErrorAdapter;
+
+            impl AudioRuntimeAdapter for ErrorAdapter {
+                fn start(&mut self) -> Result<RuntimeAdapterStatus, String> {
+                    Err("OSC client could not be constructed".to_string())
+                }
+
+                fn load_topology(
+                    &mut self,
+                    _topology: &scrysynth_lib::audio::compiler::CompiledTopology,
+                ) -> Result<RuntimeAdapterStatus, String> {
+                    unreachable!("start fails first")
+                }
+
+                fn set_parameter_value(
+                    &mut self,
+                    _node_id: &str,
+                    _parameter_id: &str,
+                    _value: f64,
+                ) -> Result<RuntimeAdapterStatus, String> {
+                    unreachable!("not used")
+                }
+
+                fn stop(&mut self) -> Result<RuntimeAdapterStatus, String> {
+                    unreachable!("not used")
+                }
+
+                fn panic(&mut self) -> Result<RuntimeAdapterStatus, String> {
+                    unreachable!("not used")
+                }
+            }
+
+            let mut manager = AudioRuntimeManager::new_for_tests(ErrorAdapter);
+            let mut store = SessionStore::new_default();
+
+            let session = manager.start(&mut store).expect("error is recorded");
+
+            assert_eq!(
+                session.audio_runtime.last_error.as_deref(),
+                Some("Audio runtime app state error while starting adapter: OSC client could not be constructed")
+            );
+            assert_eq!(
+                audio_runtime_status(&session),
+                RuntimeConnectionState::Error
+            );
+        }
+
+        #[test]
+        fn panic_audio_runtime_records_actionable_recovery_detail() {
+            let adapter = FakeAdapter::with_statuses(vec![RuntimeAdapterStatus::Panicked]);
+            let mut manager = AudioRuntimeManager::new_for_tests(adapter);
+            let mut store = SessionStore::new_default();
+
+            let session = manager.panic(&mut store).expect("panic recovers");
+
+            assert_eq!(
+                session.audio_runtime.health,
+                AudioRuntimeHealth::PanicRecovered
+            );
+            assert_eq!(
+                session.audio_runtime.last_error.as_deref(),
+                Some("Panic recovery completed: stopped scsynth, cleared the active patch, and returned audio to a restartable idle state.")
             );
         }
 

@@ -86,6 +86,16 @@ impl SessionStore {
         result
     }
 
+    pub fn reconcile_audio_graph_edit(
+        &mut self,
+        command: &GraphEditCommand,
+    ) -> Result<SessionDocument, AudioRuntimeManagerError> {
+        let mut manager = std::mem::take(&mut self.audio_runtime_manager);
+        let result = manager.reconcile_graph_edit(self, command);
+        self.audio_runtime_manager = manager;
+        result
+    }
+
     pub fn start_visual_runtime(&mut self) -> Result<SessionDocument, VisualRuntimeManagerError> {
         let mut manager = std::mem::take(&mut self.visual_runtime_manager);
         let result = manager.start(self);

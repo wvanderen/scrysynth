@@ -11,10 +11,10 @@ Current stage: foundation prototype. The session model, workspace surfaces, comm
 - JSON session save/open flow.
 - Graph, conversation, and performance workspace views.
 - Bounded graph edits, scene recall, variation save/restore, macro CRUD, and ownership controls.
-- Runtime manager shells for audio and visuals, including health state and panic/stop controls.
+- Runtime manager shells for audio and visuals, including health state, actionable audio runtime diagnostics, and panic/stop controls.
 - MIDI/OSC learn and routing model.
 
-Known limitation: the architecture is ahead of the actual runtime execution. `scsynth` can be launched if installed, but topology loading does not yet send real synth definitions or OSC node/bus commands. The Bevy visual sidecar is expected as `scrysynth-visual`, but no sidecar binary is included yet and scene/parameter updates are stubs.
+Known limitation: the architecture is ahead of the complete runtime execution. `scsynth` can be launched if installed, and v1 SynthDef/topology commands are applied over OSC, but the SuperCollider path is still being hardened. The Bevy visual sidecar is expected as `scrysynth-visual`, but no sidecar binary is included yet and scene/parameter updates are stubs.
 
 ## Local Requirements
 
@@ -51,6 +51,8 @@ Confirm SuperCollider is available, or configure an explicit path:
 which scsynth
 export SCRYSYNTH_SCSYNTH_PATH="/path/to/scsynth"
 ```
+
+If audio startup fails, the Runtime Health panel reports the specific setup or server stage. Missing `scsynth` messages include `SCRYSYNTH_SCSYNTH_PATH`; on macOS the app also checks `/Applications/SuperCollider.app/Contents/Resources/scsynth` before reporting that the executable is missing. OSC `/sync`, SynthDef load, topology apply, and panic recovery failures are shown as audio runtime details so setup issues can be fixed without reading backend logs first.
 
 ## Development
 

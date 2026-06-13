@@ -41,13 +41,16 @@ pub enum GraphEditError {
     MissingBus { bus_id: String },
     #[error("node '{node_id}' does not support bus assignment")]
     MissingAudioPrimitive { node_id: String },
+    #[error("audio runtime reconciliation failed: {message}")]
+    AudioRuntimeReconcile { message: String },
 }
 
 pub fn apply_graph_edit(
     store: &mut SessionStore,
     command: GraphEditCommand,
 ) -> Result<SessionDocument, GraphEditError> {
-    store.mutate_current(|session| match command {
+    let command_for_reconcile = command.clone();
+    let _ = store.mutate_current(|session| match command {
         GraphEditCommand::AddNode { node } => add_node(session, node),
         GraphEditCommand::RemoveNode { node_id } => remove_node(session, &node_id),
         GraphEditCommand::SetNodeEnabled { node_id, enabled } => {
@@ -66,7 +69,13 @@ pub fn apply_graph_edit(
         GraphEditCommand::ClearNodeBusAssignment { node_id } => {
             clear_node_bus_assignment(session, &node_id)
         }
-    })
+    })?;
+
+    store
+        .reconcile_audio_graph_edit(&command_for_reconcile)
+        .map_err(|err| GraphEditError::AudioRuntimeReconcile {
+            message: err.to_string(),
+        })
 }
 
 fn add_node(session: &mut SessionDocument, node: Node) -> Result<(), GraphEditError> {

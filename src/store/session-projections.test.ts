@@ -241,6 +241,50 @@ describe("session projections", () => {
     expect(nextProjection.selectedNode?.parameters[0]?.value).toBe(0.55);
   });
 
+  it("projects actionable audio runtime failure details from lastError", () => {
+    const session = createSession({
+      audioRuntime: {
+        ...createSession().audioRuntime,
+        lifecycle: "failed",
+        health: "degraded",
+        lastError:
+          "scsynth not found. Install SuperCollider, put `scsynth` on PATH, or set SCRYSYNTH_SCSYNTH_PATH to the full executable path. On macOS Scrysynth also checks the bundle fallback `/Applications/SuperCollider.app/Contents/Resources/scsynth`.",
+      },
+    });
+
+    const projection = projectSessionState(session, null);
+
+    expect(projection.audioRuntime.status).toBe("failed / degraded");
+    expect(projection.audioRuntime.detail).toContain("SCRYSYNTH_SCSYNTH_PATH");
+    expect(projection.audioRuntime.detail).toContain("bundle fallback");
+  });
+
+  it("falls back to runtime status audio errors when audio runtime detail is stale", () => {
+    const session = createSession({
+      audioRuntime: {
+        ...createSession().audioRuntime,
+        lifecycle: "failed",
+        health: "degraded",
+        lastError: null,
+      },
+      runtimeStatus: [
+        {
+          id: "runtime-audio",
+          runtime: "audio",
+          status: "error",
+          targetId: "audio-runtime",
+          lastError:
+            "Runtime server error during topology load synthdefs: scsynth did not confirm OSC /sync: /sync 1 timed out after 2s",
+        },
+      ],
+    });
+
+    const projection = projectSessionState(session, null);
+
+    expect(projection.audioRuntime.detail).toContain("Runtime server error");
+    expect(projection.audioRuntime.detail).toContain("OSC /sync");
+  });
+
   it("deriveSelectedNode returns null when selectedNodeId is null or not found", () => {
     const session = createSession();
     const withNullId = projectSessionState(session, null);
