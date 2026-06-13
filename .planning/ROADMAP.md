@@ -51,6 +51,8 @@ Success criteria:
 
 **Goal:** The canonical audio graph produces actual sound through SuperCollider.
 
+Design note: `.planning/phases/07-real-supercollider-execution/07-real-supercollider-execution-01-SC-RESOURCE-PLAN.md` defines the v1 `CompiledTopology` to SuperCollider resource mapping for task `td-64eb52`.
+
 Success criteria:
 
 1. Compile graph topology into SC synthdefs/resources, groups, buses, and node launch order.
