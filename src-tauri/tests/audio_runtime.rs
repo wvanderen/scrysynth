@@ -1,10 +1,11 @@
 use scrysynth_lib::domain::session::{
-    AudioBusType, AudioOutputNode, AudioOutputType, AudioPrimitive, AudioSourceNode,
-    AudioSourceType, Bus, ChannelMode, ControllerKind, Node, NodeType, OwnershipAssignment,
-    ParameterValue, Port, PortDirection, Route, SessionDocument, SignalType,
+    AudioBusType, AudioEffectNode, AudioEffectType, AudioMixerNode, AudioOutputNode,
+    AudioOutputType, AudioPrimitive, AudioSourceNode, AudioSourceType, Bus, ChannelMode,
+    ControllerKind, Node, NodeType, OwnershipAssignment, ParameterValue, Port, PortDirection,
+    Route, SessionDocument, SignalType,
 };
 
-use scrysynth_lib::audio::compiler::compile_session_to_topology;
+use scrysynth_lib::audio::compiler::{compile_session_to_topology, CompiledNodeKind};
 
 fn deterministic_session() -> SessionDocument {
     SessionDocument {
@@ -105,6 +106,88 @@ mod audio_runtime {
         }
 
         #[test]
+        fn topology_compilation_preserves_concrete_audio_primitives() {
+            let mut session = deterministic_session();
+            session.nodes.push(Node {
+                id: "node-delay".to_string(),
+                node_type: NodeType::Effect,
+                ports: vec![
+                    Port {
+                        id: "port-delay-in".to_string(),
+                        name: "delay_in".to_string(),
+                        direction: PortDirection::Input,
+                        signal_type: SignalType::Audio,
+                    },
+                    Port {
+                        id: "port-delay-out".to_string(),
+                        name: "delay_out".to_string(),
+                        direction: PortDirection::Output,
+                        signal_type: SignalType::Audio,
+                    },
+                ],
+                parameters: vec![],
+                runtime_target: Some("audio/effect/delay".to_string()),
+                scene_membership: vec![],
+                ownership: OwnershipAssignment {
+                    controller: ControllerKind::Shared,
+                    is_locked: false,
+                },
+                enabled: true,
+                audio_primitive: Some(AudioPrimitive::Effect(AudioEffectNode {
+                    effect_type: AudioEffectType::Delay,
+                    bypassed: true,
+                    bus_target_id: Some("bus-main".to_string()),
+                })),
+            });
+            session.routes = vec![
+                Route {
+                    id: "route-source-delay".to_string(),
+                    source_node_id: "node-source".to_string(),
+                    source_port_id: "port-source-out".to_string(),
+                    target_node_id: "node-delay".to_string(),
+                    target_port_id: "port-delay-in".to_string(),
+                    bus_id: Some("bus-main".to_string()),
+                },
+                Route {
+                    id: "route-delay-output".to_string(),
+                    source_node_id: "node-delay".to_string(),
+                    source_port_id: "port-delay-out".to_string(),
+                    target_node_id: "node-output".to_string(),
+                    target_port_id: "port-output-in".to_string(),
+                    bus_id: Some("bus-main".to_string()),
+                },
+            ];
+
+            let topology = compile_session_to_topology(&session).expect("compile succeeds");
+
+            assert!(matches!(
+                topology.node_launch_order[0].node_kind,
+                CompiledNodeKind::Source {
+                    source_type: AudioSourceType::Oscillator,
+                    channel_mode: ChannelMode::Mono
+                }
+            ));
+            assert!(matches!(
+                topology.node_launch_order[1].node_kind,
+                CompiledNodeKind::Effect {
+                    effect_type: AudioEffectType::Delay,
+                    bypassed: true
+                }
+            ));
+            assert!(matches!(
+                topology.node_launch_order[2].node_kind,
+                CompiledNodeKind::Output {
+                    output_type: AudioOutputType::Master,
+                    channels: 2
+                }
+            ));
+            assert_eq!(
+                topology.node_launch_order[0].parameters[0].name,
+                "frequency"
+            );
+        }
+
+        #[test]
         fn compile_error_rejects_missing_bus_reference() {
             let mut session = deterministic_session();
             session.buses.clear();
@@ -112,6 +195,156 @@ mod audio_runtime {
             let error = compile_session_to_topology(&session).expect_err("compile_error");
 
             assert!(error.to_string().contains("bus-main"));
+        }
+    }
+
+    mod synthdefs {
+        use super::super::*;
+        use scrysynth_lib::audio::synthdefs::{
+            plan_sc_resources, FX_DELAY_SYNTHDEF, MIXER_SYNTHDEF, OUTPUT_SYNTHDEF,
+            SOURCE_OSCILLATOR_SYNTHDEF,
+        };
+
+        #[test]
+        fn resource_plan_maps_supported_primitives_to_known_synthdefs_and_params() {
+            let mut session = deterministic_session();
+            session.buses.push(Bus {
+                id: "bus-mix".to_string(),
+                name: "mix".to_string(),
+                channels: 2,
+                bus_type: AudioBusType::Auxiliary,
+                is_enabled: true,
+            });
+            session.nodes.push(Node {
+                id: "node-mixer".to_string(),
+                node_type: NodeType::Mixer,
+                ports: vec![
+                    Port {
+                        id: "port-mixer-in".to_string(),
+                        name: "mix_in".to_string(),
+                        direction: PortDirection::Input,
+                        signal_type: SignalType::Audio,
+                    },
+                    Port {
+                        id: "port-mixer-out".to_string(),
+                        name: "mix_out".to_string(),
+                        direction: PortDirection::Output,
+                        signal_type: SignalType::Audio,
+                    },
+                ],
+                parameters: vec![ParameterValue {
+                    id: "param-gain".to_string(),
+                    name: "gain".to_string(),
+                    value: 0.75,
+                    default_value: 1.0,
+                    min_value: 0.0,
+                    max_value: 1.0,
+                    unit: "linear".to_string(),
+                }],
+                runtime_target: Some("audio/mixer/stereo".to_string()),
+                scene_membership: vec![],
+                ownership: OwnershipAssignment {
+                    controller: ControllerKind::Shared,
+                    is_locked: false,
+                },
+                enabled: true,
+                audio_primitive: Some(AudioPrimitive::Mixer(AudioMixerNode {
+                    channel_mode: ChannelMode::Stereo,
+                    bus_target_id: Some("bus-mix".to_string()),
+                })),
+            });
+            session.routes = vec![
+                Route {
+                    id: "route-source-mixer".to_string(),
+                    source_node_id: "node-source".to_string(),
+                    source_port_id: "port-source-out".to_string(),
+                    target_node_id: "node-mixer".to_string(),
+                    target_port_id: "port-mixer-in".to_string(),
+                    bus_id: Some("bus-main".to_string()),
+                },
+                Route {
+                    id: "route-mixer-output".to_string(),
+                    source_node_id: "node-mixer".to_string(),
+                    source_port_id: "port-mixer-out".to_string(),
+                    target_node_id: "node-output".to_string(),
+                    target_port_id: "port-output-in".to_string(),
+                    bus_id: Some("bus-mix".to_string()),
+                },
+            ];
+
+            let topology = compile_session_to_topology(&session).expect("compile succeeds");
+            let plan = plan_sc_resources(&topology).expect("plan succeeds");
+
+            assert_eq!(plan.patch_id, "patch-v1-2-1-3");
+            assert_eq!(plan.groups[0].node_id, 1000);
+            assert_eq!(
+                plan.synthdefs
+                    .iter()
+                    .map(|resource| resource.name)
+                    .collect::<Vec<_>>(),
+                vec![MIXER_SYNTHDEF, OUTPUT_SYNTHDEF, SOURCE_OSCILLATOR_SYNTHDEF]
+            );
+            assert_eq!(plan.synths[0].synthdef_name, SOURCE_OSCILLATOR_SYNTHDEF);
+            assert_eq!(plan.synths[0].node_id, 2000);
+            assert_eq!(plan.synths[1].synthdef_name, MIXER_SYNTHDEF);
+            assert!(plan.synths[1]
+                .args
+                .iter()
+                .any(|arg| arg.name == "in_bus_1" && arg.value == 2.0));
+            assert!(plan.synths[1]
+                .args
+                .iter()
+                .any(|arg| arg.name == "level" && arg.value == 0.75));
+            assert_eq!(plan.synths[2].synthdef_name, OUTPUT_SYNTHDEF);
+            assert!(plan.controls.iter().any(|control| control.control_key
+                == "node-source:param-frequency"
+                && control.parameter_name == "frequency"));
+            assert!(plan
+                .controls
+                .iter()
+                .any(|control| control.control_key == "node-mixer:param-gain"
+                    && control.parameter_name == "level"));
+        }
+
+        #[test]
+        fn resource_plan_fails_loudly_for_unsupported_runtime_target() {
+            let mut session = deterministic_session();
+            session.nodes[0].runtime_target = Some("visual/output/master".to_string());
+            let topology = compile_session_to_topology(&session).expect("compile succeeds");
+
+            let error = plan_sc_resources(&topology).expect_err("unsupported target fails");
+
+            assert!(error.to_string().contains("visual/output/master"));
+        }
+
+        #[test]
+        fn delay_primitive_uses_delay_synthdef_and_stable_parameter_names() {
+            let mut session = deterministic_session();
+            session.nodes[0].audio_primitive = Some(AudioPrimitive::Effect(AudioEffectNode {
+                effect_type: AudioEffectType::Delay,
+                bypassed: false,
+                bus_target_id: Some("bus-main".to_string()),
+            }));
+            session.nodes[0].node_type = NodeType::Effect;
+            session.nodes[0].runtime_target = Some("audio/effect/delay".to_string());
+            session.nodes[0].parameters = vec![ParameterValue {
+                id: "param-delay-time".to_string(),
+                name: "delayTime".to_string(),
+                value: 0.5,
+                default_value: 0.25,
+                min_value: 0.0,
+                max_value: 2.0,
+                unit: "s".to_string(),
+            }];
+
+            let topology = compile_session_to_topology(&session).expect("compile succeeds");
+            let plan = plan_sc_resources(&topology).expect("plan succeeds");
+
+            assert_eq!(plan.synths[1].synthdef_name, FX_DELAY_SYNTHDEF);
+            assert!(plan.synths[1]
+                .args
+                .iter()
+                .any(|arg| arg.name == "delay_time_s" && arg.value == 0.5));
         }
     }
 

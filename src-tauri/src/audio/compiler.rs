@@ -3,8 +3,9 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use thiserror::Error;
 
 use crate::domain::session::{
-    AudioBusType, AudioEffectNode, AudioMixerNode, AudioOutputNode, AudioPrimitive,
-    AudioSourceNode, Node, NodeType, Route, SessionDocument,
+    AudioBusType, AudioEffectNode, AudioEffectType, AudioMixerNode, AudioOutputNode,
+    AudioOutputType, AudioPrimitive, AudioSourceNode, AudioSourceType, ChannelMode, Node, NodeType,
+    Route, SessionDocument,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -42,15 +43,27 @@ pub struct CompiledNodeLaunch {
 #[derive(Clone, Debug, PartialEq)]
 pub struct CompiledParameter {
     pub parameter_id: String,
+    pub name: String,
     pub value: f64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum CompiledNodeKind {
-    Source,
-    Effect { bypassed: bool },
-    Mixer,
-    Output { channels: u32 },
+    Source {
+        source_type: AudioSourceType,
+        channel_mode: ChannelMode,
+    },
+    Effect {
+        effect_type: AudioEffectType,
+        bypassed: bool,
+    },
+    Mixer {
+        channel_mode: ChannelMode,
+    },
+    Output {
+        output_type: AudioOutputType,
+        channels: u32,
+    },
 }
 
 #[derive(Debug, Error, PartialEq)]
@@ -320,12 +333,31 @@ fn compile_node_launch(
     })?;
 
     let node_kind = match primitive {
-        AudioPrimitive::Source(AudioSourceNode { .. }) => CompiledNodeKind::Source,
-        AudioPrimitive::Effect(AudioEffectNode { bypassed, .. }) => CompiledNodeKind::Effect {
+        AudioPrimitive::Source(AudioSourceNode {
+            source_type,
+            channel_mode,
+            ..
+        }) => CompiledNodeKind::Source {
+            source_type: source_type.clone(),
+            channel_mode: channel_mode.clone(),
+        },
+        AudioPrimitive::Effect(AudioEffectNode {
+            effect_type,
+            bypassed,
+            ..
+        }) => CompiledNodeKind::Effect {
+            effect_type: effect_type.clone(),
             bypassed: *bypassed,
         },
-        AudioPrimitive::Mixer(AudioMixerNode { .. }) => CompiledNodeKind::Mixer,
-        AudioPrimitive::Output(AudioOutputNode { channels, .. }) => CompiledNodeKind::Output {
+        AudioPrimitive::Mixer(AudioMixerNode { channel_mode, .. }) => CompiledNodeKind::Mixer {
+            channel_mode: channel_mode.clone(),
+        },
+        AudioPrimitive::Output(AudioOutputNode {
+            output_type,
+            channels,
+            ..
+        }) => CompiledNodeKind::Output {
+            output_type: output_type.clone(),
             channels: *channels,
         },
     };
@@ -345,6 +377,7 @@ fn compile_node_launch(
             .iter()
             .map(|parameter| CompiledParameter {
                 parameter_id: parameter.id.clone(),
+                name: parameter.name.clone(),
                 value: parameter.value,
             })
             .collect(),

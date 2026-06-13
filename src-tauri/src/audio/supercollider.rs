@@ -1,4 +1,5 @@
 use std::env;
+use std::fs;
 use std::io;
 use std::net::{SocketAddr, UdpSocket};
 use std::path::{Path, PathBuf};
@@ -7,6 +8,7 @@ use std::time::{Duration, Instant};
 
 use crate::audio::compiler::CompiledTopology;
 use crate::audio::runtime_manager::{AudioRuntimeAdapter, RuntimeAdapterStatus};
+use crate::audio::synthdefs::{plan_sc_resources, ScResourcePlan, ScSynthArg};
 
 const SCSYNTH_OVERRIDE_ENV: &str = "SCRYSYNTH_SCSYNTH_PATH";
 const SCSYNTH_BIN: &str = "scsynth";
@@ -21,6 +23,7 @@ const INITIAL_SYNC_ID: i32 = 1;
 pub struct SuperColliderAdapter {
     process: Option<Child>,
     osc: Option<ScOscClient>,
+    active_patch: Option<ScResourcePlan>,
 }
 
 impl AudioRuntimeAdapter for SuperColliderAdapter {
@@ -82,24 +85,37 @@ impl AudioRuntimeAdapter for SuperColliderAdapter {
             });
         }
 
-        if let Err(error) = self.sync_scsynth("topology load") {
+        let plan = match plan_sc_resources(topology) {
+            Ok(plan) => plan,
+            Err(error) => {
+                return Ok(RuntimeAdapterStatus::Failed {
+                    message: format!("topology load: {error}"),
+                });
+            }
+        };
+
+        if let Err(error) = self.apply_resource_plan(&plan) {
             return Ok(RuntimeAdapterStatus::Failed { message: error });
         }
 
+        let patch_id = plan.patch_id.clone();
+        self.active_patch = Some(plan);
         Ok(RuntimeAdapterStatus::Ready {
-            active_patch_id: format!("patch-{}", topology.node_launch_order.len()),
+            active_patch_id: patch_id,
         })
     }
 
     fn stop(&mut self) -> Result<RuntimeAdapterStatus, String> {
         terminate_process(&mut self.process)?;
         self.osc = None;
+        self.active_patch = None;
         Ok(RuntimeAdapterStatus::Stopped)
     }
 
     fn panic(&mut self) -> Result<RuntimeAdapterStatus, String> {
         terminate_process(&mut self.process)?;
         self.osc = None;
+        self.active_patch = None;
         Ok(RuntimeAdapterStatus::Panicked)
     }
 }
@@ -109,6 +125,7 @@ impl Default for SuperColliderAdapter {
         Self {
             process: None,
             osc: None,
+            active_patch: None,
         }
     }
 }
@@ -120,6 +137,80 @@ impl Drop for SuperColliderAdapter {
 }
 
 impl SuperColliderAdapter {
+    fn apply_resource_plan(&mut self, plan: &ScResourcePlan) -> Result<(), String> {
+        {
+            let osc = self
+                .osc
+                .as_mut()
+                .ok_or_else(|| "topology load: OSC client is not connected".to_string())?;
+
+            for synthdef in &plan.synthdefs {
+                let bytes =
+                    fs::read(resolve_resource_path(synthdef.relative_path)).map_err(|err| {
+                        format!(
+                            "topology load: failed to read SynthDef resource {}: {err}",
+                            synthdef.relative_path
+                        )
+                    })?;
+                osc.send_message("/d_recv", vec![rosc::OscType::Blob(bytes)])
+                    .map_err(|err| {
+                        format!(
+                            "topology load: failed to send SynthDef {}: {err}",
+                            synthdef.name
+                        )
+                    })?;
+            }
+        }
+        self.sync_scsynth("topology load synthdefs")?;
+
+        {
+            let osc = self
+                .osc
+                .as_mut()
+                .ok_or_else(|| "topology load: OSC client is not connected".to_string())?;
+            for group in &plan.groups {
+                osc.send_message(
+                    "/g_new",
+                    vec![
+                        rosc::OscType::Int(group.node_id),
+                        rosc::OscType::Int(1),
+                        rosc::OscType::Int(0),
+                    ],
+                )
+                .map_err(|err| {
+                    format!(
+                        "topology load: failed to create group {}: {err}",
+                        group.group_key
+                    )
+                })?;
+            }
+        }
+        self.sync_scsynth("topology load groups")?;
+
+        {
+            let osc = self
+                .osc
+                .as_mut()
+                .ok_or_else(|| "topology load: OSC client is not connected".to_string())?;
+            for synth in &plan.synths {
+                let mut args = vec![
+                    rosc::OscType::String(synth.synthdef_name.to_string()),
+                    rosc::OscType::Int(synth.node_id),
+                    rosc::OscType::Int(1),
+                    rosc::OscType::Int(synth.group_node_id),
+                ];
+                args.extend(synth_args_to_osc(&synth.args));
+                osc.send_message("/s_new", args).map_err(|err| {
+                    format!(
+                        "topology load: failed to create synth for node {}: {err}",
+                        synth.node_key
+                    )
+                })?;
+            }
+        }
+        self.sync_scsynth("topology load synths")
+    }
+
     fn sync_scsynth(&mut self, stage: &str) -> Result<(), String> {
         let osc = self
             .osc
@@ -143,6 +234,40 @@ impl SuperColliderAdapter {
             .map(|status| status.is_none())
             .map_err(|err| format!("failed to inspect scsynth process: {err}"))
     }
+}
+
+fn synth_args_to_osc(args: &[ScSynthArg]) -> Vec<rosc::OscType> {
+    args.iter()
+        .flat_map(|arg| {
+            [
+                rosc::OscType::String(arg.name.clone()),
+                rosc::OscType::Float(arg.value),
+            ]
+        })
+        .collect()
+}
+
+fn resolve_resource_path(relative_path: &str) -> PathBuf {
+    let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(relative_path);
+    if dev_path.exists() {
+        return dev_path;
+    }
+
+    if let Ok(exe_path) = env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let local_path = exe_dir.join(relative_path);
+            if local_path.exists() {
+                return local_path;
+            }
+
+            let macos_resource_path = exe_dir.join("../Resources").join(relative_path);
+            if macos_resource_path.exists() {
+                return macos_resource_path;
+            }
+        }
+    }
+
+    dev_path
 }
 
 fn resolve_scsynth_executable() -> Option<PathBuf> {
