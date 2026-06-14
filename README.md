@@ -14,7 +14,7 @@ Current stage: foundation prototype. The session model, workspace surfaces, comm
 - Runtime manager shells for audio and visuals, including health state, actionable audio runtime diagnostics, and panic/stop controls.
 - MIDI/OSC learn and routing model.
 
-Known limitation: the architecture is still ahead of the complete audiovisual runtime. Phase 7 real SuperCollider execution has been verified against a local `scsynth` install for the default source-to-output graph, including audible playback, live parameter change, stop, panic, and restart. The Bevy visual sidecar is expected as `scrysynth-visual`, but no sidecar binary is included yet and scene/parameter updates are stubs.
+Known limitation: the architecture is still ahead of the complete audiovisual runtime. Phase 7 real SuperCollider execution has been verified against a local `scsynth` install for the default source-to-output graph, including audible playback, live parameter change, stop, panic, and restart. Phase 8 now includes a minimal `scrysynth-visual` sidecar binary that speaks the JSON-lines visual protocol and keeps a stateful scene/parameter model; the app adapter still needs the next Phase 8 transport work before scene delivery is end-to-end from the UI.
 
 ## Local Requirements
 
@@ -27,7 +27,7 @@ Install these before running the app locally:
 
 Optional for the runtime paths:
 
-- A future visual runtime executable named `scrysynth-visual` on `PATH`, or set `SCRYSYNTH_BEVY_PATH`.
+- The in-repo visual runtime executable named `scrysynth-visual` on `PATH`, or set `SCRYSYNTH_BEVY_PATH` to its full path.
 - MIDI hardware or a virtual MIDI source for hardware learn testing.
 - An OSC sender if testing OSC learn/routing.
 
@@ -85,6 +85,15 @@ Run Rust tests:
 ```sh
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
+
+Build the minimal visual sidecar:
+
+```sh
+cargo build --manifest-path src-tauri/Cargo.toml --bin scrysynth-visual
+export SCRYSYNTH_BEVY_PATH="$PWD/src-tauri/target/debug/scrysynth-visual"
+```
+
+The sidecar reads Phase 8 JSON-lines messages on stdin and writes JSON-lines replies on stdout. It is intentionally minimal and GPU-free for now: handshake returns renderer readiness, scene load stores a `CompiledVisualScene` snapshot, parameter batches update that live scene state without restart, and graceful or panic shutdown requests return shutdown acknowledgements.
 
 ## Manual Audio UAT
 
