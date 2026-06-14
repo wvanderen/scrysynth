@@ -4,14 +4,14 @@ milestone: v1.0
 milestone_name: v1 runtime hardening
 status: planning
 stopped_at: Consolidated foundation-complete audit and runtime-hardening roadmap
-last_updated: "2026-06-12T00:00:00-05:00"
-last_activity: 2026-06-12
+last_updated: "2026-06-14T00:00:00-05:00"
+last_activity: 2026-06-14
 progress:
   foundation_phases_total: 5
   foundation_phases_completed: 5
   hardening_phases_total: 6
-  hardening_phases_completed: 0
-  current_stage: foundation complete; runtime hardening next
+  hardening_phases_completed: 1
+  current_stage: Phase 7 real SuperCollider execution complete; visual runtime hardening next
 ---
 
 # Project State
@@ -28,9 +28,9 @@ See `.planning/PROJECT.md` and `.planning/ROADMAP.md`.
 
 Scrysynth is a late foundation prototype. The planned foundation phases have produced a canonical app-owned session model, React workspace, Tauri command layer, persistence, graph editing, scene/variation controls, agent safety scaffolding, visual-runtime scaffolding, macro controls, and MIDI/OSC binding models.
 
-The project is not yet a complete local audiovisual instrument. Runtime execution still needs to be made real:
+The project is not yet a complete local audiovisual instrument. Runtime execution still needs production UAT and additional hardening:
 
-- Audio can launch `scsynth`, but topology loading currently marks the runtime ready without applying real synthdefs, OSC bundles, buses, groups, or node controls.
+- Audio can launch `scsynth`, apply v1 SynthDef/topology commands over OSC, produce audible output from the default source-to-output graph, apply live parameter updates, stop, panic, and restart after panic on a real local SuperCollider install.
 - Visual runtime management exists, but no `scrysynth-visual` sidecar is included and scene/parameter updates are stubs.
 - MIDI/OSC managers and routing code exist, but app-level listener startup/configuration and receiver wiring need production implementation.
 - Agent collaboration is deterministic parser plus safety policy, not a real session-aware LLM/orchestrator.
@@ -48,11 +48,16 @@ The project is not yet a complete local audiovisual instrument. Runtime executio
 ## Active Hardening Work
 
 1. Local developer readiness and docs.
-2. Real SuperCollider execution through OSC.
-3. Real visual sidecar/protocol.
-4. Hardware listener lifecycle and runtime wiring.
-5. Session-aware agent orchestration.
-6. Packaging, UAT, and release readiness.
+2. Real visual sidecar/protocol.
+3. Hardware listener lifecycle and runtime wiring.
+4. Session-aware agent orchestration.
+5. Packaging, UAT, and release readiness.
+
+## Completed Hardening Work
+
+| Phase | Status | Result |
+|-------|--------|--------|
+| 7. Real SuperCollider Execution | Complete | Default source-to-output graph verified against local `scsynth` with audible playback, live parameter update, stop, panic, and restart-after-panic. |
 
 ## Recent Audit Findings
 
@@ -74,13 +79,23 @@ The project is not yet a complete local audiovisual instrument. Runtime executio
 
 ## Pending Todos
 
-- Install local frontend dependencies and confirm `npm test` plus `npm run build`.
-- Ensure Rust stable/cargo is installed and confirm `cargo test --manifest-path src-tauri/Cargo.toml`.
-- Implement or document the expected SuperCollider runtime behavior precisely.
 - Decide whether `scrysynth-visual` is built in-repo as a workspace crate or supplied externally.
 - Add user-facing runtime setup diagnostics for missing `scsynth`, missing visual sidecar, and unavailable hardware input.
+
+## Latest Verification
+
+2026-06-13 task `td-d38373`:
+
+- `npm test` passed: 3 files, 22 tests.
+- `npm run build` passed.
+- `cargo test --manifest-path src-tauri/Cargo.toml` passed.
+- `/Applications/SuperCollider.app/Contents/Resources/scsynth` exists.
+- `SCRYSYNTH_SCSYNTH_PATH=/Applications/SuperCollider.app/Contents/Resources/scsynth npm run tauri dev` launched the Tauri app after elevated localhost permission.
+- Resumed real-`scsynth` UAT verified audible output, live parameter update, panic, and restart-after-panic by human confirmation.
+- Resumed UAT found Stop disabled while runtime was `ready / healthy`; fixed frontend projection so active `ready` patches are stoppable and added a regression test.
+- Stop retest passed by human confirmation. Phase 7 completion evidence is in `.planning/phases/07-real-supercollider-execution/07-real-supercollider-execution-07-UAT.md`.
 
 ## Session Continuity
 
 Last consolidated: 2026-06-12.
-Current td issue: `td-c20fe5`.
+Current td issue: `td-d38373`.

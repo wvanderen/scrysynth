@@ -259,6 +259,24 @@ describe("session projections", () => {
     expect(projection.audioRuntime.detail).toContain("bundle fallback");
   });
 
+  it("keeps stop available when an active audio patch is ready", () => {
+    const session = createSession({
+      audioRuntime: {
+        ...createSession().audioRuntime,
+        lifecycle: "ready",
+        health: "healthy",
+        activePatchId: "patch-v1-test",
+      },
+    });
+
+    const projection = projectSessionState(session, null);
+
+    expect(projection.audioRuntime.status).toBe("ready / healthy");
+    expect(projection.audioRuntime.detail).toBe("Patch patch-v1-test active.");
+    expect(projection.audioRuntime.canStart).toBe(false);
+    expect(projection.audioRuntime.canStop).toBe(true);
+  });
+
   it("falls back to runtime status audio errors when audio runtime detail is stale", () => {
     const session = createSession({
       audioRuntime: {

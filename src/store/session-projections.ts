@@ -192,8 +192,12 @@ function projectAudioRuntime(session: SessionDocument): AudioRuntimeProjection {
     health,
     status: `${lifecycle.replace(/_/g, " ")} / ${health.replace(/_/g, " ")}`,
     detail,
-    canStart: lifecycle === "idle" || lifecycle === "ready",
-    canStop: lifecycle === "booting" || lifecycle === "running" || lifecycle === "recovering",
+    canStart: lifecycle === "idle" || lifecycle === "failed",
+    canStop:
+      lifecycle === "booting" ||
+      lifecycle === "ready" ||
+      lifecycle === "running" ||
+      lifecycle === "recovering",
   };
 }
 

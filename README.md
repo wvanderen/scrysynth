@@ -14,7 +14,7 @@ Current stage: foundation prototype. The session model, workspace surfaces, comm
 - Runtime manager shells for audio and visuals, including health state, actionable audio runtime diagnostics, and panic/stop controls.
 - MIDI/OSC learn and routing model.
 
-Known limitation: the architecture is ahead of the complete runtime execution. `scsynth` can be launched if installed, and v1 SynthDef/topology commands are applied over OSC, but the SuperCollider path is still being hardened. The Bevy visual sidecar is expected as `scrysynth-visual`, but no sidecar binary is included yet and scene/parameter updates are stubs.
+Known limitation: the architecture is still ahead of the complete audiovisual runtime. Phase 7 real SuperCollider execution has been verified against a local `scsynth` install for the default source-to-output graph, including audible playback, live parameter change, stop, panic, and restart. The Bevy visual sidecar is expected as `scrysynth-visual`, but no sidecar binary is included yet and scene/parameter updates are stubs.
 
 ## Local Requirements
 
@@ -86,6 +86,19 @@ Run Rust tests:
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
+## Manual Audio UAT
+
+Phase 7 completion requires a real local SuperCollider check, not just automated tests:
+
+```sh
+export SCRYSYNTH_SCSYNTH_PATH="/Applications/SuperCollider.app/Contents/Resources/scsynth"
+npm run tauri dev
+```
+
+In the desktop app, start the audio runtime from the transport or Runtime Health panel, verify audible output from the default graph or a minimal source-to-output graph, adjust a live parameter from the inspector or macro path, stop audio, trigger panic, then confirm the runtime can start again after panic.
+
+Current evidence is tracked in `.planning/phases/07-real-supercollider-execution/07-real-supercollider-execution-07-UAT.md`. The resumed real-`scsynth` pass verified audible output, live parameter control, stop, panic, and restart after panic. A Stop-button projection defect found during UAT was fixed and retested successfully.
+
 ## Project Status
 
 The planned foundation phases are complete in the planning history:
@@ -98,7 +111,7 @@ The planned foundation phases are complete in the planning history:
 
 The project is not release-ready yet. The next milestone is v1 runtime hardening:
 
-- Implement real SuperCollider resource application through OSC.
+- Extend the verified SuperCollider path beyond the default graph as new primitives and routing workflows are hardened.
 - Build or wire the visual sidecar and protocol.
 - Connect MIDI/OSC listeners into the app runtime, not only the testable router.
 - Replace deterministic agent parsing with a real session-aware agent orchestration layer.

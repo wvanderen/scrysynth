@@ -9,7 +9,7 @@ The project is now in **v1 runtime hardening**, not feature-complete release. Th
 Core distinction:
 
 - **Foundation complete:** canonical state, UI projections, command APIs, tests, and adapter boundaries exist.
-- **Runtime incomplete:** SuperCollider topology application, Bevy visual execution, hardware listener lifecycle, and real agent orchestration still need production implementation.
+- **Runtime incomplete:** Bevy visual execution, hardware listener lifecycle, and real agent orchestration still need production implementation or verification. The default SuperCollider execution path is verified.
 
 ## Completed Foundation Phases
 
@@ -26,7 +26,7 @@ Core distinction:
 | Canonical session graph | Complete foundation | Rust owns `SessionDocument`; TypeScript contract is generated from Rust. |
 | Session persistence | Complete foundation | JSON save/open with schema version validation. |
 | Graph workspace | Complete foundation | React Flow projection, inspector, primitive palette, route gestures. |
-| Audio runtime | Scaffolded | Can launch/stop/panic `scsynth` when installed; topology load currently marks ready without real OSC resource application. |
+| Audio runtime | Phase 7 complete | Can launch/stop/panic `scsynth` when installed; v1 SynthDef/topology commands are applied over OSC; default graph audible playback, live parameter control, stop, panic, and restart-after-panic are verified. |
 | Performance workspace | Complete foundation | Scenes, variations, active scene derivation, macro controls. |
 | Agent collaboration | Scaffolded | Deterministic parser, ownership gates, pending approvals, action history, freeze/reclaim. No real LLM/orchestrator yet. |
 | Visual runtime | Scaffolded | Adapter and health model exist; no bundled `scrysynth-visual` sidecar; scene and parameter delivery are stubs. |
@@ -51,6 +51,8 @@ Success criteria:
 
 **Goal:** The canonical audio graph produces actual sound through SuperCollider.
 
+Status: Complete for the default source-to-output graph UAT.
+
 Design note: `.planning/phases/07-real-supercollider-execution/07-real-supercollider-execution-01-SC-RESOURCE-PLAN.md` defines the v1 `CompiledTopology` to SuperCollider resource mapping for task `td-64eb52`.
 
 Success criteria:
@@ -60,6 +62,8 @@ Success criteria:
 3. Apply live parameter edits and reroutes without pretending topology load succeeded.
 4. Add runtime feedback, `/sync` handling, degraded states, and failure diagnostics.
 5. Verify audible playback and panic recovery on a real local SuperCollider install.
+
+Current Phase 7.7 evidence: `.planning/phases/07-real-supercollider-execution/07-real-supercollider-execution-07-UAT.md`. Resumed real-`scsynth` UAT verified audible output, live parameter control, stop, panic, and restart-after-panic. A Stop-button projection defect found during UAT was fixed and retested successfully.
 
 ### Phase 8: Real Visual Runtime Path
 

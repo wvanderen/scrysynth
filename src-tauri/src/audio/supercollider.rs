@@ -4,6 +4,7 @@ use std::io;
 use std::net::{SocketAddr, UdpSocket};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::audio::compiler::CompiledTopology;
@@ -16,6 +17,8 @@ const MACOS_APP_BUNDLE_SCSYNTH: &str = "/Applications/SuperCollider.app/Contents
 const SCSYNTH_HOST: &str = "127.0.0.1";
 const SCSYNTH_UDP_PORT: u16 = 57110;
 const OSC_SYNC_TIMEOUT: Duration = Duration::from_secs(2);
+const SCSYNTH_BOOT_TIMEOUT: Duration = Duration::from_secs(15);
+const SCSYNTH_BOOT_RETRY_DELAY: Duration = Duration::from_millis(100);
 const OSC_PACKET_BUFFER_SIZE: usize = 1536;
 const INITIAL_SYNC_ID: i32 = 1;
 
@@ -75,7 +78,7 @@ impl AudioRuntimeAdapter for SuperColliderAdapter<UdpOscTransport> {
             OSC_SYNC_TIMEOUT,
         )?);
 
-        if let Err(error) = self.sync_scsynth("boot") {
+        if let Err(error) = self.wait_for_scsynth_boot() {
             let _ = terminate_process(&mut self.process);
             self.osc = None;
             return Ok(RuntimeAdapterStatus::Failed {
@@ -373,6 +376,30 @@ where
         osc.sync().map(|_| ()).map_err(|err| {
             format!("Runtime server error during {stage}: scsynth did not confirm OSC /sync: {err}")
         })
+    }
+
+    fn wait_for_scsynth_boot(&mut self) -> Result<(), String> {
+        let deadline = Instant::now() + SCSYNTH_BOOT_TIMEOUT;
+
+        loop {
+            match self.sync_scsynth("boot") {
+                Ok(()) => return Ok(()),
+                Err(error) => {
+                    if !self.is_process_running()? {
+                        return Err(format!(
+                            "Runtime server error during boot: scsynth exited before confirming OSC /sync. Last boot probe: {}",
+                            error
+                        ));
+                    }
+
+                    if Instant::now() >= deadline {
+                        return Err(error);
+                    }
+
+                    thread::sleep(SCSYNTH_BOOT_RETRY_DELAY);
+                }
+            }
+        }
     }
 
     fn is_process_running(&mut self) -> Result<bool, String> {
