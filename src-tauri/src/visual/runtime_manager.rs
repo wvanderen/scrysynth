@@ -48,10 +48,16 @@ where
             Ok::<(), VisualRuntimeManagerError>(())
         });
 
-        let boot_status = self
-            .adapter
-            .start()
-            .map_err(VisualRuntimeManagerError::Adapter)?;
+        let boot_status = match self.adapter.start() {
+            Ok(status) => status,
+            Err(message) => {
+                return Ok(mark_visual_failed(
+                    store,
+                    VisualRuntimeHealth::Degraded,
+                    message,
+                )?);
+            }
+        };
 
         match boot_status {
             VisualAdapterStatus::Booted { renderer } => {
@@ -76,10 +82,16 @@ where
             }
         }
 
-        let ready_status = self
-            .adapter
-            .load_scene(&scene)
-            .map_err(VisualRuntimeManagerError::Adapter)?;
+        let ready_status = match self.adapter.load_scene(&scene) {
+            Ok(status) => status,
+            Err(message) => {
+                return Ok(mark_visual_failed(
+                    store,
+                    VisualRuntimeHealth::Degraded,
+                    message,
+                )?);
+            }
+        };
 
         match ready_status {
             VisualAdapterStatus::SceneLoaded { scene_id } => store
