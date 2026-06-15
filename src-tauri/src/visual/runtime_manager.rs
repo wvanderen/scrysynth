@@ -1,11 +1,16 @@
+use std::collections::HashSet;
+
 use thiserror::Error;
 
 use crate::application::session_store::SessionStore;
 use crate::domain::session::{
-    RuntimeConnectionState, RuntimeKind, VisualRuntimeHealth, VisualRuntimeLifecycle,
+    GraphEditCommand, RuntimeConnectionState, RuntimeKind, VisualRuntimeHealth,
+    VisualRuntimeLifecycle,
 };
 use crate::visual::bevy_sidecar::BevySidecarAdapter;
-use crate::visual::compiler::compile_session_to_visual_scene;
+use crate::visual::compiler::{
+    compile_session_to_visual_scene, visual_updates_for_macro_value, VisualParameterUpdate,
+};
 
 use super::adapter::VisualAdapterStatus;
 use super::adapter::VisualRuntimeAdapter;
@@ -134,7 +139,6 @@ where
             .mutate_current(|session| {
                 session.visual_runtime.lifecycle = VisualRuntimeLifecycle::Idle;
                 session.visual_runtime.health = VisualRuntimeHealth::Unknown;
-                session.visual_runtime.active_scene_id = None;
                 session.visual_runtime.fps = None;
                 session.visual_runtime.renderer = None;
                 session.visual_runtime.last_error = error.clone();
@@ -163,7 +167,6 @@ where
             .mutate_current(|session| {
                 session.visual_runtime.lifecycle = VisualRuntimeLifecycle::Idle;
                 session.visual_runtime.health = VisualRuntimeHealth::Unknown;
-                session.visual_runtime.active_scene_id = None;
                 session.visual_runtime.fps = None;
                 session.visual_runtime.renderer = None;
                 session.visual_runtime.last_error = error.clone();
@@ -171,6 +174,123 @@ where
                 Ok::<(), VisualRuntimeManagerError>(())
             })
             .map_err(Into::into)
+    }
+
+    pub fn reload_scene(
+        &mut self,
+        store: &mut SessionStore,
+    ) -> Result<crate::domain::session::SessionDocument, VisualRuntimeManagerError> {
+        if !visual_runtime_is_ready(&store.current()) {
+            return Ok(store.current());
+        }
+
+        let scene = compile_session_to_visual_scene(&store.current());
+        let status = match self.adapter.load_scene(&scene) {
+            Ok(status) => status,
+            Err(message) => {
+                return Ok(mark_visual_failed(
+                    store,
+                    VisualRuntimeHealth::Degraded,
+                    message,
+                )?);
+            }
+        };
+
+        match status {
+            VisualAdapterStatus::SceneLoaded { scene_id } => store
+                .mutate_current(|session| {
+                    session.visual_runtime.lifecycle = VisualRuntimeLifecycle::Ready;
+                    session.visual_runtime.health = VisualRuntimeHealth::Healthy;
+                    session.visual_runtime.active_scene_id = Some(scene_id);
+                    session.visual_runtime.last_error = None;
+                    set_visual_runtime_status(session, RuntimeConnectionState::Ready, None);
+                    Ok::<(), VisualRuntimeManagerError>(())
+                })
+                .map_err(Into::into),
+            VisualAdapterStatus::Failed { message } => Ok(mark_visual_failed(
+                store,
+                VisualRuntimeHealth::Degraded,
+                message,
+            )?),
+            _ => Ok(mark_visual_failed(
+                store,
+                VisualRuntimeHealth::Degraded,
+                "unexpected visual scene reload status".to_string(),
+            )?),
+        }
+    }
+
+    pub fn reconcile_graph_edit(
+        &mut self,
+        store: &mut SessionStore,
+        command: &GraphEditCommand,
+    ) -> Result<crate::domain::session::SessionDocument, VisualRuntimeManagerError> {
+        if !visual_runtime_is_ready(&store.current()) {
+            return Ok(store.current());
+        }
+
+        match command {
+            GraphEditCommand::SetParameterValue {
+                node_id,
+                parameter_id,
+                value,
+            } => self.update_parameters(
+                store,
+                vec![VisualParameterUpdate {
+                    element_id: node_id.clone(),
+                    parameter_id: parameter_id.clone(),
+                    value: *value,
+                }],
+            ),
+            GraphEditCommand::AddNode { .. }
+            | GraphEditCommand::RemoveNode { .. }
+            | GraphEditCommand::SetNodeEnabled { .. }
+            | GraphEditCommand::AddRoute { .. }
+            | GraphEditCommand::RemoveRoute { .. }
+            | GraphEditCommand::AssignNodeToBus { .. }
+            | GraphEditCommand::ClearNodeBusAssignment { .. } => self.reload_scene(store),
+        }
+    }
+
+    pub fn reconcile_macro_value(
+        &mut self,
+        store: &mut SessionStore,
+        macro_id: &str,
+        value: f64,
+    ) -> Result<crate::domain::session::SessionDocument, VisualRuntimeManagerError> {
+        if !visual_runtime_is_ready(&store.current()) {
+            return Ok(store.current());
+        }
+
+        let updates = visual_updates_for_macro_value(&store.current(), macro_id, value);
+        self.update_parameters(store, updates)
+    }
+
+    fn update_parameters(
+        &mut self,
+        store: &mut SessionStore,
+        updates: Vec<VisualParameterUpdate>,
+    ) -> Result<crate::domain::session::SessionDocument, VisualRuntimeManagerError> {
+        let updates = updates_for_active_visual_scene(&store.current(), updates);
+        if updates.is_empty() {
+            return Ok(store.current());
+        }
+
+        match self.adapter.update_parameters(&updates) {
+            Ok(()) => store
+                .mutate_current(|session| {
+                    session.visual_runtime.health = VisualRuntimeHealth::Healthy;
+                    session.visual_runtime.last_error = None;
+                    set_visual_runtime_status(session, RuntimeConnectionState::Ready, None);
+                    Ok::<(), VisualRuntimeManagerError>(())
+                })
+                .map_err(Into::into),
+            Err(message) => Ok(mark_visual_failed(
+                store,
+                VisualRuntimeHealth::Degraded,
+                message,
+            )?),
+        }
     }
 }
 
@@ -190,7 +310,6 @@ fn mark_visual_failed(
         .mutate_current(|session| {
             session.visual_runtime.lifecycle = VisualRuntimeLifecycle::Failed;
             session.visual_runtime.health = health.clone();
-            session.visual_runtime.active_scene_id = None;
             session.visual_runtime.last_error = Some(message.clone());
             set_visual_runtime_status(
                 session,
@@ -215,4 +334,28 @@ fn set_visual_runtime_status(
         runtime.status = status;
         runtime.last_error = error;
     }
+}
+
+fn visual_runtime_is_ready(session: &crate::domain::session::SessionDocument) -> bool {
+    matches!(
+        session.visual_runtime.lifecycle,
+        VisualRuntimeLifecycle::Ready | VisualRuntimeLifecycle::Rendering
+    )
+}
+
+fn updates_for_active_visual_scene(
+    session: &crate::domain::session::SessionDocument,
+    updates: Vec<VisualParameterUpdate>,
+) -> Vec<VisualParameterUpdate> {
+    let scene = compile_session_to_visual_scene(session);
+    let active_element_ids = scene
+        .elements
+        .iter()
+        .map(|element| element.element_id.as_str())
+        .collect::<HashSet<_>>();
+
+    updates
+        .into_iter()
+        .filter(|update| active_element_ids.contains(update.element_id.as_str()))
+        .collect()
 }

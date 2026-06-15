@@ -117,6 +117,34 @@ impl SessionStore {
         result
     }
 
+    pub fn reload_visual_scene(&mut self) -> Result<SessionDocument, VisualRuntimeManagerError> {
+        let mut manager = std::mem::take(&mut self.visual_runtime_manager);
+        let result = manager.reload_scene(self);
+        self.visual_runtime_manager = manager;
+        result
+    }
+
+    pub fn reconcile_visual_graph_edit(
+        &mut self,
+        command: &GraphEditCommand,
+    ) -> Result<SessionDocument, VisualRuntimeManagerError> {
+        let mut manager = std::mem::take(&mut self.visual_runtime_manager);
+        let result = manager.reconcile_graph_edit(self, command);
+        self.visual_runtime_manager = manager;
+        result
+    }
+
+    pub fn reconcile_visual_macro_value(
+        &mut self,
+        macro_id: &str,
+        value: f64,
+    ) -> Result<SessionDocument, VisualRuntimeManagerError> {
+        let mut manager = std::mem::take(&mut self.visual_runtime_manager);
+        let result = manager.reconcile_macro_value(self, macro_id, value);
+        self.visual_runtime_manager = manager;
+        result
+    }
+
     pub fn start_hardware_learn(&mut self, target: BindingTarget) {
         self.hardware_router.start_learn(target);
     }

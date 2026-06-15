@@ -14,13 +14,19 @@ pub enum MacroCommandError {
         node_id: String,
         parameter_id: String,
     },
+    #[error("visual runtime reconciliation failed: {message}")]
+    VisualRuntimeReconcile { message: String },
 }
 
 pub fn apply_macro_command(
     store: &mut SessionStore,
     command: MacroCommand,
 ) -> Result<SessionDocument, MacroCommandError> {
-    store.mutate_current(|session| match command {
+    let visual_macro_value = match &command {
+        MacroCommand::SetMacroValue { macro_id, value } => Some((macro_id.clone(), *value)),
+        _ => None,
+    };
+    let updated = store.mutate_current(|session| match command {
         MacroCommand::CreateMacro { definition } => create_macro(session, definition),
         MacroCommand::UpdateMacro {
             macro_id,
@@ -33,7 +39,17 @@ pub fn apply_macro_command(
         MacroCommand::SetMacroValue { macro_id, value } => {
             set_macro_value(session, &macro_id, value)
         }
-    })
+    })?;
+
+    if let Some((macro_id, value)) = visual_macro_value {
+        store
+            .reconcile_visual_macro_value(&macro_id, value)
+            .map_err(|err| MacroCommandError::VisualRuntimeReconcile {
+                message: err.to_string(),
+            })
+    } else {
+        Ok(updated)
+    }
 }
 
 fn create_macro(

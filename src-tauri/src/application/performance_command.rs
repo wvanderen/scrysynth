@@ -17,21 +17,38 @@ pub enum PerformanceCommandError {
         node_id: String,
         parameter_id: String,
     },
+    #[error("visual runtime reconciliation failed: {message}")]
+    VisualRuntimeReconcile { message: String },
 }
 
 pub fn apply_performance_command(
     store: &mut SessionStore,
     command: PerformanceCommand,
 ) -> Result<SessionDocument, PerformanceCommandError> {
-    store.mutate_current(|session| match command {
-        PerformanceCommand::RecallScene { scene_id } => recall_scene(session, &scene_id),
+    let should_reload_visual_scene = matches!(command, PerformanceCommand::RecallScene { .. });
+    let updated = store.mutate_current(|session| match command {
+        PerformanceCommand::RecallScene { scene_id } => {
+            recall_scene(session, &scene_id)?;
+            session.visual_runtime.active_scene_id = Some(scene_id);
+            Ok(())
+        }
         PerformanceCommand::SaveVariation { name, scene_id } => {
             save_variation(session, &name, &scene_id)
         }
         PerformanceCommand::RestoreVariation { variation_id } => {
             restore_variation(session, &variation_id)
         }
-    })
+    })?;
+
+    if should_reload_visual_scene {
+        store
+            .reload_visual_scene()
+            .map_err(|err| PerformanceCommandError::VisualRuntimeReconcile {
+                message: err.to_string(),
+            })
+    } else {
+        Ok(updated)
+    }
 }
 
 fn recall_scene(

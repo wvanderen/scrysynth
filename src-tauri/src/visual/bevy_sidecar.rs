@@ -182,7 +182,17 @@ impl VisualRuntimeAdapter for BevySidecarAdapter {
             ),
             sequence_id,
         )? {
-            VisualToAppPayload::ParameterBatchApplied(_) => Ok(()),
+            VisualToAppPayload::ParameterBatchApplied(applied) => {
+                let requested_count = params.len() as u32;
+                if applied.applied_count == requested_count {
+                    Ok(())
+                } else {
+                    Err(format!(
+                        "visual parameter update applied {} of {} requested patches",
+                        applied.applied_count, requested_count
+                    ))
+                }
+            }
             VisualToAppPayload::Error(error) => Err(protocol_error_message(
                 "visual parameter update failed",
                 &error,
@@ -512,6 +522,39 @@ for line in sys.stdin:
             .unwrap_err();
 
         assert!(error.contains("before a scene has been loaded"));
+        let _ = adapter.panic();
+    }
+
+    #[test]
+    fn adapter_rejects_unapplied_parameter_updates() {
+        let script = write_sidecar_script(
+            r#"#!/usr/bin/env python3
+import sys
+responses = [
+    '{"protocolVersion":1,"sequenceId":1,"payload":{"type":"ready","payload":{"renderer":"fake-renderer","sidecarVersion":"0.1.0","capabilities":["scene_load","parameter_batch"]}}}',
+    '{"protocolVersion":1,"sequenceId":2,"payload":{"type":"sceneLoaded","payload":{"sceneId":"scene-1"}}}',
+    '{"protocolVersion":1,"sequenceId":3,"payload":{"type":"parameterBatchApplied","payload":{"appliedCount":0}}}',
+]
+for response in responses:
+    line = sys.stdin.readline()
+    if not line:
+        break
+    print(response, flush=True)
+"#,
+        );
+        let mut adapter = BevySidecarAdapter::new_for_tests(script, Duration::from_secs(2));
+
+        adapter.start().unwrap();
+        adapter.load_scene(&test_scene()).unwrap();
+        let error = adapter
+            .update_parameters(&[VisualParameterUpdate {
+                element_id: "node-1".to_string(),
+                parameter_id: "glow".to_string(),
+                value: 0.75,
+            }])
+            .unwrap_err();
+
+        assert!(error.contains("applied 0 of 1 requested patches"));
         let _ = adapter.panic();
     }
 

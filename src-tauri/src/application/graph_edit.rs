@@ -43,6 +43,8 @@ pub enum GraphEditError {
     MissingAudioPrimitive { node_id: String },
     #[error("audio runtime reconciliation failed: {message}")]
     AudioRuntimeReconcile { message: String },
+    #[error("visual runtime reconciliation failed: {message}")]
+    VisualRuntimeReconcile { message: String },
 }
 
 pub fn apply_graph_edit(
@@ -71,9 +73,15 @@ pub fn apply_graph_edit(
         }
     })?;
 
-    store
+    let _ = store
         .reconcile_audio_graph_edit(&command_for_reconcile)
         .map_err(|err| GraphEditError::AudioRuntimeReconcile {
+            message: err.to_string(),
+        })?;
+
+    store
+        .reconcile_visual_graph_edit(&command_for_reconcile)
+        .map_err(|err| GraphEditError::VisualRuntimeReconcile {
             message: err.to_string(),
         })
 }
