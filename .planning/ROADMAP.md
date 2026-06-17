@@ -88,6 +88,8 @@ Remaining Phase 8 follow-on work belongs in release hardening, not in the now-ve
 
 **Goal:** MIDI/OSC learn works against live devices and senders in the desktop app.
 
+Status: Planned in `.planning/phases/09-hardware-input-runtime-wiring/09-hardware-input-runtime-wiring-01-PLAN.md` under epic `td-dcaf9a`.
+
 Success criteria:
 
 1. Add app commands/settings for MIDI port selection and OSC listen port configuration.

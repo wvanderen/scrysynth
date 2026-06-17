@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: v1 runtime hardening
 status: planning
-stopped_at: Phase 8 minimal visual sidecar path verified and documented
-last_updated: "2026-06-16T00:00:00-05:00"
-last_activity: 2026-06-16
+stopped_at: Phase 9 hardware input runtime wiring planned and broken into td tasks
+last_updated: "2026-06-17T00:00:00-05:00"
+last_activity: 2026-06-17
 progress:
   foundation_phases_total: 5
   foundation_phases_completed: 5
   hardening_phases_total: 6
   hardening_phases_completed: 2
-  current_stage: Phase 8 minimal visual sidecar path complete; hardware runtime wiring next
+  current_stage: Phase 9 planned; hardware runtime wiring ready to execute
 ---
 
 # Project State
@@ -48,7 +48,7 @@ The project is not yet a complete local audiovisual instrument. Runtime executio
 ## Active Hardening Work
 
 1. Local developer readiness and docs.
-2. Hardware listener lifecycle and runtime wiring.
+2. Hardware listener lifecycle and runtime wiring: planned as Phase 9 epic `td-dcaf9a`.
 3. Session-aware agent orchestration.
 4. Packaging, UAT, and release readiness.
 
@@ -83,6 +83,11 @@ The project is not yet a complete local audiovisual instrument. Runtime executio
 
 ## Latest Verification
 
+2026-06-17 planning:
+
+- Phase 9 hardware input runtime wiring was planned in `.planning/phases/09-hardware-input-runtime-wiring/09-hardware-input-runtime-wiring-01-PLAN.md`.
+- `td-dcaf9a` was created as the Phase 9 epic with child tasks `td-fca6b3`, `td-c18ac3`, `td-499618`, `td-eb6bc2`, `td-962e1b`, and `td-8062dd`.
+
 2026-06-16 task `td-11fe55`:
 
 - `npm test` passed: 3 files, 26 tests.
@@ -108,4 +113,4 @@ The project is not yet a complete local audiovisual instrument. Runtime executio
 ## Session Continuity
 
 Last consolidated: 2026-06-12.
-Current td issue: `td-11fe55`.
+Current Phase 9 epic: `td-dcaf9a`.

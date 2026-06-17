@@ -133,6 +133,6 @@ Deferred to future release. Tracked but not in current v1 hardening milestone.
 | DEV-01..02 | Phase 6 | Pending |
 | AUD-01R..04R | Phase 7 | Pending |
 | VIS-01R..03R | Phase 8 | Pending |
-| CTRL-04R, HW-01 | Phase 9 | Pending |
+| CTRL-04R, HW-01 | Phase 9 | Planned |
 | AGNT-01R..03R | Phase 10 | Pending |
 | REL-01..03 | Phase 11 | Pending |
