@@ -489,9 +489,10 @@ export async function getAgentRuntimeState(): Promise<AgentRuntimeState> {
   return agentRuntimeStateResponseSchema.parse(payload);
 }
 
-export async function startHardwareLearn(target: BindingTarget): Promise<void> {
+export async function startHardwareLearn(target: BindingTarget): Promise<HardwareRuntimeStatus> {
   bindingTargetSchema.parse(target);
-  await invoke("start_hardware_learn", { target });
+  const payload = await invoke("start_hardware_learn", { target });
+  return hardwareRuntimeStatusSchema.parse(payload);
 }
 
 export async function stopHardwareLearn(): Promise<void> {

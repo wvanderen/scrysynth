@@ -57,6 +57,14 @@ impl HardwareInputRouter {
         self.learn_state = HardwareLearnState::Idle;
     }
 
+    pub fn attach_midi_receiver(&mut self, rx: Receiver<MidiLearnEvent>) {
+        self.midi_rx = Some(rx);
+    }
+
+    pub fn detach_midi_receiver(&mut self) {
+        self.midi_rx = None;
+    }
+
     pub fn poll_and_route(&mut self, session: &mut SessionDocument) -> Option<HardwareBinding> {
         let midi_event = self.midi_rx.as_ref().and_then(|rx| rx.try_recv().ok());
 

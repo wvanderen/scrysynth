@@ -23,6 +23,14 @@ pub struct MidiInputManager {
     event_sender: Sender<MidiLearnEvent>,
 }
 
+impl std::fmt::Debug for MidiInputManager {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MidiInputManager")
+            .field("is_listening", &self.is_listening())
+            .finish()
+    }
+}
+
 impl MidiInputManager {
     pub fn new() -> (Self, std::sync::mpsc::Receiver<MidiLearnEvent>) {
         let (tx, rx) = channel();

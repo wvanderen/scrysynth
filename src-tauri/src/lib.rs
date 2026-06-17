@@ -214,10 +214,9 @@ fn get_agent_runtime_state(
 fn start_hardware_learn(
     target: BindingTarget,
     state: tauri::State<'_, Mutex<SessionStore>>,
-) -> Result<(), String> {
+) -> Result<HardwareRuntimeStatus, String> {
     let mut store = state.lock().map_err(|err| err.to_string())?;
-    store.start_hardware_learn(target);
-    Ok(())
+    store.start_hardware_learn(target)
 }
 
 #[tauri::command]
