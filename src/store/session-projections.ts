@@ -33,10 +33,16 @@ export type AudioRuntimeProjection = {
 export type VisualRuntimeProjection = {
   lifecycle: SessionDocument["visualRuntime"]["lifecycle"];
   health: SessionDocument["visualRuntime"]["health"];
+  connectionStatus: SessionDocument["runtimeStatus"][number]["status"] | "unknown";
   status: string;
   detail: string;
+  activeSceneLabel: string;
+  rendererLabel: string;
+  fpsLabel: string;
   canStart: boolean;
   canStop: boolean;
+  canPanic: boolean;
+  isRestartable: boolean;
 };
 
 export type AgentRuntimeProjection = {
@@ -243,24 +249,71 @@ export function deriveActiveSceneId(session: SessionDocument): string | null {
 
 function projectVisualRuntime(session: SessionDocument): VisualRuntimeProjection {
   const { health, lastError, lifecycle } = session.visualRuntime;
+  const runtimeStatus = session.runtimeStatus.find((runtime) => runtime.runtime === "visual");
+  const connectionStatus = runtimeStatus?.status ?? "unknown";
+  const visibleError = lastError ?? runtimeStatus?.lastError ?? null;
+  const activeSceneId = session.visualRuntime.activeSceneId;
+  const activeScene = activeSceneId
+    ? session.scenes.find((scene) => scene.id === activeSceneId)
+    : null;
+  const activeSceneLabel = activeScene
+    ? `${activeScene.name} (${activeScene.id})`
+    : activeSceneId ?? "none";
+  const rendererLabel = session.visualRuntime.renderer ?? "not attached";
+  const fpsLabel = session.visualRuntime.fps != null
+    ? `${Math.round(session.visualRuntime.fps)} FPS`
+    : "no telemetry";
+  const isMissingSidecar = Boolean(
+    visibleError?.includes("visual runtime binary not found") ||
+      visibleError?.includes("SCRYSYNTH_BEVY_PATH"),
+  );
+  const isRestartable =
+    lifecycle === "idle" ||
+    lifecycle === "failed" ||
+    lifecycle === "panicked" ||
+    connectionStatus === "error";
 
-  let detail = "Visual runtime idle.";
-  if (lastError) {
-    detail = lastError;
-  } else if (session.visualRuntime.activeSceneId) {
-    detail = `Scene ${session.visualRuntime.activeSceneId} loaded.`;
-    if (session.visualRuntime.fps != null) {
-      detail += ` ${session.visualRuntime.fps} FPS.`;
-    }
+  let status = `${lifecycle.replace(/_/g, " ")} / ${health.replace(/_/g, " ")}`;
+  if (isMissingSidecar) {
+    status = "missing sidecar / restartable";
+  } else if (lifecycle === "starting" || connectionStatus === "connecting") {
+    status = "booting / connecting";
+  } else if (lifecycle === "ready" || lifecycle === "rendering") {
+    status = `${lifecycle} / ${health}`;
+  } else if (lifecycle === "panicked") {
+    status = "panicked / restartable";
+  } else if (lifecycle === "failed" || health === "degraded" || health === "error") {
+    status = "degraded / restartable";
+  } else if (connectionStatus === "disconnected") {
+    status = "stopped / disconnected";
+  }
+
+  let detail = "Stopped. Start launches the visual sidecar and loads the active scene.";
+  if (isMissingSidecar && visibleError) {
+    detail = `${visibleError}. Build the sidecar or set SCRYSYNTH_BEVY_PATH to its full path, then Start again.`;
+  } else if (visibleError) {
+    detail = `${visibleError}${isRestartable ? " Start can retry the visual sidecar." : ""}`;
+  } else if (lifecycle === "starting" || connectionStatus === "connecting") {
+    detail = "Launching sidecar, sending handshake, and waiting for scene load acknowledgement.";
+  } else if (lifecycle === "ready" || lifecycle === "rendering") {
+    detail = `Scene ${activeSceneLabel} loaded on ${rendererLabel}.`;
+  } else if (lifecycle === "panicked") {
+    detail = "Panic stop complete. Start will relaunch the sidecar and reload the active scene.";
   }
 
   return {
     lifecycle,
     health,
-    status: `${lifecycle.replace(/_/g, " ")} / ${health.replace(/_/g, " ")}`,
+    connectionStatus,
+    status,
     detail,
-    canStart: lifecycle === "idle" || lifecycle === "failed",
+    activeSceneLabel,
+    rendererLabel,
+    fpsLabel,
+    canStart: lifecycle === "idle" || lifecycle === "failed" || lifecycle === "panicked",
     canStop: lifecycle === "starting" || lifecycle === "ready" || lifecycle === "rendering",
+    canPanic: lifecycle === "starting" || lifecycle === "ready" || lifecycle === "rendering",
+    isRestartable,
   };
 }
 

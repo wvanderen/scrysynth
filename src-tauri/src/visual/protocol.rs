@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::visual::compiler::{CompiledVisualScene, VisualParameterUpdate};
 
 pub const VISUAL_PROTOCOL_VERSION: u32 = 1;
-pub const DEFAULT_READY_TIMEOUT_MS: u64 = 3_000;
+pub const DEFAULT_READY_TIMEOUT_MS: u64 = 10_000;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -168,6 +168,8 @@ pub struct VisualSceneParameter {
 #[serde(rename_all = "camelCase")]
 pub struct VisualSceneLoaded {
     pub scene_id: String,
+    #[serde(default)]
+    pub rendering: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

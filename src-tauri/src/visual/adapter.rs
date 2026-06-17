@@ -1,7 +1,7 @@
 #[derive(Clone, Debug, PartialEq)]
 pub enum VisualAdapterStatus {
     Booted { renderer: String },
-    SceneLoaded { scene_id: String },
+    SceneLoaded { scene_id: String, rendering: bool },
     Stopped,
     Panicked,
     Failed { message: String },

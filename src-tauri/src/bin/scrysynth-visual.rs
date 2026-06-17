@@ -1,9 +1,18 @@
 use std::io::{self, BufRead, Write};
 
+use scrysynth_lib::visual::bevy_runtime::run_visible_runtime;
 use scrysynth_lib::visual::protocol::AppToVisualMessage;
 use scrysynth_lib::visual::sidecar::{error_response, MinimalVisualRuntime};
 
 fn main() {
+    let run_minimal = std::env::args().any(|arg| arg == "--minimal")
+        || std::env::var("SCRYSYNTH_VISUAL_MODE").as_deref() == Ok("minimal");
+
+    if !run_minimal {
+        run_visible_runtime();
+        return;
+    }
+
     let stdin = io::stdin();
     let mut stdout = io::stdout();
     let mut runtime = MinimalVisualRuntime::new();

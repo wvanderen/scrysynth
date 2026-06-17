@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: v1 runtime hardening
 status: planning
-stopped_at: Consolidated foundation-complete audit and runtime-hardening roadmap
-last_updated: "2026-06-14T00:00:00-05:00"
-last_activity: 2026-06-14
+stopped_at: Phase 8 minimal visual sidecar path verified and documented
+last_updated: "2026-06-16T00:00:00-05:00"
+last_activity: 2026-06-16
 progress:
   foundation_phases_total: 5
   foundation_phases_completed: 5
   hardening_phases_total: 6
-  hardening_phases_completed: 1
-  current_stage: Phase 7 real SuperCollider execution complete; visual runtime hardening next
+  hardening_phases_completed: 2
+  current_stage: Phase 8 minimal visual sidecar path complete; hardware runtime wiring next
 ---
 
 # Project State
@@ -31,7 +31,7 @@ Scrysynth is a late foundation prototype. The planned foundation phases have pro
 The project is not yet a complete local audiovisual instrument. Runtime execution still needs production UAT and additional hardening:
 
 - Audio can launch `scsynth`, apply v1 SynthDef/topology commands over OSC, produce audible output from the default source-to-output graph, apply live parameter updates, stop, panic, and restart after panic on a real local SuperCollider install.
-- Visual runtime management exists, but no `scrysynth-visual` sidecar is included and scene/parameter updates are stubs.
+- Visual runtime management now launches the in-repo minimal `scrysynth-visual` sidecar, handshakes over JSON lines, loads compiled scene snapshots, applies live parameter batches, stops, panics, and restarts after panic. The renderer remains minimal and GPU-free; richer Bevy output and packaged sidecar wiring are still future work.
 - MIDI/OSC managers and routing code exist, but app-level listener startup/configuration and receiver wiring need production implementation.
 - Agent collaboration is deterministic parser plus safety policy, not a real session-aware LLM/orchestrator.
 
@@ -48,16 +48,16 @@ The project is not yet a complete local audiovisual instrument. Runtime executio
 ## Active Hardening Work
 
 1. Local developer readiness and docs.
-2. Real visual sidecar/protocol.
-3. Hardware listener lifecycle and runtime wiring.
-4. Session-aware agent orchestration.
-5. Packaging, UAT, and release readiness.
+2. Hardware listener lifecycle and runtime wiring.
+3. Session-aware agent orchestration.
+4. Packaging, UAT, and release readiness.
 
 ## Completed Hardening Work
 
 | Phase | Status | Result |
 |-------|--------|--------|
 | 7. Real SuperCollider Execution | Complete | Default source-to-output graph verified against local `scsynth` with audible playback, live parameter update, stop, panic, and restart-after-panic. |
+| 8. Real Visual Runtime Path | Complete for minimal sidecar | `scrysynth-visual` starts as a separate process, acknowledges handshake and scene load, applies live parameter batches, stops, panics, and restarts after panic. Runtime Health now surfaces missing sidecar, booting, ready, degraded, disconnected, stopped, panicked, and restartable visual states. |
 
 ## Recent Audit Findings
 
@@ -79,10 +79,20 @@ The project is not yet a complete local audiovisual instrument. Runtime executio
 
 ## Pending Todos
 
-- Decide whether `scrysynth-visual` is built in-repo as a workspace crate or supplied externally.
-- Add user-facing runtime setup diagnostics for missing `scsynth`, missing visual sidecar, and unavailable hardware input.
+- Add user-facing runtime setup diagnostics for unavailable hardware input.
 
 ## Latest Verification
+
+2026-06-16 task `td-11fe55`:
+
+- `npm test` passed: 3 files, 26 tests.
+- `npm run build` passed.
+- `cargo build --manifest-path src-tauri/Cargo.toml --bin scrysynth-visual` passed.
+- Missing configured sidecar diagnostics were verified with `visual::bevy_sidecar::tests::adapter_reports_missing_configured_sidecar_with_setup_guidance`.
+- Real visual sidecar lifecycle was verified with `cargo test --manifest-path src-tauri/Cargo.toml --test visual_sidecar_uat`.
+- Direct sidecar protocol UAT observed `ready`, `sceneLoaded`, `parameterBatchApplied`, graceful `shutdownComplete`, panic `shutdownComplete`, and successful restart after panic.
+- `cargo test --manifest-path src-tauri/Cargo.toml` passed.
+- Evidence is recorded in `.planning/phases/08-real-visual-runtime-path/08-real-visual-runtime-path-05-UAT.md`.
 
 2026-06-13 task `td-d38373`:
 
@@ -98,4 +108,4 @@ The project is not yet a complete local audiovisual instrument. Runtime executio
 ## Session Continuity
 
 Last consolidated: 2026-06-12.
-Current td issue: `td-d38373`.
+Current td issue: `td-11fe55`.

@@ -99,9 +99,16 @@ where
         };
 
         match ready_status {
-            VisualAdapterStatus::SceneLoaded { scene_id } => store
+            VisualAdapterStatus::SceneLoaded {
+                scene_id,
+                rendering,
+            } => store
                 .mutate_current(|session| {
-                    session.visual_runtime.lifecycle = VisualRuntimeLifecycle::Ready;
+                    session.visual_runtime.lifecycle = if rendering {
+                        VisualRuntimeLifecycle::Rendering
+                    } else {
+                        VisualRuntimeLifecycle::Ready
+                    };
                     session.visual_runtime.health = VisualRuntimeHealth::Healthy;
                     session.visual_runtime.active_scene_id = Some(scene_id);
                     session.visual_runtime.last_error = None;
@@ -165,11 +172,15 @@ where
 
         store
             .mutate_current(|session| {
-                session.visual_runtime.lifecycle = VisualRuntimeLifecycle::Idle;
-                session.visual_runtime.health = VisualRuntimeHealth::Unknown;
+                let panic_detail = error.clone().unwrap_or_else(|| {
+                    "visual runtime panic requested; sidecar stopped and can be restarted"
+                        .to_string()
+                });
+                session.visual_runtime.lifecycle = VisualRuntimeLifecycle::Panicked;
+                session.visual_runtime.health = VisualRuntimeHealth::Degraded;
                 session.visual_runtime.fps = None;
                 session.visual_runtime.renderer = None;
-                session.visual_runtime.last_error = error.clone();
+                session.visual_runtime.last_error = Some(panic_detail);
                 set_visual_runtime_status(session, RuntimeConnectionState::Disconnected, error);
                 Ok::<(), VisualRuntimeManagerError>(())
             })
@@ -197,9 +208,16 @@ where
         };
 
         match status {
-            VisualAdapterStatus::SceneLoaded { scene_id } => store
+            VisualAdapterStatus::SceneLoaded {
+                scene_id,
+                rendering,
+            } => store
                 .mutate_current(|session| {
-                    session.visual_runtime.lifecycle = VisualRuntimeLifecycle::Ready;
+                    session.visual_runtime.lifecycle = if rendering {
+                        VisualRuntimeLifecycle::Rendering
+                    } else {
+                        VisualRuntimeLifecycle::Ready
+                    };
                     session.visual_runtime.health = VisualRuntimeHealth::Healthy;
                     session.visual_runtime.active_scene_id = Some(scene_id);
                     session.visual_runtime.last_error = None;

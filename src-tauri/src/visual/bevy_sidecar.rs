@@ -28,6 +28,7 @@ pub struct BevySidecarAdapter {
     active_scene_id: Option<String>,
     timeout: Duration,
     executable_override: Option<PathBuf>,
+    executable_args: Vec<String>,
 }
 
 impl Default for BevySidecarAdapter {
@@ -40,16 +41,25 @@ impl Default for BevySidecarAdapter {
             active_scene_id: None,
             timeout: Duration::from_millis(DEFAULT_READY_TIMEOUT_MS),
             executable_override: None,
+            executable_args: Vec::new(),
         }
     }
 }
 
 impl BevySidecarAdapter {
-    #[cfg(test)]
-    fn new_for_tests(executable: PathBuf, timeout: Duration) -> Self {
+    pub fn with_executable_override(executable: PathBuf, timeout: Duration) -> Self {
+        Self::with_executable_override_and_args(executable, timeout, Vec::new())
+    }
+
+    pub fn with_executable_override_and_args(
+        executable: PathBuf,
+        timeout: Duration,
+        executable_args: Vec<String>,
+    ) -> Self {
         let mut adapter = Self::default();
         adapter.executable_override = Some(executable);
         adapter.timeout = timeout;
+        adapter.executable_args = executable_args;
         adapter
     }
 }
@@ -62,22 +72,33 @@ impl VisualRuntimeAdapter for BevySidecarAdapter {
             });
         }
 
-        let executable = match self
-            .executable_override
-            .clone()
-            .or_else(resolve_bevy_executable)
-        {
-            Some(path) => path,
-            None => {
+        let executable = match self.executable_override.clone() {
+            Some(path) if is_executable(&path) => path,
+            Some(path) => {
                 return Ok(VisualAdapterStatus::Failed {
-                    message: format!(
-                        "visual runtime binary not found; install scrysynth-visual or set {BEVY_OVERRIDE_ENV}"
-                    ),
+                    message: missing_sidecar_message(Some(&path)),
                 });
             }
+            None => match resolve_bevy_executable() {
+                Some(path) => path,
+                None => {
+                    return Ok(VisualAdapterStatus::Failed {
+                        message: missing_sidecar_message(None),
+                    });
+                }
+            },
         };
 
-        let mut child = Command::new(executable)
+        let mut command = Command::new(executable);
+        command.args(&self.executable_args);
+        if let Some(mode) = env::var_os("SCRYSYNTH_VISUAL_MODE") {
+            if mode == "minimal" {
+                command.arg("--minimal");
+            }
+            command.env("SCRYSYNTH_VISUAL_MODE", mode);
+        }
+
+        let mut child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -109,6 +130,7 @@ impl VisualRuntimeAdapter for BevySidecarAdapter {
                     capabilities: vec![
                         "scene_load".to_string(),
                         "parameter_batch".to_string(),
+                        "rendering_status".to_string(),
                         "shutdown".to_string(),
                     ],
                 }),
@@ -154,6 +176,7 @@ impl VisualRuntimeAdapter for BevySidecarAdapter {
                 self.active_scene_id = Some(loaded.scene_id.clone());
                 Ok(VisualAdapterStatus::SceneLoaded {
                     scene_id: loaded.scene_id,
+                    rendering: loaded.rendering,
                 })
             }
             Ok(VisualToAppPayload::Error(error)) => Ok(VisualAdapterStatus::Failed {
@@ -244,6 +267,18 @@ fn resolve_bevy_executable() -> Option<PathBuf> {
 
 fn is_executable(path: &Path) -> bool {
     path.is_file()
+}
+
+fn missing_sidecar_message(path: Option<&Path>) -> String {
+    match path {
+        Some(path) => format!(
+            "visual runtime binary not found at {}; install scrysynth-visual or set {BEVY_OVERRIDE_ENV}",
+            path.display()
+        ),
+        None => format!(
+            "visual runtime binary not found; install scrysynth-visual or set {BEVY_OVERRIDE_ENV}"
+        ),
+    }
 }
 
 impl BevySidecarAdapter {
@@ -433,7 +468,8 @@ for response in responses:
     print(response, flush=True)
 "#,
         );
-        let mut adapter = BevySidecarAdapter::new_for_tests(script, Duration::from_secs(2));
+        let mut adapter =
+            BevySidecarAdapter::with_executable_override(script, Duration::from_secs(2));
 
         assert_eq!(
             adapter.start().unwrap(),
@@ -444,7 +480,8 @@ for response in responses:
         assert_eq!(
             adapter.load_scene(&test_scene()).unwrap(),
             VisualAdapterStatus::SceneLoaded {
-                scene_id: "scene-1".to_string()
+                scene_id: "scene-1".to_string(),
+                rendering: false,
             }
         );
         adapter
@@ -465,7 +502,8 @@ import time
 time.sleep(1)
 "#,
         );
-        let mut adapter = BevySidecarAdapter::new_for_tests(script, Duration::from_millis(50));
+        let mut adapter =
+            BevySidecarAdapter::with_executable_override(script, Duration::from_millis(50));
 
         let status = adapter.start().unwrap();
 
@@ -484,7 +522,8 @@ sys.stdin.readline()
 print('{"protocolVersion":1,"sequenceId":1,"payload":{"type":"error","payload":{"code":"renderer_unavailable","message":"no renderer","recoverable":false}}}', flush=True)
 "#,
         );
-        let mut adapter = BevySidecarAdapter::new_for_tests(script, Duration::from_secs(2));
+        let mut adapter =
+            BevySidecarAdapter::with_executable_override(script, Duration::from_secs(2));
 
         let status = adapter.start().unwrap();
 
@@ -494,6 +533,26 @@ print('{"protocolVersion":1,"sequenceId":1,"payload":{"type":"error","payload":{
                 VisualAdapterStatus::Failed { message }
                     if message.contains("visual runtime handshake failed")
                         && message.contains("no renderer")
+            ),
+            "{status:?}"
+        );
+    }
+
+    #[test]
+    fn adapter_reports_missing_configured_sidecar_with_setup_guidance() {
+        let missing_path = std::env::temp_dir().join("missing-scrysynth-visual-for-test");
+        let mut adapter =
+            BevySidecarAdapter::with_executable_override(missing_path, Duration::from_secs(2));
+
+        let status = adapter.start().unwrap();
+
+        assert!(
+            matches!(
+                &status,
+                VisualAdapterStatus::Failed { message }
+                    if message.contains("visual runtime binary not found")
+                        && message.contains(BEVY_OVERRIDE_ENV)
+                        && message.contains("scrysynth-visual")
             ),
             "{status:?}"
         );
@@ -510,7 +569,8 @@ for line in sys.stdin:
     pass
 "#,
         );
-        let mut adapter = BevySidecarAdapter::new_for_tests(script, Duration::from_secs(2));
+        let mut adapter =
+            BevySidecarAdapter::with_executable_override(script, Duration::from_secs(2));
         adapter.start().unwrap();
 
         let error = adapter
@@ -542,7 +602,8 @@ for response in responses:
     print(response, flush=True)
 "#,
         );
-        let mut adapter = BevySidecarAdapter::new_for_tests(script, Duration::from_secs(2));
+        let mut adapter =
+            BevySidecarAdapter::with_executable_override(script, Duration::from_secs(2));
 
         adapter.start().unwrap();
         adapter.load_scene(&test_scene()).unwrap();
@@ -567,7 +628,8 @@ sys.stdin.readline()
 print('{"protocolVersion":1,"sequenceId":1,"payload":{"type":"ready","payload":{"renderer":"fake-renderer","sidecarVersion":"0.1.0","capabilities":[]}}}', flush=True)
 "#,
         );
-        let mut adapter = BevySidecarAdapter::new_for_tests(script, Duration::from_secs(2));
+        let mut adapter =
+            BevySidecarAdapter::with_executable_override(script, Duration::from_secs(2));
         adapter.start().unwrap();
 
         let result = adapter.load_scene(&test_scene());

@@ -9,7 +9,7 @@ The project is now in **v1 runtime hardening**, not feature-complete release. Th
 Core distinction:
 
 - **Foundation complete:** canonical state, UI projections, command APIs, tests, and adapter boundaries exist.
-- **Runtime incomplete:** Bevy visual execution, hardware listener lifecycle, and real agent orchestration still need production implementation or verification. The default SuperCollider execution path is verified.
+- **Runtime incomplete:** richer Bevy visual execution, packaged sidecar wiring, hardware listener lifecycle, and real agent orchestration still need production implementation or verification. The default SuperCollider execution path is verified, and the minimal visual sidecar process path is verified.
 
 ## Completed Foundation Phases
 
@@ -29,7 +29,7 @@ Core distinction:
 | Audio runtime | Phase 7 complete | Can launch/stop/panic `scsynth` when installed; v1 SynthDef/topology commands are applied over OSC; default graph audible playback, live parameter control, stop, panic, and restart-after-panic are verified. |
 | Performance workspace | Complete foundation | Scenes, variations, active scene derivation, macro controls. |
 | Agent collaboration | Scaffolded | Deterministic parser, ownership gates, pending approvals, action history, freeze/reclaim. No real LLM/orchestrator yet. |
-| Visual runtime | Scaffolded | Adapter and health model exist; no bundled `scrysynth-visual` sidecar; scene and parameter delivery are stubs. |
+| Visual runtime | Phase 8 minimal path verified | `scrysynth-visual` exists as an in-repo minimal sidecar. The app adapter launches it, handshakes, loads compiled scenes, sends parameter batches, stops, panics, and restarts after panic. Rich Bevy rendering and packaged sidecar bundling remain future hardening. |
 | Hardware bindings | Partial foundation | MIDI/OSC managers and router exist; app needs production listener startup/configuration and receiver wiring. |
 | Testing | Broad but environment-dependent | Rust and frontend tests exist, but require local `cargo` and installed npm dependencies. |
 | Documentation | In progress | README and planning docs now reflect foundation-vs-runtime status. |
@@ -69,12 +69,20 @@ Current Phase 7.7 evidence: `.planning/phases/07-real-supercollider-execution/07
 
 **Goal:** Visuals run through a separate process that consumes canonical scene/control projections.
 
+Status: Complete for the minimal `scrysynth-visual` sidecar path. Evidence is recorded in `.planning/phases/08-real-visual-runtime-path/08-real-visual-runtime-path-05-UAT.md`.
+
 Success criteria:
 
-1. Provide or document the `scrysynth-visual` sidecar executable.
-2. Replace visual scene-load and parameter-update stubs with a typed local protocol.
-3. Drive visual scene state from session nodes, scenes, macros, and runtime events.
-4. Surface visual runtime errors and reconnect/restart behavior in the health panel.
+1. Provide or document the `scrysynth-visual` sidecar executable. **Done for local development.**
+2. Replace visual scene-load and parameter-update stubs with a typed local protocol. **Done for JSON-lines stdio.**
+3. Drive visual scene state from session nodes, scenes, macros, and runtime events. **Done for compiled scene snapshots and live parameter batches.**
+4. Surface visual runtime errors and reconnect/restart behavior in the health panel. **Done for missing sidecar, booting, ready, degraded, disconnected, stopped, panicked, and restartable states.**
+
+Remaining Phase 8 follow-on work belongs in release hardening, not in the now-verified minimal path:
+
+- Bundle the sidecar through Tauri packaging instead of relying on `SCRYSYNTH_BEVY_PATH` or `PATH`.
+- Replace the minimal GPU-free renderer with richer Bevy-rendered scene output.
+- Emit and consume live visual telemetry such as FPS from the sidecar.
 
 ### Phase 9: Hardware Input Runtime Wiring
 

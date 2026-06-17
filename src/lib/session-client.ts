@@ -197,7 +197,7 @@ const audioRuntimeSchema = z.object({
 });
 
 const visualRuntimeStateSchema = z.object({
-  lifecycle: z.enum(["idle", "starting", "ready", "rendering", "failed"]),
+  lifecycle: z.enum(["idle", "starting", "ready", "rendering", "panicked", "failed"]),
   health: z.enum(["unknown", "healthy", "degraded", "error"]),
   activeSceneId: z.string().nullable(),
   fps: z.number().nullable(),

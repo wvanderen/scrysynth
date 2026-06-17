@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
+default-run = "scrysynth"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -29,6 +30,7 @@ uuid = { version = "1", features = ["serde", "v4"] }
 midir = "0.10"
 rosc = "0.11"
 tracing = "0.1"
+bevy = "0.18.1"
 
 [dev-dependencies]
 tempfile = "3"

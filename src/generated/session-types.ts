@@ -10,7 +10,7 @@ export type AudioRuntimeLifecycle = "idle" | "booting" | "ready" | "running" | "
 
 export type AudioRuntimeHealth = "unknown" | "healthy" | "degraded" | "panic_recovered" | "error";
 
-export type VisualRuntimeLifecycle = "idle" | "starting" | "ready" | "rendering" | "failed";
+export type VisualRuntimeLifecycle = "idle" | "starting" | "ready" | "rendering" | "panicked" | "failed";
 
 export type VisualRuntimeHealth = "unknown" | "healthy" | "degraded" | "error";
 

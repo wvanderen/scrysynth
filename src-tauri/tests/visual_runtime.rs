@@ -23,6 +23,7 @@ struct TestVisualAdapter {
     should_fail_start: bool,
     should_fail_scene: bool,
     should_fail_update: bool,
+    is_rendering: bool,
     started: bool,
     state: Rc<RefCell<TestVisualAdapterState>>,
 }
@@ -33,6 +34,7 @@ impl TestVisualAdapter {
             should_fail_start: false,
             should_fail_scene: false,
             should_fail_update: false,
+            is_rendering: false,
             started: false,
             state: Rc::new(RefCell::new(TestVisualAdapterState::default())),
         }
@@ -43,6 +45,7 @@ impl TestVisualAdapter {
             should_fail_start: false,
             should_fail_scene: false,
             should_fail_update: false,
+            is_rendering: false,
             started: false,
             state,
         }
@@ -53,6 +56,7 @@ impl TestVisualAdapter {
             should_fail_start: true,
             should_fail_scene: false,
             should_fail_update: false,
+            is_rendering: false,
             started: false,
             state: Rc::new(RefCell::new(TestVisualAdapterState::default())),
         }
@@ -63,6 +67,7 @@ impl TestVisualAdapter {
             should_fail_start: false,
             should_fail_scene: true,
             should_fail_update: false,
+            is_rendering: false,
             started: false,
             state: Rc::new(RefCell::new(TestVisualAdapterState::default())),
         }
@@ -73,6 +78,18 @@ impl TestVisualAdapter {
             should_fail_start: false,
             should_fail_scene: false,
             should_fail_update: true,
+            is_rendering: false,
+            started: false,
+            state: Rc::new(RefCell::new(TestVisualAdapterState::default())),
+        }
+    }
+
+    fn with_rendering_scene() -> Self {
+        Self {
+            should_fail_start: false,
+            should_fail_scene: false,
+            should_fail_update: false,
+            is_rendering: true,
             started: false,
             state: Rc::new(RefCell::new(TestVisualAdapterState::default())),
         }
@@ -107,6 +124,7 @@ impl VisualRuntimeAdapter for TestVisualAdapter {
             .push(scene.scene_id.clone());
         Ok(VisualAdapterStatus::SceneLoaded {
             scene_id: scene.scene_id.clone(),
+            rendering: self.is_rendering,
         })
     }
 
@@ -352,6 +370,21 @@ fn visual_runtime_manager_start_succeeds() {
         visual_status.unwrap().status,
         scrysynth_lib::domain::session::RuntimeConnectionState::Ready
     );
+}
+
+#[test]
+fn visual_runtime_manager_marks_rendering_when_adapter_confirms_pixels() {
+    let adapter = TestVisualAdapter::with_rendering_scene();
+    let mut manager = VisualRuntimeManager::new_for_tests(adapter);
+    let mut store = SessionStore::new_default();
+
+    let session = manager.start(&mut store).expect("visual runtime starts");
+
+    assert_eq!(
+        session.visual_runtime.lifecycle,
+        VisualRuntimeLifecycle::Rendering
+    );
+    assert_eq!(session.visual_runtime.health, VisualRuntimeHealth::Healthy);
 }
 
 #[test]
@@ -763,7 +796,7 @@ fn visual_runtime_manager_stop_resets_to_idle() {
 }
 
 #[test]
-fn visual_runtime_manager_panic_resets_to_idle() {
+fn visual_runtime_manager_panic_marks_restartable_panicked_state() {
     let state = Rc::new(RefCell::new(TestVisualAdapterState::default()));
     let adapter = TestVisualAdapter::with_state(Rc::clone(&state));
     let mut manager = VisualRuntimeManager::new_for_tests(adapter);
@@ -797,7 +830,12 @@ fn visual_runtime_manager_panic_resets_to_idle() {
     let session = result.unwrap();
     assert_eq!(
         session.visual_runtime.lifecycle,
-        VisualRuntimeLifecycle::Idle
+        VisualRuntimeLifecycle::Panicked
+    );
+    assert_eq!(session.visual_runtime.health, VisualRuntimeHealth::Degraded);
+    assert_eq!(
+        session.visual_runtime.last_error,
+        Some("visual runtime panic requested; sidecar stopped and can be restarted".to_string())
     );
     assert_eq!(
         session.visual_runtime.active_scene_id,

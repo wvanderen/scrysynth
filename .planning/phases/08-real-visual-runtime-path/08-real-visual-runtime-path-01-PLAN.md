@@ -2,7 +2,7 @@
 phase: 08-real-visual-runtime-path
 plan: 01
 type: hardening
-status: planned
+status: verified-minimal-path
 created: 2026-06-14
 depends_on:
   - 07-real-supercollider-execution
@@ -22,13 +22,25 @@ Visuals run through a separate process that consumes canonical scene, control, m
 
 This phase should preserve the product boundary: `SessionDocument` remains canonical, the visual process is an adapter target, and visual runtime IDs or transport details stay ephemeral.
 
-## Current Baseline
+## Original Baseline
 
 - `VisualRuntimeManager` can start, stop, panic, and update visual health state.
 - `BevySidecarAdapter` resolves `scrysynth-visual` or `SCRYSYNTH_BEVY_PATH`, launches the process, and terminates it.
 - `load_scene` and `update_parameters` are stubs that return success without sending anything.
 - `compile_session_to_visual_scene` derives a simple scene projection from enabled graph nodes.
 - The README already documents that no visual sidecar binary is included and scene/parameter delivery is stubbed.
+
+## Verified Outcome
+
+As of 2026-06-16 task `td-11fe55`, the minimal Phase 8 path is verified:
+
+- The repository includes the minimal `scrysynth-visual` binary target.
+- `BevySidecarAdapter` launches the real sidecar via `SCRYSYNTH_BEVY_PATH` or `PATH`.
+- The adapter handshakes over JSON lines, loads compiled visual scenes, sends parameter batches, and handles graceful or panic shutdown acknowledgements.
+- Runtime Health surfaces missing sidecar, booting, ready, degraded, disconnected, stopped, panicked, and restartable visual states with active scene and renderer state.
+- UAT evidence is recorded in `08-real-visual-runtime-path-05-UAT.md`.
+
+Remaining work is richer Bevy rendering, packaged Tauri sidecar wiring, and live renderer telemetry.
 
 ## Success Criteria
 

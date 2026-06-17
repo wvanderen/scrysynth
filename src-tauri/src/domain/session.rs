@@ -112,6 +112,7 @@ pub enum VisualRuntimeLifecycle {
     Starting,
     Ready,
     Rendering,
+    Panicked,
     Failed,
 }
 

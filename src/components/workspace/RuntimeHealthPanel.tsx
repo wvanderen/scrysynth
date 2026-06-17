@@ -12,7 +12,13 @@ function statusDotColor(
   if (lifecycle === "ready" || lifecycle === "running" || lifecycle === "rendering") {
     return "green";
   }
-  if (lifecycle === "booting" || lifecycle === "starting" || lifecycle === "recovering" || health === "degraded") {
+  if (
+    lifecycle === "booting" ||
+    lifecycle === "starting" ||
+    lifecycle === "recovering" ||
+    lifecycle === "panicked" ||
+    health === "degraded"
+  ) {
     return "yellow";
   }
   return "gray";
@@ -58,6 +64,21 @@ const detailStyle: React.CSSProperties = {
   marginTop: 4,
 };
 
+const metadataStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "88px minmax(0, 1fr)",
+  gap: "3px 10px",
+  marginTop: 8,
+  fontSize: 11,
+  color: "#8ba8a4",
+};
+
+const metadataValueStyle: React.CSSProperties = {
+  color: "#f2eee5",
+  minWidth: 0,
+  overflowWrap: "anywhere",
+};
+
 const buttonStyle: React.CSSProperties = {
   fontSize: 11,
   padding: "4px 10px",
@@ -85,6 +106,7 @@ export function RuntimeHealthPanel() {
   const panicAudio = useSessionStore((s) => s.panicAudio);
   const startVisual = useSessionStore((s) => s.startVisual);
   const stopVisual = useSessionStore((s) => s.stopVisual);
+  const panicVisual = useSessionStore((s) => s.panicVisual);
 
   const audioDot = statusDotColor(audioRuntime?.lifecycle ?? "idle", audioRuntime?.health ?? "unknown");
   const visualDot = statusDotColor(visualRuntime?.lifecycle ?? "idle", visualRuntime?.health ?? "unknown");
@@ -113,9 +135,22 @@ export function RuntimeHealthPanel() {
         </div>
         <div style={detailStyle}>{visualRuntime?.status ?? "idle / unknown"}</div>
         {visualRuntime?.detail ? <div style={detailStyle}>{visualRuntime.detail}</div> : null}
+        {visualRuntime ? (
+          <div style={metadataStyle}>
+            <span>Connection</span>
+            <strong style={metadataValueStyle}>{visualRuntime.connectionStatus}</strong>
+            <span>Scene</span>
+            <strong style={metadataValueStyle}>{visualRuntime.activeSceneLabel}</strong>
+            <span>Renderer</span>
+            <strong style={metadataValueStyle}>{visualRuntime.rendererLabel}</strong>
+            <span>Telemetry</span>
+            <strong style={metadataValueStyle}>{visualRuntime.fpsLabel}</strong>
+          </div>
+        ) : null}
         <div>
           {visualRuntime?.canStart ? <button type="button" style={buttonStyle} onClick={startVisual}>Start</button> : null}
           {visualRuntime?.canStop ? <button type="button" style={buttonStyle} onClick={stopVisual}>Stop</button> : null}
+          {visualRuntime?.canPanic ? <button type="button" style={buttonDangerStyle} onClick={panicVisual}>Panic</button> : null}
         </div>
       </div>
 

@@ -73,7 +73,10 @@ impl MinimalVisualRuntime {
 
                 vec![VisualToAppMessage::response(
                     message.sequence_id,
-                    VisualToAppPayload::SceneLoaded(VisualSceneLoaded { scene_id }),
+                    VisualToAppPayload::SceneLoaded(VisualSceneLoaded {
+                        scene_id,
+                        rendering: false,
+                    }),
                 )]
             }
             AppToVisualPayload::UpdateParameters(batch) => {

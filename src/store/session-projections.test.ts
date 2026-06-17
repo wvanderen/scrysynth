@@ -3,15 +3,29 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GraphEditCommand, SessionDocument } from "../generated/session-types";
 
 const clientMocks = vi.hoisted(() => ({
+  approvePendingAction: vi.fn(),
   applyGraphEdit: vi.fn<(command: GraphEditCommand) => Promise<SessionDocument>>(),
+  applyMacroCommand: vi.fn(),
   applyPerformanceCommand: vi.fn<(command: import("../generated/session-types").PerformanceCommand) => Promise<SessionDocument>>(),
   createDefaultSession: vi.fn<() => Promise<SessionDocument>>(),
+  getAgentRuntimeState: vi.fn(),
   getCurrentSession: vi.fn<() => Promise<SessionDocument>>(),
   openSessionFromPath: vi.fn<(path: string) => Promise<SessionDocument>>(),
   panicAudioRuntime: vi.fn<() => Promise<SessionDocument>>(),
+  panicVisualRuntime: vi.fn<() => Promise<SessionDocument>>(),
+  pollHardwareEvents: vi.fn(),
+  reclaimOwnership: vi.fn(),
+  rejectPendingAction: vi.fn(),
+  removeHardwareBinding: vi.fn(),
   saveSessionToPath: vi.fn<(path: string) => Promise<void>>(),
+  sendAgentMessage: vi.fn(),
   startAudioRuntime: vi.fn<() => Promise<SessionDocument>>(),
+  startHardwareLearn: vi.fn(),
+  startVisualRuntime: vi.fn<() => Promise<SessionDocument>>(),
   stopAudioRuntime: vi.fn<() => Promise<SessionDocument>>(),
+  stopHardwareLearn: vi.fn(),
+  stopVisualRuntime: vi.fn<() => Promise<SessionDocument>>(),
+  toggleAgentFreeze: vi.fn(),
 }));
 
 vi.mock("../lib/session-client", () => clientMocks);
@@ -118,6 +132,7 @@ function createSession(overrides: Partial<SessionDocument> = {}): SessionDocumen
     ownershipRules: [],
     runtimeStatus: [
       { id: "runtime-audio", runtime: "audio", status: "ready", targetId: "audio-runtime", lastError: null },
+      { id: "runtime-visual", runtime: "visual", status: "disconnected", targetId: "visual-runtime", lastError: null },
     ],
     agentFrozen: false,
     pendingActions: [],
@@ -301,6 +316,80 @@ describe("session projections", () => {
 
     expect(projection.audioRuntime.detail).toContain("Runtime server error");
     expect(projection.audioRuntime.detail).toContain("OSC /sync");
+  });
+
+  it("projects missing visual sidecar diagnostics as restartable setup guidance", () => {
+    const session = createSession({
+      visualRuntime: {
+        ...createSession().visualRuntime,
+        lifecycle: "failed",
+        health: "degraded",
+        lastError:
+          "visual runtime binary not found; install scrysynth-visual or set SCRYSYNTH_BEVY_PATH",
+      },
+      runtimeStatus: [
+        { id: "runtime-visual", runtime: "visual", status: "error", targetId: "visual-runtime", lastError: null },
+      ],
+    });
+
+    const projection = projectSessionState(session, null);
+
+    expect(projection.visualRuntime.status).toBe("missing sidecar / restartable");
+    expect(projection.visualRuntime.detail).toContain("SCRYSYNTH_BEVY_PATH");
+    expect(projection.visualRuntime.detail).toContain("Start again");
+    expect(projection.visualRuntime.canStart).toBe(true);
+    expect(projection.visualRuntime.isRestartable).toBe(true);
+  });
+
+  it("projects ready visual scene, renderer, connection, and telemetry state", () => {
+    const session = createSession({
+      visualRuntime: {
+        lifecycle: "ready",
+        health: "healthy",
+        activeSceneId: "scene-1",
+        fps: 59.7,
+        lastError: null,
+        renderer: "scrysynth-minimal-visual",
+      },
+      runtimeStatus: [
+        { id: "runtime-visual", runtime: "visual", status: "ready", targetId: "visual-runtime", lastError: null },
+      ],
+    });
+
+    const projection = projectSessionState(session, null);
+
+    expect(projection.visualRuntime.status).toBe("ready / healthy");
+    expect(projection.visualRuntime.detail).toContain("Scene Main (scene-1)");
+    expect(projection.visualRuntime.connectionStatus).toBe("ready");
+    expect(projection.visualRuntime.activeSceneLabel).toBe("Main (scene-1)");
+    expect(projection.visualRuntime.rendererLabel).toBe("scrysynth-minimal-visual");
+    expect(projection.visualRuntime.fpsLabel).toBe("60 FPS");
+    expect(projection.visualRuntime.canStop).toBe(true);
+    expect(projection.visualRuntime.canPanic).toBe(true);
+  });
+
+  it("projects stopped and panicked visual runtime states as legible restart paths", () => {
+    const stopped = projectSessionState(createSession(), null);
+
+    expect(stopped.visualRuntime.status).toBe("stopped / disconnected");
+    expect(stopped.visualRuntime.detail).toContain("Start launches");
+    expect(stopped.visualRuntime.canStart).toBe(true);
+
+    const panicked = projectSessionState(createSession({
+      visualRuntime: {
+        ...createSession().visualRuntime,
+        lifecycle: "panicked",
+        health: "degraded",
+        activeSceneId: "scene-1",
+        lastError:
+          "visual runtime panic requested; sidecar stopped and can be restarted",
+      },
+    }), null);
+
+    expect(panicked.visualRuntime.status).toBe("panicked / restartable");
+    expect(panicked.visualRuntime.detail).toContain("panic requested");
+    expect(panicked.visualRuntime.canStart).toBe(true);
+    expect(panicked.visualRuntime.canStop).toBe(false);
   });
 
   it("deriveSelectedNode returns null when selectedNodeId is null or not found", () => {

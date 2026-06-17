@@ -11,10 +11,10 @@ Current stage: foundation prototype. The session model, workspace surfaces, comm
 - JSON session save/open flow.
 - Graph, conversation, and performance workspace views.
 - Bounded graph edits, scene recall, variation save/restore, macro CRUD, and ownership controls.
-- Runtime manager shells for audio and visuals, including health state, actionable audio runtime diagnostics, and panic/stop controls.
+- Runtime managers for audio and visuals, including health state, actionable setup/runtime diagnostics, active visual scene/renderer readouts, and panic/stop/restart controls.
 - MIDI/OSC learn and routing model.
 
-Known limitation: the architecture is still ahead of the complete audiovisual runtime. Phase 7 real SuperCollider execution has been verified against a local `scsynth` install for the default source-to-output graph, including audible playback, live parameter change, stop, panic, and restart. Phase 8 now includes a minimal `scrysynth-visual` sidecar binary that speaks the JSON-lines visual protocol and keeps a stateful scene/parameter model; the app adapter still needs the next Phase 8 transport work before scene delivery is end-to-end from the UI.
+Known limitation: the architecture is still ahead of a complete audiovisual instrument. Phase 7 real SuperCollider execution has been verified against a local `scsynth` install for the default source-to-output graph, including audible playback, live parameter change, stop, panic, and restart. Phase 8 now has a verified minimal visual sidecar path: the app launches `scrysynth-visual`, handshakes over JSON lines, loads a compiled scene, applies live parameter updates, stops, panics, and restarts after panic. The renderer is intentionally minimal and GPU-free for now; richer Bevy visuals and packaged sidecar wiring remain future hardening work.
 
 ## Local Requirements
 
@@ -53,6 +53,8 @@ export SCRYSYNTH_SCSYNTH_PATH="/path/to/scsynth"
 ```
 
 If audio startup fails, the Runtime Health panel reports the specific setup or server stage. Missing `scsynth` messages include `SCRYSYNTH_SCSYNTH_PATH`; on macOS the app also checks `/Applications/SuperCollider.app/Contents/Resources/scsynth` before reporting that the executable is missing. OSC `/sync`, SynthDef load, topology apply, and panic recovery failures are shown as audio runtime details so setup issues can be fixed without reading backend logs first.
+
+If visual startup fails, the Runtime Health panel reports the visual lifecycle, connection state, active scene, renderer, telemetry label, and actionable sidecar errors. Missing sidecar messages include `SCRYSYNTH_BEVY_PATH`; panic leaves the visual runtime in a restartable `panicked` state so Start can relaunch the sidecar and reload the active scene.
 
 ## Development
 
@@ -95,6 +97,8 @@ export SCRYSYNTH_BEVY_PATH="$PWD/src-tauri/target/debug/scrysynth-visual"
 
 The sidecar reads Phase 8 JSON-lines messages on stdin and writes JSON-lines replies on stdout. It is intentionally minimal and GPU-free for now: handshake returns renderer readiness, scene load stores a `CompiledVisualScene` snapshot, parameter batches update that live scene state without restart, and graceful or panic shutdown requests return shutdown acknowledgements.
 
+Phase 8 visual UAT evidence is tracked in `.planning/phases/08-real-visual-runtime-path/08-real-visual-runtime-path-05-UAT.md`. The verified path covers missing sidecar diagnostics, real sidecar handshake, scene load, live parameter update, stop, panic, and restart after panic.
+
 ## Manual Audio UAT
 
 Phase 7 completion requires a real local SuperCollider check, not just automated tests:
@@ -121,7 +125,7 @@ The planned foundation phases are complete in the planning history:
 The project is not release-ready yet. The next milestone is v1 runtime hardening:
 
 - Extend the verified SuperCollider path beyond the default graph as new primitives and routing workflows are hardened.
-- Build or wire the visual sidecar and protocol.
+- Extend the verified minimal visual sidecar into a richer Bevy-rendered runtime and package it as a Tauri sidecar.
 - Connect MIDI/OSC listeners into the app runtime, not only the testable router.
 - Replace deterministic agent parsing with a real session-aware agent orchestration layer.
 - Clean up packaging, docs, release checks, and manual verification.
