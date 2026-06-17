@@ -615,6 +615,159 @@ pub struct HardwareBinding {
     pub transform: ValueTransform,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct MidiInputPort {
+    pub id: String,
+    pub display_name: String,
+    pub is_selected: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct MidiInputSettings {
+    pub selected_input_id: Option<String>,
+    pub auto_start: bool,
+}
+
+impl Default for MidiInputSettings {
+    fn default() -> Self {
+        Self {
+            selected_input_id: None,
+            auto_start: false,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct OscInputSettings {
+    pub bind_host: String,
+    pub listen_port: u16,
+    pub auto_start: bool,
+}
+
+impl Default for OscInputSettings {
+    fn default() -> Self {
+        Self {
+            bind_host: "127.0.0.1".to_string(),
+            listen_port: 9000,
+            auto_start: false,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct HardwareRuntimeSettings {
+    pub midi: MidiInputSettings,
+    pub osc: OscInputSettings,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum HardwareListenerLifecycle {
+    Unavailable,
+    #[default]
+    Stopped,
+    Starting,
+    Listening,
+    Restarting,
+    Error,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct MidiRuntimeStatus {
+    pub lifecycle: HardwareListenerLifecycle,
+    pub selected_input_id: Option<String>,
+    pub selected_display_name: Option<String>,
+    pub available_input_count: Option<u32>,
+    pub last_error: Option<String>,
+}
+
+impl Default for MidiRuntimeStatus {
+    fn default() -> Self {
+        Self {
+            lifecycle: HardwareListenerLifecycle::Stopped,
+            selected_input_id: None,
+            selected_display_name: None,
+            available_input_count: None,
+            last_error: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct OscRuntimeStatus {
+    pub lifecycle: HardwareListenerLifecycle,
+    pub bind_host: String,
+    pub listen_port: u16,
+    pub last_error: Option<String>,
+}
+
+impl Default for OscRuntimeStatus {
+    fn default() -> Self {
+        let settings = OscInputSettings::default();
+        Self {
+            lifecycle: HardwareListenerLifecycle::Stopped,
+            bind_host: settings.bind_host,
+            listen_port: settings.listen_port,
+            last_error: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum HardwareLearnLifecycle {
+    #[default]
+    Idle,
+    Learning,
+    Captured,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct HardwareLearnStatus {
+    pub lifecycle: HardwareLearnLifecycle,
+    pub target: Option<BindingTarget>,
+    pub source: Option<HardwareSource>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum HardwareRuntimeDiagnosticCode {
+    NoMidiPorts,
+    InvalidMidiPortSelection,
+    MidiEnumerationFailed,
+    OscBindFailed,
+    OscPortInUse,
+    ListenerRestartRequired,
+    ListenerRestarted,
+    ListenerStopped,
+    ListenerStartPending,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct HardwareRuntimeDiagnostic {
+    pub code: HardwareRuntimeDiagnosticCode,
+    pub message: String,
+    pub recoverable: bool,
+    pub detail: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct HardwareRuntimeStatus {
+    pub midi: MidiRuntimeStatus,
+    pub osc: OscRuntimeStatus,
+    pub learn: HardwareLearnStatus,
+    pub diagnostics: Vec<HardwareRuntimeDiagnostic>,
+}
+
 fn default_enabled() -> bool {
     true
 }
@@ -696,6 +849,18 @@ pub fn write_generated_typescript_contract() -> std::io::Result<()> {
         BindingTarget::decl(&cfg),
         ValueTransform::decl(&cfg),
         HardwareBinding::decl(&cfg),
+        MidiInputPort::decl(&cfg),
+        MidiInputSettings::decl(&cfg),
+        OscInputSettings::decl(&cfg),
+        HardwareRuntimeSettings::decl(&cfg),
+        HardwareListenerLifecycle::decl(&cfg),
+        MidiRuntimeStatus::decl(&cfg),
+        OscRuntimeStatus::decl(&cfg),
+        HardwareLearnLifecycle::decl(&cfg),
+        HardwareLearnStatus::decl(&cfg),
+        HardwareRuntimeDiagnosticCode::decl(&cfg),
+        HardwareRuntimeDiagnostic::decl(&cfg),
+        HardwareRuntimeStatus::decl(&cfg),
     ]
     .join("\n\n");
 

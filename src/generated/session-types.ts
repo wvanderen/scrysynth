@@ -107,3 +107,27 @@ export type BindingTarget = { "kind": "macro", "config": { macro_id: string, } }
 export type ValueTransform = { inputMin: number, inputMax: number, outputMin: number, outputMax: number, };
 
 export type HardwareBinding = { id: string, source: HardwareSource, target: BindingTarget, transform: ValueTransform, };
+
+export type MidiInputPort = { id: string, displayName: string, isSelected: boolean, };
+
+export type MidiInputSettings = { selectedInputId: string | null, autoStart: boolean, };
+
+export type OscInputSettings = { bindHost: string, listenPort: number, autoStart: boolean, };
+
+export type HardwareRuntimeSettings = { midi: MidiInputSettings, osc: OscInputSettings, };
+
+export type HardwareListenerLifecycle = "unavailable" | "stopped" | "starting" | "listening" | "restarting" | "error";
+
+export type MidiRuntimeStatus = { lifecycle: HardwareListenerLifecycle, selectedInputId: string | null, selectedDisplayName: string | null, availableInputCount: number | null, lastError: string | null, };
+
+export type OscRuntimeStatus = { lifecycle: HardwareListenerLifecycle, bindHost: string, listenPort: number, lastError: string | null, };
+
+export type HardwareLearnLifecycle = "idle" | "learning" | "captured";
+
+export type HardwareLearnStatus = { lifecycle: HardwareLearnLifecycle, target: BindingTarget | null, source: HardwareSource | null, };
+
+export type HardwareRuntimeDiagnosticCode = "no_midi_ports" | "invalid_midi_port_selection" | "midi_enumeration_failed" | "osc_bind_failed" | "osc_port_in_use" | "listener_restart_required" | "listener_restarted" | "listener_stopped" | "listener_start_pending";
+
+export type HardwareRuntimeDiagnostic = { code: HardwareRuntimeDiagnosticCode, message: string, recoverable: boolean, detail: string | null, };
+
+export type HardwareRuntimeStatus = { midi: MidiRuntimeStatus, osc: OscRuntimeStatus, learn: HardwareLearnStatus, diagnostics: Array<HardwareRuntimeDiagnostic>, };

@@ -1,14 +1,18 @@
-use crate::application::midi_learn::HardwareInputRouter;
+use crate::application::midi_learn::{HardwareInputRouter, HardwareLearnState};
 use crate::audio::runtime_manager::{AudioRuntimeManager, AudioRuntimeManagerError};
 use crate::domain::session::{
     new_id, ActionHistoryEntry, ActorRef, AgentRuntimeState, AudioBusType, AudioOutputNode,
     AudioOutputType, AudioPrimitive, AudioRuntimeHealth, AudioRuntimeLifecycle, AudioRuntimeState,
     AudioSourceNode, AudioSourceType, BindingTarget, Bus, ChannelMode, ControllerKind, DiffSummary,
-    GraphEditCommand, HardwareBinding, MacroDefinition, MacroOverride, Node, NodeType,
-    OwnershipAssignment, OwnershipRule, ParameterOverride, ParameterValue, PerformanceCommand,
-    Port, PortDirection, Route, RuntimeConnectionState, RuntimeKind, RuntimeStatusRef,
-    SceneDefinition, SessionDocument, SignalType, TypedCommand, VariationDefinition,
+    GraphEditCommand, HardwareBinding, HardwareLearnLifecycle, HardwareLearnStatus,
+    HardwareListenerLifecycle, HardwareRuntimeDiagnostic, HardwareRuntimeDiagnosticCode,
+    HardwareRuntimeSettings, HardwareRuntimeStatus, MacroDefinition, MacroOverride, MidiInputPort,
+    Node, NodeType, OscRuntimeStatus, OwnershipAssignment, OwnershipRule, ParameterOverride,
+    ParameterValue, PerformanceCommand, Port, PortDirection, Route, RuntimeConnectionState,
+    RuntimeKind, RuntimeStatusRef, SceneDefinition, SessionDocument, SignalType, TypedCommand,
+    VariationDefinition,
 };
+use crate::hardware::midi_input::MidiInputManager;
 use crate::visual::runtime_manager::{VisualRuntimeManager, VisualRuntimeManagerError};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -45,6 +49,8 @@ pub struct SessionStore {
     visual_runtime_manager: VisualRuntimeManager,
     #[allow(dead_code)]
     hardware_router: HardwareInputRouter,
+    hardware_settings: HardwareRuntimeSettings,
+    hardware_status: HardwareRuntimeStatus,
 }
 
 impl SessionStore {
@@ -54,6 +60,8 @@ impl SessionStore {
             audio_runtime_manager: AudioRuntimeManager::default(),
             visual_runtime_manager: VisualRuntimeManager::default(),
             hardware_router: HardwareInputRouter::new(),
+            hardware_settings: HardwareRuntimeSettings::default(),
+            hardware_status: HardwareRuntimeStatus::default(),
         }
     }
 
@@ -171,6 +179,239 @@ impl SessionStore {
         }
     }
 
+    pub fn list_midi_input_ports(&mut self) -> Result<Vec<MidiInputPort>, String> {
+        match MidiInputManager::list_devices() {
+            Ok(names) => {
+                let selected = self.hardware_settings.midi.selected_input_id.clone();
+                let ports: Vec<MidiInputPort> = names
+                    .iter()
+                    .enumerate()
+                    .map(|(index, display_name)| {
+                        let id = midi_port_id(index);
+                        MidiInputPort {
+                            is_selected: selected.as_deref() == Some(id.as_str()),
+                            id,
+                            display_name: display_name.clone(),
+                        }
+                    })
+                    .collect();
+
+                self.hardware_status.midi.available_input_count = Some(ports.len() as u32);
+                self.hardware_status.midi.selected_input_id = selected.clone();
+                self.hardware_status.midi.selected_display_name = ports
+                    .iter()
+                    .find(|port| port.is_selected)
+                    .map(|port| port.display_name.clone());
+                self.hardware_status.midi.last_error = None;
+                self.hardware_status.diagnostics.clear();
+
+                if ports.is_empty() {
+                    self.hardware_status.midi.lifecycle = HardwareListenerLifecycle::Unavailable;
+                    self.record_hardware_diagnostic(HardwareRuntimeDiagnostic {
+                        code: HardwareRuntimeDiagnosticCode::NoMidiPorts,
+                        message: "No MIDI input ports are available.".to_string(),
+                        recoverable: true,
+                        detail: Some(
+                            "Connect or enable a MIDI device, then refresh hardware inputs."
+                                .to_string(),
+                        ),
+                    });
+                } else if selected
+                    .as_deref()
+                    .is_some_and(|id| !ports.iter().any(|port| port.id == id))
+                {
+                    self.hardware_status.midi.lifecycle = HardwareListenerLifecycle::Error;
+                    self.hardware_status.midi.last_error =
+                        Some("Selected MIDI input is no longer available.".to_string());
+                    self.record_hardware_diagnostic(invalid_midi_selection_diagnostic(
+                        selected.as_deref().unwrap_or_default(),
+                    ));
+                } else if self.hardware_status.midi.lifecycle
+                    == HardwareListenerLifecycle::Unavailable
+                    || self.hardware_status.midi.lifecycle == HardwareListenerLifecycle::Error
+                {
+                    self.hardware_status.midi.lifecycle = HardwareListenerLifecycle::Stopped;
+                }
+
+                Ok(ports)
+            }
+            Err(err) => {
+                self.hardware_status.midi.lifecycle = HardwareListenerLifecycle::Error;
+                self.hardware_status.midi.last_error = Some(err.clone());
+                self.hardware_status.diagnostics.clear();
+                self.record_hardware_diagnostic(HardwareRuntimeDiagnostic {
+                    code: HardwareRuntimeDiagnosticCode::MidiEnumerationFailed,
+                    message: "Could not enumerate MIDI input ports.".to_string(),
+                    recoverable: true,
+                    detail: Some(err.clone()),
+                });
+                Err(err)
+            }
+        }
+    }
+
+    pub fn hardware_runtime_settings(&self) -> HardwareRuntimeSettings {
+        self.hardware_settings.clone()
+    }
+
+    pub fn update_hardware_runtime_settings(
+        &mut self,
+        settings: HardwareRuntimeSettings,
+    ) -> Result<HardwareRuntimeStatus, String> {
+        validate_osc_settings(&settings)?;
+        self.validate_selected_midi_input(&settings)?;
+
+        let needs_restart = self.hardware_settings != settings
+            && (self.hardware_status.midi.lifecycle == HardwareListenerLifecycle::Listening
+                || self.hardware_status.osc.lifecycle == HardwareListenerLifecycle::Listening);
+
+        self.hardware_settings = settings.clone();
+        self.hardware_status.midi.selected_input_id = settings.midi.selected_input_id.clone();
+        self.hardware_status.osc = OscRuntimeStatus {
+            lifecycle: if needs_restart {
+                HardwareListenerLifecycle::Restarting
+            } else {
+                self.hardware_status.osc.lifecycle.clone()
+            },
+            bind_host: settings.osc.bind_host.clone(),
+            listen_port: settings.osc.listen_port,
+            last_error: None,
+        };
+        self.hardware_status.diagnostics.clear();
+
+        if needs_restart {
+            self.record_hardware_diagnostic(HardwareRuntimeDiagnostic {
+                code: HardwareRuntimeDiagnosticCode::ListenerRestartRequired,
+                message: "Hardware settings changed while listeners were active.".to_string(),
+                recoverable: true,
+                detail: Some(
+                    "Restart MIDI and OSC listeners so the new configuration takes effect."
+                        .to_string(),
+                ),
+            });
+        }
+
+        Ok(self.hardware_runtime_status())
+    }
+
+    pub fn hardware_runtime_status(&self) -> HardwareRuntimeStatus {
+        let mut status = self.hardware_status.clone();
+        status.learn = match &self.hardware_router.learn_state {
+            HardwareLearnState::Idle => HardwareLearnStatus {
+                lifecycle: HardwareLearnLifecycle::Idle,
+                target: None,
+                source: None,
+            },
+            HardwareLearnState::Learning { target } => HardwareLearnStatus {
+                lifecycle: HardwareLearnLifecycle::Learning,
+                target: Some(target.clone()),
+                source: None,
+            },
+            HardwareLearnState::Captured { source, target } => HardwareLearnStatus {
+                lifecycle: HardwareLearnLifecycle::Captured,
+                target: Some(target.clone()),
+                source: Some(source.clone()),
+            },
+        };
+        status.midi.selected_input_id = self.hardware_settings.midi.selected_input_id.clone();
+        status.osc.bind_host = self.hardware_settings.osc.bind_host.clone();
+        status.osc.listen_port = self.hardware_settings.osc.listen_port;
+        status
+    }
+
+    pub fn start_hardware_listeners(&mut self) -> Result<HardwareRuntimeStatus, String> {
+        self.hardware_status.diagnostics.clear();
+        let _ = self.list_midi_input_ports();
+        self.record_hardware_diagnostic(HardwareRuntimeDiagnostic {
+            code: HardwareRuntimeDiagnosticCode::ListenerStartPending,
+            message: "Hardware listener startup is defined but not wired yet.".to_string(),
+            recoverable: true,
+            detail: Some("Phase 9.2 wires MIDI handles; Phase 9.3 wires OSC sockets.".to_string()),
+        });
+        Ok(self.hardware_runtime_status())
+    }
+
+    pub fn stop_hardware_listeners(&mut self) -> HardwareRuntimeStatus {
+        self.hardware_status.midi.lifecycle = HardwareListenerLifecycle::Stopped;
+        self.hardware_status.osc.lifecycle = HardwareListenerLifecycle::Stopped;
+        self.hardware_status.midi.last_error = None;
+        self.hardware_status.osc.last_error = None;
+        self.hardware_status.diagnostics.clear();
+        self.record_hardware_diagnostic(HardwareRuntimeDiagnostic {
+            code: HardwareRuntimeDiagnosticCode::ListenerStopped,
+            message: "Hardware listeners are stopped.".to_string(),
+            recoverable: true,
+            detail: None,
+        });
+        self.hardware_runtime_status()
+    }
+
+    pub fn drain_hardware_events(&mut self, max_events: Option<u32>) -> SessionDocument {
+        let limit = max_events.unwrap_or(16).clamp(1, 128);
+        for _ in 0..limit {
+            if self.poll_hardware_events().is_none() {
+                break;
+            }
+        }
+        self.current()
+    }
+
+    fn validate_selected_midi_input(
+        &mut self,
+        settings: &HardwareRuntimeSettings,
+    ) -> Result<(), String> {
+        let Some(selected_input_id) = settings.midi.selected_input_id.as_deref() else {
+            return Ok(());
+        };
+        let Some(index) = parse_midi_port_id(selected_input_id) else {
+            let diagnostic = invalid_midi_selection_diagnostic(selected_input_id);
+            let message = diagnostic.message.clone();
+            self.hardware_status.diagnostics.clear();
+            self.record_hardware_diagnostic(diagnostic);
+            return Err(message);
+        };
+
+        let ports = MidiInputManager::list_devices().map_err(|err| {
+            self.hardware_status.diagnostics.clear();
+            self.record_hardware_diagnostic(HardwareRuntimeDiagnostic {
+                code: HardwareRuntimeDiagnosticCode::MidiEnumerationFailed,
+                message: "Could not validate the selected MIDI input.".to_string(),
+                recoverable: true,
+                detail: Some(err.clone()),
+            });
+            err
+        })?;
+
+        if ports.is_empty() {
+            let diagnostic = HardwareRuntimeDiagnostic {
+                code: HardwareRuntimeDiagnosticCode::NoMidiPorts,
+                message: "No MIDI input ports are available.".to_string(),
+                recoverable: true,
+                detail: Some(
+                    "Connect or enable a MIDI device before selecting a MIDI input.".to_string(),
+                ),
+            };
+            let message = diagnostic.message.clone();
+            self.hardware_status.diagnostics.clear();
+            self.record_hardware_diagnostic(diagnostic);
+            return Err(message);
+        }
+
+        if index >= ports.len() {
+            let diagnostic = invalid_midi_selection_diagnostic(selected_input_id);
+            let message = diagnostic.message.clone();
+            self.hardware_status.diagnostics.clear();
+            self.record_hardware_diagnostic(diagnostic);
+            return Err(message);
+        }
+
+        Ok(())
+    }
+
+    fn record_hardware_diagnostic(&mut self, diagnostic: HardwareRuntimeDiagnostic) {
+        self.hardware_status.diagnostics.push(diagnostic);
+    }
+
     pub fn derive_agent_runtime_state(&self) -> AgentRuntimeState {
         AgentRuntimeState {
             is_available: true,
@@ -249,6 +490,35 @@ impl SessionStore {
             }
             Ok::<(), ()>(())
         });
+    }
+}
+
+fn midi_port_id(index: usize) -> String {
+    format!("midi-input-{index}")
+}
+
+fn parse_midi_port_id(id: &str) -> Option<usize> {
+    id.strip_prefix("midi-input-")?.parse().ok()
+}
+
+fn validate_osc_settings(settings: &HardwareRuntimeSettings) -> Result<(), String> {
+    if settings.osc.bind_host.trim().is_empty() {
+        return Err("OSC bind host cannot be empty".to_string());
+    }
+    if settings.osc.listen_port == 0 {
+        return Err("OSC listen port must be between 1 and 65535".to_string());
+    }
+    Ok(())
+}
+
+fn invalid_midi_selection_diagnostic(selected_input_id: &str) -> HardwareRuntimeDiagnostic {
+    HardwareRuntimeDiagnostic {
+        code: HardwareRuntimeDiagnosticCode::InvalidMidiPortSelection,
+        message: "Selected MIDI input is not available.".to_string(),
+        recoverable: true,
+        detail: Some(format!(
+            "The selected input id '{selected_input_id}' was not found in the current MIDI port list."
+        )),
     }
 }
 

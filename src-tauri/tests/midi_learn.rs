@@ -5,8 +5,9 @@ use scrysynth_lib::application::midi_learn::{
 };
 use scrysynth_lib::application::session_store::SessionStore;
 use scrysynth_lib::domain::session::{
-    new_id, BindingTarget, HardwareBinding, HardwareSource, MacroDefinition, MacroTarget, Node,
-    NodeType, OwnershipAssignment, ParameterValue, Port, PortDirection, SessionDocument,
+    new_id, BindingTarget, HardwareBinding, HardwareLearnLifecycle, HardwareListenerLifecycle,
+    HardwareRuntimeSettings, HardwareRuntimeStatus, HardwareSource, MacroDefinition, MacroTarget,
+    Node, NodeType, OwnershipAssignment, ParameterValue, Port, PortDirection, SessionDocument,
     SignalType, ValueTransform,
 };
 use scrysynth_lib::hardware::midi_input::{parse_midi_message, MidiLearnEvent};
@@ -357,6 +358,28 @@ fn typescript_contract_includes_hardware_types() {
     assert!(generated.contains("export type HardwareSource"));
     assert!(generated.contains("export type BindingTarget"));
     assert!(generated.contains("export type ValueTransform"));
+    assert!(generated.contains("export type HardwareRuntimeSettings"));
+    assert!(generated.contains("export type HardwareRuntimeStatus"));
+    assert!(generated.contains("export type MidiInputPort"));
+}
+
+#[test]
+fn hardware_runtime_contract_stays_outside_session_document() {
+    let settings = HardwareRuntimeSettings::default();
+    assert_eq!(settings.midi.selected_input_id, None);
+    assert!(!settings.midi.auto_start);
+    assert_eq!(settings.osc.bind_host, "127.0.0.1");
+    assert_eq!(settings.osc.listen_port, 9000);
+
+    let status = HardwareRuntimeStatus::default();
+    assert_eq!(status.midi.lifecycle, HardwareListenerLifecycle::Stopped);
+    assert_eq!(status.osc.lifecycle, HardwareListenerLifecycle::Stopped);
+    assert_eq!(status.learn.lifecycle, HardwareLearnLifecycle::Idle);
+
+    let session_json = serde_json::to_value(SessionDocument::default()).expect("serialize session");
+    assert!(session_json.get("hardwareBindings").is_some());
+    assert!(session_json.get("hardwareRuntimeSettings").is_none());
+    assert!(session_json.get("hardwareRuntimeStatus").is_none());
 }
 
 #[test]

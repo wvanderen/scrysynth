@@ -8,7 +8,10 @@ import type {
   BindingTarget,
   GraphEditCommand,
   HardwareBinding,
+  HardwareRuntimeSettings,
+  HardwareRuntimeStatus,
   MacroCommand,
+  MidiInputPort,
   PerformanceCommand,
   PendingAction,
   SessionDocument,
@@ -299,6 +302,67 @@ const hardwareBindingSchema: z.ZodType<HardwareBinding> = z.object({
   transform: valueTransformSchema,
 });
 
+const midiInputPortSchema: z.ZodType<MidiInputPort> = z.object({
+  id: z.string(),
+  displayName: z.string(),
+  isSelected: z.boolean(),
+});
+
+const hardwareRuntimeSettingsSchema: z.ZodType<HardwareRuntimeSettings> = z.object({
+  midi: z.object({
+    selectedInputId: z.string().nullable(),
+    autoStart: z.boolean(),
+  }),
+  osc: z.object({
+    bindHost: z.string(),
+    listenPort: z.number(),
+    autoStart: z.boolean(),
+  }),
+});
+
+const hardwareListenerLifecycleSchema = z.enum(["unavailable", "stopped", "starting", "listening", "restarting", "error"]);
+const hardwareLearnLifecycleSchema = z.enum(["idle", "learning", "captured"]);
+const hardwareRuntimeDiagnosticCodeSchema = z.enum([
+  "no_midi_ports",
+  "invalid_midi_port_selection",
+  "midi_enumeration_failed",
+  "osc_bind_failed",
+  "osc_port_in_use",
+  "listener_restart_required",
+  "listener_restarted",
+  "listener_stopped",
+  "listener_start_pending",
+]);
+
+const hardwareRuntimeDiagnosticSchema = z.object({
+  code: hardwareRuntimeDiagnosticCodeSchema,
+  message: z.string(),
+  recoverable: z.boolean(),
+  detail: z.string().nullable(),
+});
+
+const hardwareRuntimeStatusSchema: z.ZodType<HardwareRuntimeStatus> = z.object({
+  midi: z.object({
+    lifecycle: hardwareListenerLifecycleSchema,
+    selectedInputId: z.string().nullable(),
+    selectedDisplayName: z.string().nullable(),
+    availableInputCount: z.number().nullable(),
+    lastError: z.string().nullable(),
+  }),
+  osc: z.object({
+    lifecycle: hardwareListenerLifecycleSchema,
+    bindHost: z.string(),
+    listenPort: z.number(),
+    lastError: z.string().nullable(),
+  }),
+  learn: z.object({
+    lifecycle: hardwareLearnLifecycleSchema,
+    target: bindingTargetSchema.nullable(),
+    source: hardwareSourceSchema.nullable(),
+  }),
+  diagnostics: z.array(hardwareRuntimeDiagnosticSchema),
+});
+
 const sessionDocumentSchema: z.ZodType<SessionDocument> = z.object({
   schemaVersion: z.number(),
   sessionId: z.string(),
@@ -440,4 +504,39 @@ export async function pollHardwareEvents(): Promise<SessionDocument> {
 
 export async function removeHardwareBinding(bindingId: string): Promise<SessionDocument> {
   return invokeSession("remove_hardware_binding", { bindingId });
+}
+
+export async function listMidiInputPorts(): Promise<MidiInputPort[]> {
+  const payload = await invoke("list_midi_input_ports");
+  return z.array(midiInputPortSchema).parse(payload);
+}
+
+export async function getHardwareRuntimeSettings(): Promise<HardwareRuntimeSettings> {
+  const payload = await invoke("get_hardware_runtime_settings");
+  return hardwareRuntimeSettingsSchema.parse(payload);
+}
+
+export async function updateHardwareRuntimeSettings(settings: HardwareRuntimeSettings): Promise<HardwareRuntimeStatus> {
+  hardwareRuntimeSettingsSchema.parse(settings);
+  const payload = await invoke("update_hardware_runtime_settings", { settings });
+  return hardwareRuntimeStatusSchema.parse(payload);
+}
+
+export async function getHardwareRuntimeStatus(): Promise<HardwareRuntimeStatus> {
+  const payload = await invoke("get_hardware_runtime_status");
+  return hardwareRuntimeStatusSchema.parse(payload);
+}
+
+export async function startHardwareListeners(): Promise<HardwareRuntimeStatus> {
+  const payload = await invoke("start_hardware_listeners");
+  return hardwareRuntimeStatusSchema.parse(payload);
+}
+
+export async function stopHardwareListeners(): Promise<HardwareRuntimeStatus> {
+  const payload = await invoke("stop_hardware_listeners");
+  return hardwareRuntimeStatusSchema.parse(payload);
+}
+
+export async function drainHardwareEvents(maxEvents?: number): Promise<SessionDocument> {
+  return invokeSession("drain_hardware_events", { maxEvents: maxEvents ?? null });
 }

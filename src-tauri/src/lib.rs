@@ -16,7 +16,8 @@ use application::performance_command;
 use application::session_store::SessionStore;
 use domain::session::{
     write_generated_typescript_contract, ActorRef, AgentRuntimeState, BindingTarget,
-    ControllerKind, GraphEditCommand, MacroCommand, PerformanceCommand, SessionDocument,
+    ControllerKind, GraphEditCommand, HardwareRuntimeSettings, HardwareRuntimeStatus, MacroCommand,
+    MidiInputPort, PerformanceCommand, SessionDocument,
 };
 use persistence::session_file;
 
@@ -245,6 +246,64 @@ fn remove_hardware_binding(
     Ok(store.current())
 }
 
+#[tauri::command]
+fn list_midi_input_ports(
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<Vec<MidiInputPort>, String> {
+    let mut store = state.lock().map_err(|err| err.to_string())?;
+    store.list_midi_input_ports()
+}
+
+#[tauri::command]
+fn get_hardware_runtime_settings(
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<HardwareRuntimeSettings, String> {
+    let store = state.lock().map_err(|err| err.to_string())?;
+    Ok(store.hardware_runtime_settings())
+}
+
+#[tauri::command]
+fn update_hardware_runtime_settings(
+    settings: HardwareRuntimeSettings,
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<HardwareRuntimeStatus, String> {
+    let mut store = state.lock().map_err(|err| err.to_string())?;
+    store.update_hardware_runtime_settings(settings)
+}
+
+#[tauri::command]
+fn get_hardware_runtime_status(
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<HardwareRuntimeStatus, String> {
+    let store = state.lock().map_err(|err| err.to_string())?;
+    Ok(store.hardware_runtime_status())
+}
+
+#[tauri::command]
+fn start_hardware_listeners(
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<HardwareRuntimeStatus, String> {
+    let mut store = state.lock().map_err(|err| err.to_string())?;
+    store.start_hardware_listeners()
+}
+
+#[tauri::command]
+fn stop_hardware_listeners(
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<HardwareRuntimeStatus, String> {
+    let mut store = state.lock().map_err(|err| err.to_string())?;
+    Ok(store.stop_hardware_listeners())
+}
+
+#[tauri::command]
+fn drain_hardware_events(
+    max_events: Option<u32>,
+    state: tauri::State<'_, Mutex<SessionStore>>,
+) -> Result<SessionDocument, String> {
+    let mut store = state.lock().map_err(|err| err.to_string())?;
+    Ok(store.drain_hardware_events(max_events))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     if let Err(err) = write_generated_typescript_contract() {
@@ -280,7 +339,14 @@ pub fn run() {
             start_hardware_learn,
             stop_hardware_learn,
             poll_hardware_events,
-            remove_hardware_binding
+            remove_hardware_binding,
+            list_midi_input_ports,
+            get_hardware_runtime_settings,
+            update_hardware_runtime_settings,
+            get_hardware_runtime_status,
+            start_hardware_listeners,
+            stop_hardware_listeners,
+            drain_hardware_events
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
