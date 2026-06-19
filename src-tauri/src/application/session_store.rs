@@ -1,4 +1,8 @@
-use crate::application::midi_learn::{HardwareInputRouter, HardwareLearnState};
+use crate::application::macro_command;
+use crate::application::midi_learn::{
+    scale_value_exposed, HardwareInputRouter, HardwareLearnState, HardwareRouteAction,
+};
+use crate::application::performance_command;
 use crate::audio::runtime_manager::{AudioRuntimeManager, AudioRuntimeManagerError};
 use crate::domain::session::{
     new_id, ActionHistoryEntry, ActorRef, AgentRuntimeState, AudioBusType, AudioOutputNode,
@@ -6,11 +10,11 @@ use crate::domain::session::{
     AudioSourceNode, AudioSourceType, BindingTarget, Bus, ChannelMode, ControllerKind, DiffSummary,
     GraphEditCommand, HardwareBinding, HardwareLearnLifecycle, HardwareLearnStatus,
     HardwareListenerLifecycle, HardwareRuntimeDiagnostic, HardwareRuntimeDiagnosticCode,
-    HardwareRuntimeSettings, HardwareRuntimeStatus, MacroDefinition, MacroOverride, MidiInputPort,
-    Node, NodeType, OscRuntimeStatus, OwnershipAssignment, OwnershipRule, ParameterOverride,
-    ParameterValue, PerformanceCommand, Port, PortDirection, Route, RuntimeConnectionState,
-    RuntimeKind, RuntimeStatusRef, SceneDefinition, SessionDocument, SignalType, TypedCommand,
-    VariationDefinition,
+    HardwareRuntimeSettings, HardwareRuntimeStatus, MacroCommand, MacroDefinition, MacroOverride,
+    MidiInputPort, Node, NodeType, OscRuntimeStatus, OwnershipAssignment, OwnershipRule,
+    ParameterOverride, ParameterValue, PerformanceCommand, Port, PortDirection, Route,
+    RuntimeConnectionState, RuntimeKind, RuntimeStatusRef, SceneDefinition, SessionDocument,
+    SignalType, TypedCommand, VariationDefinition,
 };
 use crate::hardware::midi_input::MidiInputManager;
 use crate::hardware::osc_input::OscInputManager;
@@ -113,6 +117,24 @@ impl SessionStore {
         result
     }
 
+    pub fn reconcile_audio_macro_value(
+        &mut self,
+        macro_id: &str,
+        value: f64,
+    ) -> Result<SessionDocument, AudioRuntimeManagerError> {
+        let mut manager = std::mem::take(&mut self.audio_runtime_manager);
+        let result = manager.reconcile_macro_value(self, macro_id, value);
+        self.audio_runtime_manager = manager;
+        result
+    }
+
+    pub fn reload_audio_topology(&mut self) -> Result<SessionDocument, AudioRuntimeManagerError> {
+        let mut manager = std::mem::take(&mut self.audio_runtime_manager);
+        let result = manager.reload_topology_if_ready(self);
+        self.audio_runtime_manager = manager;
+        result
+    }
+
     pub fn start_visual_runtime(&mut self) -> Result<SessionDocument, VisualRuntimeManagerError> {
         let mut manager = std::mem::take(&mut self.visual_runtime_manager);
         let result = manager.start(self);
@@ -178,7 +200,14 @@ impl SessionStore {
     }
 
     pub fn poll_hardware_events(&mut self) -> Option<HardwareBinding> {
-        self.hardware_router.poll_and_route(&mut self.current)
+        match self.hardware_router.poll_action(&mut self.current) {
+            Some(HardwareRouteAction::CapturedBinding(binding)) => Some(binding),
+            Some(HardwareRouteAction::LiveEvent { source, raw_value }) => {
+                self.route_hardware_live_event(&source, raw_value);
+                None
+            }
+            None => None,
+        }
     }
 
     pub fn remove_hardware_binding(&mut self, binding_id: &str) -> bool {
@@ -376,11 +405,117 @@ impl SessionStore {
     pub fn drain_hardware_events(&mut self, max_events: Option<u32>) -> SessionDocument {
         let limit = max_events.unwrap_or(16).clamp(1, 128);
         for _ in 0..limit {
-            if self.poll_hardware_events().is_none() {
-                break;
+            match self.hardware_router.poll_action(&mut self.current) {
+                Some(HardwareRouteAction::CapturedBinding(_)) => {}
+                Some(HardwareRouteAction::LiveEvent { source, raw_value }) => {
+                    self.route_hardware_live_event(&source, raw_value);
+                }
+                None => break,
             }
         }
         self.current()
+    }
+
+    fn route_hardware_live_event(
+        &mut self,
+        source: &crate::domain::session::HardwareSource,
+        raw_value: f64,
+    ) {
+        let matching_bindings: Vec<HardwareBinding> = self
+            .current
+            .hardware_bindings
+            .iter()
+            .filter(|binding| &binding.source == source)
+            .cloned()
+            .collect();
+
+        for binding in matching_bindings {
+            let value = scale_value_exposed(raw_value, &binding.transform);
+            self.apply_hardware_binding_target(binding.target, value);
+        }
+    }
+
+    fn apply_hardware_binding_target(&mut self, target: BindingTarget, value: f64) {
+        match target {
+            BindingTarget::Macro { macro_id } => {
+                if let Err(err) = macro_command::apply_macro_command(
+                    self,
+                    MacroCommand::SetMacroValue { macro_id, value },
+                ) {
+                    self.record_hardware_diagnostic(HardwareRuntimeDiagnostic {
+                        code: HardwareRuntimeDiagnosticCode::RouteApplyFailed,
+                        message: "Hardware macro route could not be applied.".to_string(),
+                        recoverable: true,
+                        detail: Some(err.to_string()),
+                    });
+                }
+            }
+            BindingTarget::SceneRecall { scene_id } => {
+                if let Err(err) = performance_command::apply_performance_command(
+                    self,
+                    PerformanceCommand::RecallScene { scene_id },
+                ) {
+                    self.record_hardware_diagnostic(HardwareRuntimeDiagnostic {
+                        code: HardwareRuntimeDiagnosticCode::RouteApplyFailed,
+                        message: "Hardware scene route could not be applied.".to_string(),
+                        recoverable: true,
+                        detail: Some(err.to_string()),
+                    });
+                }
+            }
+            BindingTarget::TransportPlay => {
+                let _ = self.mutate_current(|session| {
+                    session.transport.is_playing = true;
+                    Ok::<(), ()>(())
+                });
+                if let Err(err) = self.start_audio_runtime() {
+                    self.record_hardware_diagnostic(HardwareRuntimeDiagnostic {
+                        code: HardwareRuntimeDiagnosticCode::RouteApplyFailed,
+                        message: "Hardware transport play could not start the audio runtime."
+                            .to_string(),
+                        recoverable: true,
+                        detail: Some(err.to_string()),
+                    });
+                }
+            }
+            BindingTarget::TransportStop => {
+                let _ = self.mutate_current(|session| {
+                    session.transport.is_playing = false;
+                    Ok::<(), ()>(())
+                });
+                if let Err(err) = self.stop_audio_runtime() {
+                    self.record_hardware_diagnostic(HardwareRuntimeDiagnostic {
+                        code: HardwareRuntimeDiagnosticCode::RouteApplyFailed,
+                        message: "Hardware transport stop could not stop the audio runtime."
+                            .to_string(),
+                        recoverable: true,
+                        detail: Some(err.to_string()),
+                    });
+                }
+            }
+            BindingTarget::TransportPanic => {
+                let _ = self.mutate_current(|session| {
+                    session.transport.is_playing = false;
+                    Ok::<(), ()>(())
+                });
+                if let Err(err) = self.panic_audio_runtime() {
+                    self.record_hardware_diagnostic(HardwareRuntimeDiagnostic {
+                        code: HardwareRuntimeDiagnosticCode::RouteApplyFailed,
+                        message: "Hardware panic could not reset the audio runtime.".to_string(),
+                        recoverable: true,
+                        detail: Some(err.to_string()),
+                    });
+                }
+                if let Err(err) = self.panic_visual_runtime() {
+                    self.record_hardware_diagnostic(HardwareRuntimeDiagnostic {
+                        code: HardwareRuntimeDiagnosticCode::RouteApplyFailed,
+                        message: "Hardware panic could not reset the visual runtime.".to_string(),
+                        recoverable: true,
+                        detail: Some(err.to_string()),
+                    });
+                }
+            }
+        }
     }
 
     pub fn start_osc_listener(&mut self) -> Result<HardwareRuntimeStatus, String> {
@@ -929,6 +1064,7 @@ fn build_default_session() -> SessionDocument {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::session::VisualRuntimeLifecycle;
     use crate::hardware::midi_input::MidiLearnEvent;
     use std::net::UdpSocket;
     use std::sync::mpsc;
@@ -1011,6 +1147,275 @@ mod tests {
             store.hardware_runtime_status().learn.lifecycle,
             HardwareLearnLifecycle::Captured
         ));
+    }
+
+    #[test]
+    fn app_level_hardware_macro_updates_canonical_audio_and_degrades_active_audio_runtime() {
+        let (tx, rx) = mpsc::channel();
+        let mut store = SessionStore::new_default();
+        store.hardware_router.attach_midi_receiver(rx);
+        let mut session = store.current();
+        let macro_id = session.macros[0].id.clone();
+        let node_id = session.nodes[0].id.clone();
+        let parameter_id = session.nodes[0].parameters[0].id.clone();
+        session.macros[0].targets = vec![crate::domain::session::MacroTarget::AudioParameter {
+            node_id: node_id.clone(),
+            parameter_id: parameter_id.clone(),
+        }];
+        session.audio_runtime.lifecycle = AudioRuntimeLifecycle::Ready;
+        session.audio_runtime.active_patch_id = Some("patch-live".to_string());
+        session.hardware_bindings.push(HardwareBinding {
+            id: "hb-macro".to_string(),
+            source: crate::domain::session::HardwareSource::MidiCc {
+                channel: 0,
+                controller: 7,
+            },
+            target: BindingTarget::Macro { macro_id },
+            transform: crate::domain::session::ValueTransform {
+                input_min: 0.0,
+                input_max: 127.0,
+                output_min: 0.0,
+                output_max: 1.0,
+            },
+        });
+        store.replace_current(session);
+
+        tx.send(MidiLearnEvent::MidiCc {
+            channel: 0,
+            controller: 7,
+            value: 127,
+        })
+        .unwrap();
+
+        store.poll_hardware_events();
+
+        let session = store.current();
+        let gain = session.nodes[0]
+            .parameters
+            .iter()
+            .find(|parameter| parameter.id == parameter_id)
+            .expect("parameter still exists");
+        assert_eq!(gain.value, 1.0);
+        assert_eq!(
+            session.audio_runtime.lifecycle,
+            AudioRuntimeLifecycle::Failed
+        );
+        assert_eq!(session.audio_runtime.health, AudioRuntimeHealth::Degraded);
+    }
+
+    #[test]
+    fn app_level_hardware_macro_visual_target_marks_degraded_runtime_state() {
+        let (tx, rx) = mpsc::channel();
+        let mut store = SessionStore::new_default();
+        store.hardware_router.attach_midi_receiver(rx);
+        let mut session = store.current();
+        let macro_id = session.macros[0].id.clone();
+        let element_id = session.nodes[0].id.clone();
+        session.macros[0].targets = vec![crate::domain::session::MacroTarget::VisualParameter {
+            element_id: element_id.clone(),
+            parameter_id: "brightness".to_string(),
+        }];
+        session.scenes[0].active_node_ids.push(element_id);
+        session.visual_runtime.lifecycle = VisualRuntimeLifecycle::Rendering;
+        session.visual_runtime.active_scene_id = Some(session.scenes[0].id.clone());
+        session.hardware_bindings.push(HardwareBinding {
+            id: "hb-visual".to_string(),
+            source: crate::domain::session::HardwareSource::MidiCc {
+                channel: 0,
+                controller: 8,
+            },
+            target: BindingTarget::Macro { macro_id },
+            transform: crate::domain::session::ValueTransform::default(),
+        });
+        store.replace_current(session);
+
+        tx.send(MidiLearnEvent::MidiCc {
+            channel: 0,
+            controller: 8,
+            value: 127,
+        })
+        .unwrap();
+
+        store.poll_hardware_events();
+
+        let status = store.hardware_runtime_status();
+        assert!(status.diagnostics.is_empty());
+        assert_eq!(
+            store.current().visual_runtime.lifecycle,
+            VisualRuntimeLifecycle::Failed
+        );
+        assert_eq!(
+            store.current().visual_runtime.health,
+            crate::domain::session::VisualRuntimeHealth::Degraded
+        );
+    }
+
+    #[test]
+    fn app_level_hardware_scene_recall_uses_performance_semantics() {
+        let (tx, rx) = mpsc::channel();
+        let mut store = SessionStore::new_default();
+        store.hardware_router.attach_midi_receiver(rx);
+        let mut session = store.current();
+        let scene_id = session.scenes[0].id.clone();
+        let source_node_id = session.nodes[0].id.clone();
+        let parameter_id = session.nodes[0].parameters[0].id.clone();
+        session.nodes[0].parameters[0].value = 0.1;
+        session.scenes[0].active_node_ids = vec![session.nodes[1].id.clone()];
+        session.scenes[0].macro_overrides[0].value = 0.65;
+        session.hardware_bindings.push(HardwareBinding {
+            id: "hb-scene".to_string(),
+            source: crate::domain::session::HardwareSource::MidiNote {
+                channel: 0,
+                note: 64,
+            },
+            target: BindingTarget::SceneRecall { scene_id },
+            transform: crate::domain::session::ValueTransform::default(),
+        });
+        store.replace_current(session);
+
+        tx.send(MidiLearnEvent::MidiNote {
+            channel: 0,
+            note: 64,
+            velocity: 127,
+        })
+        .unwrap();
+
+        store.poll_hardware_events();
+
+        let session = store.current();
+        assert!(
+            !session
+                .nodes
+                .iter()
+                .find(|node| node.id == source_node_id)
+                .expect("source node")
+                .enabled
+        );
+        assert!((session.nodes[0].parameters[0].value - 0.65).abs() < f64::EPSILON);
+        assert_eq!(
+            session.visual_runtime.active_scene_id,
+            Some(session.scenes[0].id.clone())
+        );
+        assert_eq!(session.nodes[0].parameters[0].id, parameter_id);
+    }
+
+    #[test]
+    fn app_level_hardware_transport_play_stop_and_panic_drive_runtime_lifecycle() {
+        let (tx, rx) = mpsc::channel();
+        let mut store = SessionStore::new_default();
+        store.hardware_router.attach_midi_receiver(rx);
+        let mut session = store.current();
+        session.hardware_bindings.push(HardwareBinding {
+            id: "hb-play".to_string(),
+            source: crate::domain::session::HardwareSource::MidiNote {
+                channel: 0,
+                note: 60,
+            },
+            target: BindingTarget::TransportPlay,
+            transform: crate::domain::session::ValueTransform::default(),
+        });
+        session.hardware_bindings.push(HardwareBinding {
+            id: "hb-stop".to_string(),
+            source: crate::domain::session::HardwareSource::MidiNote {
+                channel: 0,
+                note: 61,
+            },
+            target: BindingTarget::TransportStop,
+            transform: crate::domain::session::ValueTransform::default(),
+        });
+        session.hardware_bindings.push(HardwareBinding {
+            id: "hb-panic".to_string(),
+            source: crate::domain::session::HardwareSource::MidiNote {
+                channel: 0,
+                note: 62,
+            },
+            target: BindingTarget::TransportPanic,
+            transform: crate::domain::session::ValueTransform::default(),
+        });
+        store.replace_current(session);
+
+        tx.send(MidiLearnEvent::MidiNote {
+            channel: 0,
+            note: 60,
+            velocity: 127,
+        })
+        .unwrap();
+        store.poll_hardware_events();
+        assert!(store.current().transport.is_playing);
+
+        tx.send(MidiLearnEvent::MidiNote {
+            channel: 0,
+            note: 61,
+            velocity: 127,
+        })
+        .unwrap();
+        store.poll_hardware_events();
+        assert!(!store.current().transport.is_playing);
+        assert_eq!(
+            store.current().audio_runtime.lifecycle,
+            AudioRuntimeLifecycle::Idle
+        );
+
+        tx.send(MidiLearnEvent::MidiNote {
+            channel: 0,
+            note: 62,
+            velocity: 127,
+        })
+        .unwrap();
+        store.poll_hardware_events();
+        assert!(!store.current().transport.is_playing);
+        assert_eq!(
+            store.current().audio_runtime.health,
+            AudioRuntimeHealth::PanicRecovered
+        );
+        assert_eq!(
+            store.current().visual_runtime.lifecycle,
+            VisualRuntimeLifecycle::Panicked
+        );
+    }
+
+    #[test]
+    fn drain_hardware_events_is_bounded_by_requested_limit() {
+        let (tx, rx) = mpsc::channel();
+        let mut store = SessionStore::new_default();
+        store.hardware_router.attach_midi_receiver(rx);
+        let mut session = store.current();
+        session.hardware_bindings.push(HardwareBinding {
+            id: "hb-play".to_string(),
+            source: crate::domain::session::HardwareSource::MidiNote {
+                channel: 0,
+                note: 60,
+            },
+            target: BindingTarget::TransportPlay,
+            transform: crate::domain::session::ValueTransform::default(),
+        });
+        session.hardware_bindings.push(HardwareBinding {
+            id: "hb-stop".to_string(),
+            source: crate::domain::session::HardwareSource::MidiNote {
+                channel: 0,
+                note: 61,
+            },
+            target: BindingTarget::TransportStop,
+            transform: crate::domain::session::ValueTransform::default(),
+        });
+        store.replace_current(session);
+
+        tx.send(MidiLearnEvent::MidiNote {
+            channel: 0,
+            note: 60,
+            velocity: 127,
+        })
+        .unwrap();
+        tx.send(MidiLearnEvent::MidiNote {
+            channel: 0,
+            note: 61,
+            velocity: 127,
+        })
+        .unwrap();
+
+        store.drain_hardware_events(Some(1));
+
+        assert!(store.current().transport.is_playing);
     }
 
     #[test]

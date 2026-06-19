@@ -19,6 +19,8 @@ pub enum PerformanceCommandError {
     },
     #[error("visual runtime reconciliation failed: {message}")]
     VisualRuntimeReconcile { message: String },
+    #[error("audio runtime reconciliation failed: {message}")]
+    AudioRuntimeReconcile { message: String },
 }
 
 pub fn apply_performance_command(
@@ -41,6 +43,11 @@ pub fn apply_performance_command(
     })?;
 
     if should_reload_visual_scene {
+        let _ = store.reload_audio_topology().map_err(|err| {
+            PerformanceCommandError::AudioRuntimeReconcile {
+                message: err.to_string(),
+            }
+        })?;
         store
             .reload_visual_scene()
             .map_err(|err| PerformanceCommandError::VisualRuntimeReconcile {

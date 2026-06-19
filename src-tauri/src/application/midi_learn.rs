@@ -24,6 +24,15 @@ pub struct HardwareInputRouter {
     pub osc_rx: Option<Receiver<OscLearnEvent>>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum HardwareRouteAction {
+    CapturedBinding(HardwareBinding),
+    LiveEvent {
+        source: HardwareSource,
+        raw_value: f64,
+    },
+}
+
 impl std::fmt::Debug for HardwareInputRouter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HardwareInputRouter")
@@ -73,7 +82,7 @@ impl HardwareInputRouter {
         self.osc_rx = None;
     }
 
-    pub fn poll_and_route(&mut self, session: &mut SessionDocument) -> Option<HardwareBinding> {
+    pub fn poll_action(&mut self, session: &mut SessionDocument) -> Option<HardwareRouteAction> {
         let midi_event = self.midi_rx.as_ref().and_then(|rx| rx.try_recv().ok());
 
         let osc_event = if midi_event.is_none() {
@@ -100,11 +109,14 @@ impl HardwareInputRouter {
                         source: captured_source,
                         target: captured_target,
                     };
-                    return Some(binding);
+                    return Some(HardwareRouteAction::CapturedBinding(binding));
                 }
                 HardwareLearnState::Idle => {
                     let source = midi_event_to_source(event);
-                    route_live_event(session, &source, event_value_from_midi(event));
+                    return Some(HardwareRouteAction::LiveEvent {
+                        source,
+                        raw_value: event_value_from_midi(event),
+                    });
                 }
                 HardwareLearnState::Captured { .. } => {}
             }
@@ -130,7 +142,7 @@ impl HardwareInputRouter {
                         source: captured_source,
                         target: captured_target,
                     };
-                    return Some(binding);
+                    return Some(HardwareRouteAction::CapturedBinding(binding));
                 }
                 HardwareLearnState::Idle => {
                     let osc_value = event
@@ -146,13 +158,27 @@ impl HardwareInputRouter {
                     let source = HardwareSource::OscAddress {
                         address: event.address.clone(),
                     };
-                    route_live_event(session, &source, osc_value);
+                    return Some(HardwareRouteAction::LiveEvent {
+                        source,
+                        raw_value: osc_value,
+                    });
                 }
                 HardwareLearnState::Captured { .. } => {}
             }
         }
 
         None
+    }
+
+    pub fn poll_and_route(&mut self, session: &mut SessionDocument) -> Option<HardwareBinding> {
+        match self.poll_action(session) {
+            Some(HardwareRouteAction::CapturedBinding(binding)) => Some(binding),
+            Some(HardwareRouteAction::LiveEvent { source, raw_value }) => {
+                route_live_event(session, &source, raw_value);
+                None
+            }
+            None => None,
+        }
     }
 }
 

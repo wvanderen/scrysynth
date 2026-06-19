@@ -126,7 +126,7 @@ export type HardwareLearnLifecycle = "idle" | "learning" | "captured";
 
 export type HardwareLearnStatus = { lifecycle: HardwareLearnLifecycle, target: BindingTarget | null, source: HardwareSource | null, };
 
-export type HardwareRuntimeDiagnosticCode = "no_midi_ports" | "invalid_midi_port_selection" | "midi_enumeration_failed" | "osc_bind_failed" | "osc_port_in_use" | "listener_restart_required" | "listener_restarted" | "listener_stopped" | "listener_start_pending";
+export type HardwareRuntimeDiagnosticCode = "no_midi_ports" | "invalid_midi_port_selection" | "midi_enumeration_failed" | "osc_bind_failed" | "osc_port_in_use" | "listener_restart_required" | "listener_restarted" | "listener_stopped" | "listener_start_pending" | "route_apply_failed";
 
 export type HardwareRuntimeDiagnostic = { code: HardwareRuntimeDiagnosticCode, message: string, recoverable: boolean, detail: string | null, };
 

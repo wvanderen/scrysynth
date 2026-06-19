@@ -16,6 +16,8 @@ pub enum MacroCommandError {
     },
     #[error("visual runtime reconciliation failed: {message}")]
     VisualRuntimeReconcile { message: String },
+    #[error("audio runtime reconciliation failed: {message}")]
+    AudioRuntimeReconcile { message: String },
 }
 
 pub fn apply_macro_command(
@@ -42,6 +44,11 @@ pub fn apply_macro_command(
     })?;
 
     if let Some((macro_id, value)) = visual_macro_value {
+        let _ = store
+            .reconcile_audio_macro_value(&macro_id, value)
+            .map_err(|err| MacroCommandError::AudioRuntimeReconcile {
+                message: err.to_string(),
+            })?;
         store
             .reconcile_visual_macro_value(&macro_id, value)
             .map_err(|err| MacroCommandError::VisualRuntimeReconcile {

@@ -332,6 +332,7 @@ const hardwareRuntimeDiagnosticCodeSchema = z.enum([
   "listener_restarted",
   "listener_stopped",
   "listener_start_pending",
+  "route_apply_failed",
 ]);
 
 const hardwareRuntimeDiagnosticSchema = z.object({

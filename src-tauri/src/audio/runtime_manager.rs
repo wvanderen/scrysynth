@@ -4,8 +4,8 @@ use crate::application::session_store::SessionStore;
 use crate::audio::compiler::{compile_session_to_topology, TopologyCompileError};
 use crate::audio::supercollider::SuperColliderAdapter;
 use crate::domain::session::{
-    AudioRuntimeHealth, AudioRuntimeLifecycle, GraphEditCommand, RuntimeConnectionState,
-    RuntimeKind, SessionDocument,
+    AudioRuntimeHealth, AudioRuntimeLifecycle, GraphEditCommand, MacroTarget,
+    RuntimeConnectionState, RuntimeKind, SessionDocument,
 };
 
 pub trait AudioRuntimeAdapter {
@@ -194,6 +194,54 @@ where
             | GraphEditCommand::AssignNodeToBus { .. }
             | GraphEditCommand::ClearNodeBusAssignment { .. } => self.reapply_live_topology(store),
         }
+    }
+
+    pub fn reconcile_macro_value(
+        &mut self,
+        store: &mut SessionStore,
+        macro_id: &str,
+        value: f64,
+    ) -> Result<SessionDocument, AudioRuntimeManagerError> {
+        if store.current().audio_runtime.lifecycle != AudioRuntimeLifecycle::Ready {
+            return Ok(store.current());
+        }
+
+        let Some(macro_def) = store
+            .current()
+            .macros
+            .iter()
+            .find(|macro_def| macro_def.id == macro_id)
+            .cloned()
+        else {
+            return Ok(store.current());
+        };
+
+        let clamped_input = value.clamp(0.0, 1.0);
+        let scaled_value =
+            macro_def.range_start + (clamped_input * (macro_def.range_end - macro_def.range_start));
+
+        for target in &macro_def.targets {
+            if let MacroTarget::AudioParameter {
+                node_id,
+                parameter_id,
+            } = target
+            {
+                self.set_live_parameter(store, node_id, parameter_id, scaled_value)?;
+            }
+        }
+
+        Ok(store.current())
+    }
+
+    pub fn reload_topology_if_ready(
+        &mut self,
+        store: &mut SessionStore,
+    ) -> Result<SessionDocument, AudioRuntimeManagerError> {
+        if store.current().audio_runtime.lifecycle != AudioRuntimeLifecycle::Ready {
+            return Ok(store.current());
+        }
+
+        self.reapply_live_topology(store)
     }
 
     fn set_live_parameter(

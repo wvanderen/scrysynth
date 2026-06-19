@@ -748,6 +748,7 @@ pub enum HardwareRuntimeDiagnosticCode {
     ListenerRestarted,
     ListenerStopped,
     ListenerStartPending,
+    RouteApplyFailed,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
