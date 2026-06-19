@@ -4,12 +4,12 @@
 
 Scrysynth has completed its foundation pass: the canonical session graph, desktop workspace, command handlers, persistence, performance surfaces, agent safety scaffolding, runtime health projections, cross-domain macros, and hardware-binding data paths are implemented.
 
-The project is now in **v1 runtime hardening**, not feature-complete release. The main gap is that several completed requirements are complete as app state, UI, command, and test seams, but not yet as production runtime behavior.
+The project is now in **v1 runtime hardening**, not feature-complete release. Real SuperCollider execution, the minimal visual sidecar path, and the app-owned MIDI/OSC hardware runtime path have been verified locally. The main remaining runtime gaps are richer Bevy visual output/packaging, session-aware agent orchestration, release packaging, and broader manual UAT.
 
 Core distinction:
 
 - **Foundation complete:** canonical state, UI projections, command APIs, tests, and adapter boundaries exist.
-- **Runtime incomplete:** richer Bevy visual execution, packaged sidecar wiring, hardware listener lifecycle, and real agent orchestration still need production implementation or verification. The default SuperCollider execution path is verified, and the minimal visual sidecar process path is verified.
+- **Runtime incomplete:** richer Bevy visual execution, packaged sidecar wiring, real agent orchestration, and release packaging still need production implementation or verification. The default SuperCollider execution path, minimal visual sidecar process path, and virtual MIDI/local OSC hardware runtime path are verified.
 
 ## Completed Foundation Phases
 
@@ -30,7 +30,7 @@ Core distinction:
 | Performance workspace | Complete foundation | Scenes, variations, active scene derivation, macro controls. |
 | Agent collaboration | Scaffolded | Deterministic parser, ownership gates, pending approvals, action history, freeze/reclaim. No real LLM/orchestrator yet. |
 | Visual runtime | Phase 8 minimal path verified | `scrysynth-visual` exists as an in-repo minimal sidecar. The app adapter launches it, handshakes, loads compiled scenes, sends parameter batches, stops, panics, and restarts after panic. Rich Bevy rendering and packaged sidecar bundling remain future hardening. |
-| Hardware bindings | Partial foundation | MIDI/OSC managers and router exist; app needs production listener startup/configuration and receiver wiring. |
+| Hardware bindings | Phase 9 app-runtime path verified | MIDI/OSC listener settings, live learn, post-learn routing, scene recall, transport play/stop, and panic were verified with a CoreMIDI virtual source, local OSC sender, and local SuperCollider. GUI click-through hardware UAT remains a future polish pass. |
 | Testing | Broad but environment-dependent | Rust and frontend tests exist, but require local `cargo` and installed npm dependencies. |
 | Documentation | In progress | README and planning docs now reflect foundation-vs-runtime status. |
 
@@ -88,14 +88,18 @@ Remaining Phase 8 follow-on work belongs in release hardening, not in the now-ve
 
 **Goal:** MIDI/OSC learn works against live devices and senders in the desktop app.
 
-Status: Planned in `.planning/phases/09-hardware-input-runtime-wiring/09-hardware-input-runtime-wiring-01-PLAN.md` under epic `td-dcaf9a`.
+Status: Complete for the app-owned runtime path. Evidence is recorded in `.planning/phases/09-hardware-input-runtime-wiring/09-hardware-input-runtime-wiring-06-UAT.md`.
 
 Success criteria:
 
-1. Add app commands/settings for MIDI port selection and OSC listen port configuration.
-2. Start/stop MIDI and OSC listeners as part of runtime state, not only in tests.
-3. Wire listener receivers into `SessionStore`/router lifecycle.
-4. Verify macro, scene, transport, and panic targets from real or virtual hardware.
+1. Add app commands/settings for MIDI port selection and OSC listen port configuration. **Done.**
+2. Start/stop MIDI and OSC listeners as part of runtime state, not only in tests. **Done.**
+3. Wire listener receivers into `SessionStore`/router lifecycle. **Done.**
+4. Verify macro, scene, transport, and panic targets from real or virtual hardware. **Done with CoreMIDI virtual MIDI and local OSC sender.**
+
+Remaining Phase 9 follow-on work belongs in release polish:
+
+- Run a physical-controller click-through pass when hardware is available.
 
 ### Phase 10: Session-Aware Agent Orchestration
 

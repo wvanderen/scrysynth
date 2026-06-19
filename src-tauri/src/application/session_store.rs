@@ -225,7 +225,7 @@ impl SessionStore {
     }
 
     pub fn list_midi_input_ports(&mut self) -> Result<Vec<MidiInputPort>, String> {
-        match MidiInputManager::list_devices() {
+        match self.midi_input_manager.list_devices() {
             Ok(names) => {
                 let selected = self.hardware_settings.midi.selected_input_id.clone();
                 let ports: Vec<MidiInputPort> = names
@@ -316,6 +316,14 @@ impl SessionStore {
 
         self.hardware_settings = settings.clone();
         self.hardware_status.midi.selected_input_id = settings.midi.selected_input_id.clone();
+        if !midi_was_listening {
+            self.hardware_status.midi.lifecycle = if settings.midi.selected_input_id.is_some() {
+                HardwareListenerLifecycle::Stopped
+            } else {
+                self.hardware_status.midi.lifecycle.clone()
+            };
+            self.hardware_status.midi.last_error = None;
+        }
         self.hardware_status.osc = OscRuntimeStatus {
             lifecycle: if osc_needs_restart {
                 HardwareListenerLifecycle::Restarting
@@ -533,10 +541,6 @@ impl SessionStore {
 
     fn start_midi_listener(&mut self) -> Result<(), String> {
         self.hardware_status.midi.lifecycle = HardwareListenerLifecycle::Starting;
-        let ports = self.list_midi_input_ports()?;
-        if ports.is_empty() {
-            return Err("No MIDI input ports are available. Connect or enable a MIDI device, then refresh hardware inputs.".to_string());
-        }
 
         let port_index = self
             .hardware_settings
@@ -548,36 +552,16 @@ impl SessionStore {
             })
             .transpose()?;
 
-        if let Some(index) = port_index {
-            if index >= ports.len() {
-                let selected = self
-                    .hardware_settings
-                    .midi
-                    .selected_input_id
-                    .clone()
-                    .unwrap_or_default();
-                let diagnostic = invalid_midi_selection_diagnostic(&selected);
-                let message = diagnostic.message.clone();
-                self.hardware_status.diagnostics.clear();
-                self.record_hardware_diagnostic(diagnostic);
-                self.hardware_status.midi.lifecycle = HardwareListenerLifecycle::Error;
-                self.hardware_status.midi.last_error = Some(message.clone());
-                return Err(message);
-            }
-        }
-
         match self.midi_input_manager.start_listening(port_index) {
-            Ok(()) => {
-                let selected_port = port_index
-                    .and_then(|index| ports.get(index))
-                    .or_else(|| ports.first());
+            Ok(active_input) => {
                 self.hardware_status.midi.lifecycle = HardwareListenerLifecycle::Listening;
                 self.hardware_status.midi.last_error = None;
-                self.hardware_status.midi.available_input_count = Some(ports.len() as u32);
+                self.hardware_status.midi.available_input_count =
+                    Some(active_input.available_count as u32);
                 self.hardware_status.midi.selected_input_id =
                     self.hardware_settings.midi.selected_input_id.clone();
                 self.hardware_status.midi.selected_display_name =
-                    selected_port.map(|port| port.display_name.clone());
+                    Some(active_input.selected_display_name);
                 Ok(())
             }
             Err(err) => {
@@ -653,33 +637,12 @@ impl SessionStore {
             return Err(message);
         };
 
-        let ports = MidiInputManager::list_devices().map_err(|err| {
-            self.hardware_status.diagnostics.clear();
-            self.record_hardware_diagnostic(HardwareRuntimeDiagnostic {
-                code: HardwareRuntimeDiagnosticCode::MidiEnumerationFailed,
-                message: "Could not validate the selected MIDI input.".to_string(),
-                recoverable: true,
-                detail: Some(err.clone()),
-            });
-            err
-        })?;
-
-        if ports.is_empty() {
-            let diagnostic = HardwareRuntimeDiagnostic {
-                code: HardwareRuntimeDiagnosticCode::NoMidiPorts,
-                message: "No MIDI input ports are available.".to_string(),
-                recoverable: true,
-                detail: Some(
-                    "Connect or enable a MIDI device before selecting a MIDI input.".to_string(),
-                ),
-            };
-            let message = diagnostic.message.clone();
-            self.hardware_status.diagnostics.clear();
-            self.record_hardware_diagnostic(diagnostic);
-            return Err(message);
-        }
-
-        if index >= ports.len() {
+        if self
+            .hardware_status
+            .midi
+            .available_input_count
+            .is_some_and(|count| index >= count as usize)
+        {
             let diagnostic = invalid_midi_selection_diagnostic(selected_input_id);
             let message = diagnostic.message.clone();
             self.hardware_status.diagnostics.clear();
@@ -1437,6 +1400,27 @@ mod tests {
 
         assert_eq!(store.current().hardware_bindings.len(), 1);
         assert_eq!(store.current().hardware_bindings[0].id, "hb-1");
+    }
+
+    #[test]
+    fn applying_valid_midi_selection_clears_stale_midi_error_while_stopped() {
+        let mut store = SessionStore::new_default();
+        store.hardware_status.midi.lifecycle = HardwareListenerLifecycle::Error;
+        store.hardware_status.midi.last_error =
+            Some("MIDI support could not be initialized".to_string());
+
+        let mut settings = store.hardware_runtime_settings();
+        settings.midi.selected_input_id = Some("midi-input-0".to_string());
+        let status = store
+            .update_hardware_runtime_settings(settings)
+            .expect("valid MIDI id shape should not initialize CoreMIDI during apply");
+
+        assert_eq!(status.midi.lifecycle, HardwareListenerLifecycle::Stopped);
+        assert_eq!(
+            status.midi.selected_input_id.as_deref(),
+            Some("midi-input-0")
+        );
+        assert!(status.midi.last_error.is_none());
     }
 
     #[test]

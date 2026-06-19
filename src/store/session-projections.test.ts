@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GraphEditCommand, SessionDocument } from "../generated/session-types";
 
@@ -37,7 +37,7 @@ const clientMocks = vi.hoisted(() => ({
 vi.mock("../lib/session-client", () => clientMocks);
 
 import { projectSessionState, deriveActiveSceneId } from "./session-projections";
-import { shouldPollHardware, useSessionStore } from "./sessionStore";
+import { shouldPollHardware, startHardwarePolling, stopHardwarePolling, useSessionStore } from "./sessionStore";
 
 function createSession(overrides: Partial<SessionDocument> = {}): SessionDocument {
   return {
@@ -183,6 +183,8 @@ function createHardwareSettings(overrides: Partial<import("../generated/session-
 
 describe("session projections", () => {
   beforeEach(() => {
+    stopHardwarePolling();
+    vi.useRealTimers();
     vi.clearAllMocks();
     clientMocks.getHardwareRuntimeSettings.mockResolvedValue(createHardwareSettings());
     clientMocks.getHardwareRuntimeStatus.mockResolvedValue(createHardwareStatus());
@@ -210,6 +212,11 @@ describe("session projections", () => {
       midiLearnActive: false,
       midiLearnTarget: null,
     });
+  });
+
+  afterEach(() => {
+    stopHardwarePolling();
+    vi.useRealTimers();
   });
 
   it("applying a successful graph edit updates projected nodes, edges, and selected inspector data", async () => {
@@ -694,6 +701,64 @@ describe("performance workspace", () => {
     expect(useSessionStore.getState().hardwareStatus?.midi.lifecycle).toBe("stopped");
   });
 
+  it("hardware refresh preserves status and surfaces MIDI enumeration errors", async () => {
+    const status = createHardwareStatus({
+      midi: {
+        lifecycle: "error",
+        selectedInputId: "midi-0",
+        selectedDisplayName: null,
+        availableInputCount: null,
+        lastError: "CoreMIDI init failed",
+      },
+    });
+    clientMocks.getHardwareRuntimeStatus.mockResolvedValue(status);
+    clientMocks.listMidiInputPorts.mockRejectedValue("CoreMIDI init failed");
+    useSessionStore.setState({
+      midiInputPorts: [{ id: "midi-0", displayName: "Impact GX61 MIDI1", isSelected: true }],
+    });
+
+    await useSessionStore.getState().refreshHardwareRuntime();
+
+    expect(useSessionStore.getState().hardwareStatus?.midi.lifecycle).toBe("error");
+    expect(useSessionStore.getState().midiInputPorts).toHaveLength(1);
+    expect(useSessionStore.getState().error).toBe("CoreMIDI init failed");
+  });
+
+  it("hardware start applies the current draft settings before starting listeners", async () => {
+    const settings = createHardwareSettings({
+      midi: { selectedInputId: "midi-0", autoStart: false },
+    });
+    const listening = createHardwareStatus({
+      midi: {
+        lifecycle: "listening",
+        selectedInputId: "midi-0",
+        selectedDisplayName: "Impact GX61 MIDI1",
+        availableInputCount: 1,
+        lastError: null,
+      },
+    });
+    clientMocks.updateHardwareRuntimeSettings.mockResolvedValue(createHardwareStatus());
+    clientMocks.startHardwareListeners.mockResolvedValue(listening);
+    clientMocks.listMidiInputPorts.mockResolvedValue([
+      { id: "midi-0", displayName: "Impact GX61 MIDI1", isSelected: true },
+    ]);
+
+    await useSessionStore.getState().startHardwareRuntime(settings);
+
+    expect(clientMocks.updateHardwareRuntimeSettings).toHaveBeenCalledWith(settings);
+    expect(clientMocks.startHardwareListeners).toHaveBeenCalled();
+    expect(useSessionStore.getState().hardwareSettings?.midi.selectedInputId).toBe("midi-0");
+    expect(useSessionStore.getState().hardwareStatus?.midi.selectedDisplayName).toBe("Impact GX61 MIDI1");
+  });
+
+  it("hardware actions surface string errors from Tauri commands", async () => {
+    clientMocks.startHardwareListeners.mockRejectedValue("Selected MIDI input is no longer available.");
+
+    await useSessionStore.getState().startHardwareRuntime();
+
+    expect(useSessionStore.getState().error).toBe("Selected MIDI input is no longer available.");
+  });
+
   it("learn cancel and binding removal update hardware-facing state", async () => {
     const withBinding = createSession({
       hardwareBindings: [
@@ -754,5 +819,48 @@ describe("performance workspace", () => {
       ],
       hardwareStatus: createHardwareStatus(),
     })).toBe(true);
+  });
+
+  it("hardware polling clears backend learn state after a binding is captured", async () => {
+    vi.useFakeTimers();
+    const captured = createSession({
+      hardwareBindings: [
+        {
+          id: "binding-1",
+          source: { kind: "midiCc", config: { channel: 0, controller: 7 } },
+          target: { kind: "macro", config: { macro_id: "macro-1" } },
+          transform: { inputMin: 0, inputMax: 127, outputMin: 0, outputMax: 1 },
+        },
+      ],
+    });
+    const learning = createHardwareStatus({
+      learn: { lifecycle: "learning", target: { kind: "macro", config: { macro_id: "macro-1" } }, source: null },
+    });
+    const idle = createHardwareStatus({
+      learn: { lifecycle: "idle", target: null, source: null },
+    });
+    clientMocks.pollHardwareEvents.mockResolvedValue(captured);
+    clientMocks.getHardwareRuntimeStatus
+      .mockResolvedValueOnce(learning)
+      .mockResolvedValueOnce(idle);
+    clientMocks.stopHardwareLearn.mockResolvedValue(undefined);
+    useSessionStore.setState({
+      session: createSession(),
+      selectedNodeId: null,
+      graphNodes: [],
+      graphEdges: [],
+      midiLearnActive: true,
+      midiLearnTarget: { kind: "macro", config: { macro_id: "macro-1" } },
+      hardwareBindings: [],
+      hardwareStatus: learning,
+    });
+
+    startHardwarePolling();
+    await vi.advanceTimersByTimeAsync(120);
+
+    expect(clientMocks.stopHardwareLearn).toHaveBeenCalled();
+    expect(useSessionStore.getState().midiLearnActive).toBe(false);
+    expect(useSessionStore.getState().hardwareStatus?.learn.lifecycle).toBe("idle");
+    expect(useSessionStore.getState().hardwareBindings).toHaveLength(1);
   });
 });

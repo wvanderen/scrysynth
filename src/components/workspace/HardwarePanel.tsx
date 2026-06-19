@@ -22,7 +22,7 @@ type HardwarePanelProps = {
   isLoading: boolean;
   onRefresh: () => void;
   onUpdateSettings: (settings: HardwareRuntimeSettings) => void;
-  onStartListeners: () => void;
+  onStartListeners: (settings: HardwareRuntimeSettings) => void;
   onStopListeners: () => void;
   onStartLearn: (target: BindingTarget) => void;
   onCancelLearn: () => void;
@@ -48,6 +48,8 @@ export function listenerLabel(lifecycle: string | undefined): string {
       return "Learning";
     case "captured":
       return "Captured";
+    case "idle":
+      return "Idle";
     case "starting":
       return "Starting";
     case "restarting":
@@ -111,7 +113,21 @@ export function HardwarePanel({
   }, [settings]);
 
   const applySettings = () => onUpdateSettings(draft);
+  const updateMidiInput = (selectedInputId: string | null) => {
+    const next = {
+      ...draft,
+      midi: { ...draft.midi, selectedInputId },
+    };
+    setDraft(next);
+    onUpdateSettings(next);
+  };
   const learnState = status?.learn.lifecycle ?? "idle";
+  const selectedMidiDisplayName =
+    status?.midi.selectedDisplayName ??
+    midiInputPorts.find((port) => port.id === draft.midi.selectedInputId)?.displayName ??
+    null;
+  const midiStatusDetail =
+    selectedMidiDisplayName ?? status?.midi.lastError ?? "No input selected";
 
   return (
     <div className="inspector-group hardware-panel" style={{ marginTop: 16 }}>
@@ -122,13 +138,13 @@ export function HardwarePanel({
         </div>
         <div className="hardware-actions">
           <button type="button" onClick={onRefresh} disabled={isLoading}>Refresh</button>
-          <button type="button" onClick={onStartListeners} disabled={isLoading}>Start</button>
+          <button type="button" onClick={() => onStartListeners(draft)} disabled={isLoading}>Start</button>
           <button type="button" onClick={onStopListeners} disabled={isLoading}>Stop</button>
         </div>
       </div>
 
       <div className="hardware-status-grid">
-        <StatusPill label="MIDI" lifecycle={status?.midi.lifecycle} detail={status?.midi.selectedDisplayName ?? status?.midi.lastError ?? "No input selected"} />
+        <StatusPill label="MIDI" lifecycle={status?.midi.lifecycle} detail={midiStatusDetail} />
         <StatusPill label="OSC" lifecycle={status?.osc.lifecycle} detail={`${status?.osc.bindHost ?? draft.osc.bindHost}:${status?.osc.listenPort ?? draft.osc.listenPort}`} />
         <StatusPill label="Learn" lifecycle={learnState} detail={status?.learn.target ? formatTarget(status.learn.target) : "Idle"} />
       </div>
@@ -140,10 +156,7 @@ export function HardwarePanel({
             className="bus-select"
             value={draft.midi.selectedInputId ?? ""}
             onChange={(event) =>
-              setDraft({
-                ...draft,
-                midi: { ...draft.midi, selectedInputId: event.target.value || null },
-              })
+              updateMidiInput(event.target.value || null)
             }
           >
             <option value="">No MIDI input</option>
@@ -176,6 +189,17 @@ export function HardwarePanel({
               setDraft({ ...draft, osc: { ...draft.osc, listenPort: Number(event.target.value) } })
             }
           />
+        </label>
+
+        <label className="hardware-checkbox">
+          <input
+            type="checkbox"
+            checked={draft.osc.autoStart}
+            onChange={(event) =>
+              setDraft({ ...draft, osc: { ...draft.osc, autoStart: event.target.checked } })
+            }
+          />
+          <span>Start OSC listener with hardware</span>
         </label>
 
         <button type="button" onClick={applySettings} disabled={isLoading}>Apply</button>

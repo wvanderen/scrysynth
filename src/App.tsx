@@ -182,7 +182,7 @@ function App() {
           midiInputPorts={midiInputPorts}
           onRefreshHardware={() => void refreshHardwareRuntime()}
           onUpdateHardwareSettings={(settings) => void updateHardwareSettings(settings)}
-          onStartHardwareRuntime={() => void startHardwareRuntime()}
+          onStartHardwareRuntime={(settings) => void startHardwareRuntime(settings)}
           onStopHardwareRuntime={() => void stopHardwareRuntime()}
           onStartMidiLearn={(target) => void startMidiLearn(target)}
           onStopMidiLearn={() => void stopMidiLearn()}

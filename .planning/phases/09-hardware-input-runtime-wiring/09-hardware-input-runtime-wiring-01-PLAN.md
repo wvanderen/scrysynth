@@ -2,7 +2,7 @@
 phase: 09-hardware-input-runtime-wiring
 plan: 01
 type: hardening
-status: planned
+status: complete-for-app-runtime-path
 created: 2026-06-17
 depends_on:
   - 08-real-visual-runtime-path
@@ -50,7 +50,7 @@ The current code proves the binding and routing model, but not desktop runtime b
 5. Existing bindings route live input to macro, scene recall, transport play, transport stop, and panic targets.
 6. Hardware-routed macro, scene, transport, and panic actions reconcile with active audio and visual runtimes instead of only mutating app state.
 7. The workspace shows hardware settings, listener status, captured bindings, learn state, and setup errors clearly enough for performance use.
-8. UAT verifies real or virtual MIDI and OSC input end to end and records evidence before Phase 9 is marked complete.
+8. UAT verifies real or virtual MIDI and OSC input end to end and records evidence before Phase 9 is marked complete. Evidence: `09-hardware-input-runtime-wiring-06-UAT.md`.
 
 ## Task Breakdown
 

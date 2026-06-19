@@ -75,8 +75,8 @@ This file separates foundation completion from release completion:
 
 ### Hardware Runtime
 
-- [ ] **CTRL-04R**: User can bind live MIDI or OSC input through learn in the desktop app and use it during performance.
-- [ ] **HW-01**: User can choose/configure MIDI input and OSC listen settings.
+- [x] **CTRL-04R**: User can bind live MIDI or OSC input through learn in the app-owned hardware runtime path and use it during performance for macros, scene recall, transport play/stop, and panic. Verified with a CoreMIDI virtual source and local OSC sender; GUI click-through hardware UAT remains release polish.
+- [x] **HW-01**: User can choose/configure MIDI input and OSC listen settings through the app runtime settings path. Verified with virtual MIDI input selection and a local OSC listen endpoint.
 
 ### Agent Runtime
 
@@ -133,6 +133,6 @@ Deferred to future release. Tracked but not in current v1 hardening milestone.
 | DEV-01..02 | Phase 6 | Pending |
 | AUD-01R..04R | Phase 7 | Pending |
 | VIS-01R..03R | Phase 8 | Pending |
-| CTRL-04R, HW-01 | Phase 9 | Planned |
+| CTRL-04R, HW-01 | Phase 9 | App-runtime path verified |
 | AGNT-01R..03R | Phase 10 | Pending |
 | REL-01..03 | Phase 11 | Pending |

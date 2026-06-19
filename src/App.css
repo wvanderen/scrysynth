@@ -382,7 +382,7 @@ button:disabled {
 }
 
 .hardware-settings-grid {
-  grid-template-columns: minmax(180px, 1.2fr) minmax(140px, 0.9fr) minmax(110px, 0.55fr) auto;
+  grid-template-columns: minmax(180px, 1.2fr) minmax(140px, 0.9fr) minmax(110px, 0.55fr) minmax(180px, 1fr) auto;
   align-items: end;
 }
 
@@ -404,6 +404,21 @@ button:disabled {
   font: inherit;
   color: #f2eee5;
   background: rgba(10, 28, 26, 0.88);
+}
+
+.hardware-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 42px;
+  color: #c2b68c;
+  font-size: 0.8rem;
+}
+
+.hardware-checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: #22c55e;
 }
 
 .hardware-learn-groups {

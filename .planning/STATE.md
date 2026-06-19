@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: v1 runtime hardening
-status: planning
-stopped_at: Phase 9 hardware input runtime wiring planned and broken into td tasks
-last_updated: "2026-06-17T00:00:00-05:00"
-last_activity: 2026-06-17
+status: hardening
+stopped_at: Phase 9 hardware input runtime wiring verified through app-runtime UAT
+last_updated: "2026-06-19T16:09:55-05:00"
+last_activity: 2026-06-19
 progress:
   foundation_phases_total: 5
   foundation_phases_completed: 5
   hardening_phases_total: 6
-  hardening_phases_completed: 2
-  current_stage: Phase 9 planned; hardware runtime wiring ready to execute
+  hardening_phases_completed: 3
+  current_stage: Phase 10 agent orchestration remains the next major runtime gap
 ---
 
 # Project State
@@ -26,13 +26,13 @@ See `.planning/PROJECT.md` and `.planning/ROADMAP.md`.
 
 ## Current Position
 
-Scrysynth is a late foundation prototype. The planned foundation phases have produced a canonical app-owned session model, React workspace, Tauri command layer, persistence, graph editing, scene/variation controls, agent safety scaffolding, visual-runtime scaffolding, macro controls, and MIDI/OSC binding models.
+Scrysynth is a late foundation prototype in v1 runtime hardening. The planned foundation phases have produced a canonical app-owned session model, React workspace, Tauri command layer, persistence, graph editing, scene/variation controls, agent safety scaffolding, visual-runtime scaffolding, macro controls, and MIDI/OSC binding models.
 
 The project is not yet a complete local audiovisual instrument. Runtime execution still needs production UAT and additional hardening:
 
 - Audio can launch `scsynth`, apply v1 SynthDef/topology commands over OSC, produce audible output from the default source-to-output graph, apply live parameter updates, stop, panic, and restart after panic on a real local SuperCollider install.
 - Visual runtime management now launches the in-repo minimal `scrysynth-visual` sidecar, handshakes over JSON lines, loads compiled scene snapshots, applies live parameter batches, stops, panics, and restarts after panic. The renderer remains minimal and GPU-free; richer Bevy output and packaged sidecar wiring are still future work.
-- MIDI/OSC managers and routing code exist, but app-level listener startup/configuration and receiver wiring need production implementation.
+- MIDI/OSC listener startup/configuration, learn, and post-learn routing are verified through the app-owned runtime path with a CoreMIDI virtual source and local OSC sender. GUI click-through hardware UAT remains release polish.
 - Agent collaboration is deterministic parser plus safety policy, not a real session-aware LLM/orchestrator.
 
 ## Completed Foundation
@@ -48,9 +48,8 @@ The project is not yet a complete local audiovisual instrument. Runtime executio
 ## Active Hardening Work
 
 1. Local developer readiness and docs.
-2. Hardware listener lifecycle and runtime wiring: planned as Phase 9 epic `td-dcaf9a`.
-3. Session-aware agent orchestration.
-4. Packaging, UAT, and release readiness.
+2. Session-aware agent orchestration.
+3. Packaging, UAT, and release readiness.
 
 ## Completed Hardening Work
 
@@ -58,6 +57,7 @@ The project is not yet a complete local audiovisual instrument. Runtime executio
 |-------|--------|--------|
 | 7. Real SuperCollider Execution | Complete | Default source-to-output graph verified against local `scsynth` with audible playback, live parameter update, stop, panic, and restart-after-panic. |
 | 8. Real Visual Runtime Path | Complete for minimal sidecar | `scrysynth-visual` starts as a separate process, acknowledges handshake and scene load, applies live parameter batches, stops, panics, and restarts after panic. Runtime Health now surfaces missing sidecar, booting, ready, degraded, disconnected, stopped, panicked, and restartable visual states. |
+| 9. Hardware Input Runtime Wiring | Complete for app-runtime path | CoreMIDI virtual MIDI and local OSC sender verified live learn plus post-learn routing for macro, scene recall, transport play, transport stop, and panic. Panic stopped an active SuperCollider patch and left audio `Idle/PanicRecovered`. |
 
 ## Recent Audit Findings
 
@@ -79,9 +79,20 @@ The project is not yet a complete local audiovisual instrument. Runtime executio
 
 ## Pending Todos
 
-- Add user-facing runtime setup diagnostics for unavailable hardware input.
+- Run a physical-controller GUI click-through pass when hardware is available.
 
 ## Latest Verification
+
+2026-06-19 task `td-8062dd`:
+
+- Phase 9 UAT evidence recorded in `.planning/phases/09-hardware-input-runtime-wiring/09-hardware-input-runtime-wiring-06-UAT.md`.
+- Scratch UAT runner used CoreMIDI virtual source `Scrysynth Phase 9 UAT Virtual MIDI`, local OSC sender `127.0.0.1:55970`, and `/Applications/SuperCollider.app/Contents/Resources/scsynth`.
+- MIDI learn verified CC channel 0 controller 7 for macro `energy` and CC channel 0 controller 8 for transport stop.
+- OSC learn verified `/scrysynth/uat/energy` for macro `energy`, `/scrysynth/uat/scene` for scene recall, `/scrysynth/uat/play` for transport play, and `/scrysynth/uat/panic` for panic.
+- Post-learn routing verified macro values `0.252` from MIDI and `0.420` from OSC, scene recall with active visual scene and macro override `0.650`, transport play with audio `Ready/Healthy` and active patch `patch-v1-be42ba9bd41741b2`, transport stop to `Idle/Unknown`, and panic to `Idle/PanicRecovered` with panic recovery count `1`.
+- Frontend polling was updated so a newly captured binding clears backend learn mode automatically before live routing continues.
+- Verification passed: `npm test` (4 files, 38 tests), `npm run build`, and `cargo test --manifest-path src-tauri/Cargo.toml` outside the sandbox. The first sandboxed Rust run failed only because OSC tests could not bind localhost UDP sockets.
+- `npm run tauri dev` launched Vite and `target/debug/scrysynth`, but GUI click-through was not claimed because the dev-launched process exposed no reliable accessibility window in this environment.
 
 2026-06-17 planning:
 
@@ -114,3 +125,4 @@ The project is not yet a complete local audiovisual instrument. Runtime executio
 
 Last consolidated: 2026-06-12.
 Current Phase 9 epic: `td-dcaf9a`.
+Current completed task: `td-8062dd`.

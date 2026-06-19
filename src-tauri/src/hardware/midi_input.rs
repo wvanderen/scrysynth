@@ -19,8 +19,15 @@ pub enum MidiLearnEvent {
 }
 
 pub struct MidiInputManager {
+    input: Option<midir::MidiInput>,
     connection: Option<midir::MidiInputConnection<()>>,
     event_sender: Sender<MidiLearnEvent>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ActiveMidiInput {
+    pub available_count: usize,
+    pub selected_display_name: String,
 }
 
 impl std::fmt::Debug for MidiInputManager {
@@ -36,6 +43,7 @@ impl MidiInputManager {
         let (tx, rx) = channel();
         (
             Self {
+                input: None,
                 connection: None,
                 event_sender: tx,
             },
@@ -43,21 +51,32 @@ impl MidiInputManager {
         )
     }
 
-    pub fn list_devices() -> Result<Vec<String>, String> {
-        let midi_in = midir::MidiInput::new("scrysynth-list").map_err(|e| e.to_string())?;
-        let ports = midi_in.ports();
+    pub fn list_devices(&mut self) -> Result<Vec<String>, String> {
+        self.ensure_input()?;
+        let input = self
+            .input
+            .as_ref()
+            .ok_or_else(|| "MIDI support could not be initialized".to_string())?;
+        let ports = input.ports();
         let mut names = Vec::with_capacity(ports.len());
         for port in &ports {
-            let name = midi_in.port_name(port).map_err(|e| e.to_string())?;
+            let name = input.port_name(port).map_err(|e| e.to_string())?;
             names.push(name);
         }
         Ok(names)
     }
 
-    pub fn start_listening(&mut self, port_index: Option<usize>) -> Result<(), String> {
+    pub fn start_listening(
+        &mut self,
+        port_index: Option<usize>,
+    ) -> Result<ActiveMidiInput, String> {
         self.stop_listening();
 
-        let midi_in = midir::MidiInput::new("scrysynth").map_err(|e| e.to_string())?;
+        self.ensure_input()?;
+        let midi_in = self
+            .input
+            .take()
+            .ok_or_else(|| "MIDI support could not be initialized".to_string())?;
 
         let ports = midi_in.ports();
         if ports.is_empty() {
@@ -74,31 +93,63 @@ impl MidiInputManager {
         }
 
         let port = ports[idx].clone();
+        let selected_display_name = midi_in.port_name(&port).map_err(|e| e.to_string())?;
+        let available_count = ports.len();
         let sender = self.event_sender.clone();
-        let connection = midi_in
-            .connect(
-                &port,
-                "scrysynth-midi-in",
-                move |_stamp: u64, message: &[u8], _data: &mut ()| {
-                    if let Some(event) = parse_midi_message(message) {
-                        let _ = sender.send(event);
-                    }
-                },
-                (),
-            )
-            .map_err(|e| e.to_string())?;
+        let connection = match midi_in.connect(
+            &port,
+            "scrysynth-midi-in",
+            move |_stamp: u64, message: &[u8], _data: &mut ()| {
+                if let Some(event) = parse_midi_message(message) {
+                    let _ = sender.send(event);
+                }
+            },
+            (),
+        ) {
+            Ok(connection) => connection,
+            Err(error) => {
+                let message = error.to_string();
+                self.input = Some(error.into_inner());
+                return Err(message);
+            }
+        };
 
         self.connection = Some(connection);
-        Ok(())
+        Ok(ActiveMidiInput {
+            available_count,
+            selected_display_name,
+        })
     }
 
     pub fn stop_listening(&mut self) {
-        self.connection = None;
+        if let Some(connection) = self.connection.take() {
+            let (input, ()) = connection.close();
+            self.input = Some(input);
+        }
     }
 
     pub fn is_listening(&self) -> bool {
         self.connection.is_some()
     }
+
+    fn ensure_input(&mut self) -> Result<(), String> {
+        if self.input.is_some() {
+            return Ok(());
+        }
+
+        self.input = Some(open_midi_input_for_listening()?);
+        Ok(())
+    }
+}
+
+fn open_midi_input_for_listening() -> Result<midir::MidiInput, String> {
+    midir::MidiInput::new("scrysynth-list")
+        .or_else(|_| midir::MidiInput::new("scrysynth"))
+        .map_err(|err| {
+            format!(
+                "CoreMIDI listener could not be initialized. macOS reported: {err}. Try quitting other MIDI apps or unplugging/replugging the controller, then press Refresh and Start again."
+            )
+        })
 }
 
 pub fn parse_midi_message(message: &[u8]) -> Option<MidiLearnEvent> {
