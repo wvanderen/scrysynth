@@ -65,6 +65,14 @@ impl HardwareInputRouter {
         self.midi_rx = None;
     }
 
+    pub fn attach_osc_receiver(&mut self, rx: Receiver<OscLearnEvent>) {
+        self.osc_rx = Some(rx);
+    }
+
+    pub fn detach_osc_receiver(&mut self) {
+        self.osc_rx = None;
+    }
+
     pub fn poll_and_route(&mut self, session: &mut SessionDocument) -> Option<HardwareBinding> {
         let midi_event = self.midi_rx.as_ref().and_then(|rx| rx.try_recv().ok());
 

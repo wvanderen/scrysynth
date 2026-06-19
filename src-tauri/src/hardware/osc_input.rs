@@ -1,5 +1,5 @@
 use std::net::UdpSocket;
-use std::sync::mpsc::{channel, Receiver};
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -8,23 +8,28 @@ pub struct OscLearnEvent {
     pub args: Vec<rosc::OscType>,
 }
 
+#[derive(Debug)]
 pub struct OscInputManager {
     thread_handle: Option<thread::JoinHandle<()>>,
-    stop_socket: Option<UdpSocket>,
+    shutdown_tx: Option<Sender<()>>,
 }
 
 impl OscInputManager {
     pub fn new() -> Self {
         Self {
             thread_handle: None,
-            stop_socket: None,
+            shutdown_tx: None,
         }
     }
 
-    pub fn start_listening(&mut self, port: u16) -> Result<Receiver<OscLearnEvent>, String> {
+    pub fn start_listening(
+        &mut self,
+        bind_host: &str,
+        port: u16,
+    ) -> Result<Receiver<OscLearnEvent>, String> {
         self.stop_listening();
 
-        let bind_addr = format!("127.0.0.1:{}", port);
+        let bind_addr = format!("{}:{}", bind_host, port);
         let socket = UdpSocket::bind(&bind_addr)
             .map_err(|e| format!("Failed to bind OSC listener on {}: {}", bind_addr, e))?;
         socket
@@ -61,15 +66,14 @@ impl OscInputManager {
             .map_err(|e| format!("Failed to spawn OSC thread: {}", e))?;
 
         self.thread_handle = Some(handle);
-        self.stop_socket = Some(shutdown_socket_for_signal(shutdown_tx));
+        self.shutdown_tx = Some(shutdown_tx);
 
         Ok(rx)
     }
 
     pub fn stop_listening(&mut self) {
-        if let Some(socket) = self.stop_socket.take() {
-            let _ = socket.send_to(&[0], "127.0.0.1:0");
-            drop(socket);
+        if let Some(tx) = self.shutdown_tx.take() {
+            let _ = tx.send(());
         }
         if let Some(handle) = self.thread_handle.take() {
             let _ = handle.join();
@@ -79,12 +83,6 @@ impl OscInputManager {
     pub fn is_listening(&self) -> bool {
         self.thread_handle.is_some()
     }
-}
-
-fn shutdown_socket_for_signal(tx: std::sync::mpsc::Sender<()>) -> UdpSocket {
-    let socket = UdpSocket::bind("127.0.0.1:0").expect("bind shutdown socket");
-    let _ = tx;
-    socket
 }
 
 fn extract_osc_events(packet: &rosc::OscPacket) -> Vec<OscLearnEvent> {

@@ -13,6 +13,7 @@ use crate::domain::session::{
     VariationDefinition,
 };
 use crate::hardware::midi_input::MidiInputManager;
+use crate::hardware::osc_input::OscInputManager;
 use crate::visual::runtime_manager::{VisualRuntimeManager, VisualRuntimeManagerError};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -50,6 +51,7 @@ pub struct SessionStore {
     #[allow(dead_code)]
     hardware_router: HardwareInputRouter,
     midi_input_manager: MidiInputManager,
+    osc_input_manager: OscInputManager,
     hardware_settings: HardwareRuntimeSettings,
     hardware_status: HardwareRuntimeStatus,
 }
@@ -66,6 +68,7 @@ impl SessionStore {
             visual_runtime_manager: VisualRuntimeManager::default(),
             hardware_router,
             midi_input_manager,
+            osc_input_manager: OscInputManager::default(),
             hardware_settings: HardwareRuntimeSettings::default(),
             hardware_status: HardwareRuntimeStatus::default(),
         }
@@ -307,13 +310,12 @@ impl SessionStore {
         }
 
         if osc_needs_restart {
+            self.restart_osc_listener()?;
             self.record_hardware_diagnostic(HardwareRuntimeDiagnostic {
-                code: HardwareRuntimeDiagnosticCode::ListenerRestartRequired,
-                message: "OSC settings changed while listeners were active.".to_string(),
+                code: HardwareRuntimeDiagnosticCode::ListenerRestarted,
+                message: "OSC listener restarted for the updated bind settings.".to_string(),
                 recoverable: true,
-                detail: Some(
-                    "Restart OSC listeners so the new configuration takes effect.".to_string(),
-                ),
+                detail: None,
             });
         }
 
@@ -349,18 +351,14 @@ impl SessionStore {
         self.hardware_status.diagnostics.clear();
         self.start_midi_listener()?;
         if self.hardware_settings.osc.auto_start {
-            self.record_hardware_diagnostic(HardwareRuntimeDiagnostic {
-                code: HardwareRuntimeDiagnosticCode::ListenerStartPending,
-                message: "OSC listener startup is not wired yet.".to_string(),
-                recoverable: true,
-                detail: Some("Phase 9.3 wires OSC sockets.".to_string()),
-            });
+            self.start_osc_listener()?;
         }
         Ok(self.hardware_runtime_status())
     }
 
     pub fn stop_hardware_listeners(&mut self) -> HardwareRuntimeStatus {
         self.midi_input_manager.stop_listening();
+        self.stop_osc_listener();
         self.hardware_status.midi.lifecycle = HardwareListenerLifecycle::Stopped;
         self.hardware_status.osc.lifecycle = HardwareListenerLifecycle::Stopped;
         self.hardware_status.midi.last_error = None;
@@ -383,6 +381,19 @@ impl SessionStore {
             }
         }
         self.current()
+    }
+
+    pub fn start_osc_listener(&mut self) -> Result<HardwareRuntimeStatus, String> {
+        self.hardware_status.diagnostics.clear();
+        self.start_osc_listener_inner()?;
+        Ok(self.hardware_runtime_status())
+    }
+
+    pub fn stop_osc_listener(&mut self) {
+        self.osc_input_manager.stop_listening();
+        self.hardware_router.detach_osc_receiver();
+        self.hardware_status.osc.lifecycle = HardwareListenerLifecycle::Stopped;
+        self.hardware_status.osc.last_error = None;
     }
 
     fn start_midi_listener(&mut self) -> Result<(), String> {
@@ -453,6 +464,43 @@ impl SessionStore {
         self.hardware_status.midi.lifecycle = HardwareListenerLifecycle::Restarting;
         self.midi_input_manager.stop_listening();
         self.start_midi_listener()
+    }
+
+    fn start_osc_listener_inner(&mut self) -> Result<(), String> {
+        let settings = self.hardware_settings.osc.clone();
+        self.hardware_status.osc.lifecycle = HardwareListenerLifecycle::Starting;
+        self.hardware_status.osc.bind_host = settings.bind_host.clone();
+        self.hardware_status.osc.listen_port = settings.listen_port;
+
+        match self
+            .osc_input_manager
+            .start_listening(&settings.bind_host, settings.listen_port)
+        {
+            Ok(rx) => {
+                self.hardware_router.attach_osc_receiver(rx);
+                self.hardware_status.osc.lifecycle = HardwareListenerLifecycle::Listening;
+                self.hardware_status.osc.last_error = None;
+                Ok(())
+            }
+            Err(err) => {
+                self.hardware_router.detach_osc_receiver();
+                self.hardware_status.osc.lifecycle = HardwareListenerLifecycle::Error;
+                self.hardware_status.osc.last_error = Some(err.clone());
+                self.record_hardware_diagnostic(osc_bind_diagnostic(
+                    &settings.bind_host,
+                    settings.listen_port,
+                    &err,
+                ));
+                Err(err)
+            }
+        }
+    }
+
+    fn restart_osc_listener(&mut self) -> Result<(), String> {
+        self.hardware_status.osc.lifecycle = HardwareListenerLifecycle::Restarting;
+        self.osc_input_manager.stop_listening();
+        self.hardware_router.detach_osc_receiver();
+        self.start_osc_listener_inner()
     }
 
     fn validate_selected_midi_input(
@@ -617,6 +665,29 @@ fn invalid_midi_selection_diagnostic(selected_input_id: &str) -> HardwareRuntime
         recoverable: true,
         detail: Some(format!(
             "The selected input id '{selected_input_id}' was not found in the current MIDI port list."
+        )),
+    }
+}
+
+fn osc_bind_diagnostic(bind_host: &str, listen_port: u16, err: &str) -> HardwareRuntimeDiagnostic {
+    let port_in_use = err.contains("Address already in use")
+        || err.contains("addr in use")
+        || err.contains("os error 48")
+        || err.contains("os error 98");
+    HardwareRuntimeDiagnostic {
+        code: if port_in_use {
+            HardwareRuntimeDiagnosticCode::OscPortInUse
+        } else {
+            HardwareRuntimeDiagnosticCode::OscBindFailed
+        },
+        message: if port_in_use {
+            "OSC listen port is already in use.".to_string()
+        } else {
+            "Could not start OSC listener.".to_string()
+        },
+        recoverable: true,
+        detail: Some(format!(
+            "Tried to bind OSC listener on {bind_host}:{listen_port}. {err}"
         )),
     }
 }
@@ -859,7 +930,10 @@ fn build_default_session() -> SessionDocument {
 mod tests {
     use super::*;
     use crate::hardware::midi_input::MidiLearnEvent;
+    use std::net::UdpSocket;
     use std::sync::mpsc;
+    use std::thread;
+    use std::time::{Duration, Instant};
 
     #[test]
     fn session_store_create_default_session_returns_seeded_graph() {
@@ -958,5 +1032,138 @@ mod tests {
 
         assert_eq!(store.current().hardware_bindings.len(), 1);
         assert_eq!(store.current().hardware_bindings[0].id, "hb-1");
+    }
+
+    #[test]
+    fn app_level_store_path_captures_osc_learn_event() {
+        let port = unused_local_udp_port();
+        let mut store = SessionStore::new_default();
+        let mut settings = store.hardware_runtime_settings();
+        settings.osc.listen_port = port;
+        store
+            .update_hardware_runtime_settings(settings)
+            .expect("valid OSC settings");
+        store
+            .start_osc_listener()
+            .expect("OSC listener should start");
+        store
+            .hardware_router
+            .start_learn(BindingTarget::TransportPlay);
+
+        send_osc_message(port, "/scrysynth/learn", vec![rosc::OscType::Float(1.0)]);
+
+        let binding = wait_for_hardware_binding(&mut store);
+        assert_eq!(binding.target, BindingTarget::TransportPlay);
+        assert_eq!(
+            binding.source,
+            crate::domain::session::HardwareSource::OscAddress {
+                address: "/scrysynth/learn".to_string()
+            }
+        );
+        assert!(matches!(
+            store.hardware_runtime_status().learn.lifecycle,
+            HardwareLearnLifecycle::Captured
+        ));
+
+        store.stop_osc_listener();
+    }
+
+    #[test]
+    fn osc_listener_restarts_on_same_port() {
+        let port = unused_local_udp_port();
+        let mut store = SessionStore::new_default();
+        let mut settings = store.hardware_runtime_settings();
+        settings.osc.listen_port = port;
+        store
+            .update_hardware_runtime_settings(settings)
+            .expect("valid OSC settings");
+
+        store
+            .start_osc_listener()
+            .expect("first OSC listener start");
+        assert!(store.osc_input_manager.is_listening());
+        store.stop_osc_listener();
+        assert!(!store.osc_input_manager.is_listening());
+        store
+            .start_osc_listener()
+            .expect("OSC listener should restart on same port");
+        assert!(store.osc_input_manager.is_listening());
+
+        store.stop_osc_listener();
+    }
+
+    #[test]
+    fn osc_listener_shutdown_releases_udp_port() {
+        let port = unused_local_udp_port();
+        let mut store = SessionStore::new_default();
+        let mut settings = store.hardware_runtime_settings();
+        settings.osc.listen_port = port;
+        store
+            .update_hardware_runtime_settings(settings)
+            .expect("valid OSC settings");
+        store.start_osc_listener().expect("OSC listener start");
+
+        store.stop_osc_listener();
+
+        UdpSocket::bind(("127.0.0.1", port)).expect("stopped listener should release UDP port");
+    }
+
+    #[test]
+    fn osc_port_in_use_returns_clear_diagnostic() {
+        let blocker = UdpSocket::bind(("127.0.0.1", 0)).expect("bind blocker");
+        let port = blocker.local_addr().unwrap().port();
+        let mut store = SessionStore::new_default();
+        let mut settings = store.hardware_runtime_settings();
+        settings.osc.listen_port = port;
+        store
+            .update_hardware_runtime_settings(settings)
+            .expect("valid OSC settings");
+
+        let err = store
+            .start_osc_listener()
+            .expect_err("port in use should fail");
+        assert!(err.contains("Failed to bind OSC listener"));
+
+        let status = store.hardware_runtime_status();
+        assert_eq!(status.osc.lifecycle, HardwareListenerLifecycle::Error);
+        assert!(status.osc.last_error.is_some());
+        assert_eq!(status.diagnostics.len(), 1);
+        assert_eq!(
+            status.diagnostics[0].code,
+            HardwareRuntimeDiagnosticCode::OscPortInUse
+        );
+        assert!(status.diagnostics[0]
+            .detail
+            .as_deref()
+            .unwrap_or_default()
+            .contains(&format!("127.0.0.1:{port}")));
+    }
+
+    fn unused_local_udp_port() -> u16 {
+        let socket = UdpSocket::bind(("127.0.0.1", 0)).expect("bind ephemeral port");
+        socket.local_addr().unwrap().port()
+    }
+
+    fn send_osc_message(port: u16, address: &str, args: Vec<rosc::OscType>) {
+        let packet = rosc::OscPacket::Message(rosc::OscMessage {
+            addr: address.to_string(),
+            args,
+        });
+        let bytes = rosc::encoder::encode(&packet).expect("encode OSC packet");
+        let socket = UdpSocket::bind(("127.0.0.1", 0)).expect("bind sender");
+        socket
+            .send_to(&bytes, ("127.0.0.1", port))
+            .expect("send OSC packet");
+    }
+
+    fn wait_for_hardware_binding(store: &mut SessionStore) -> HardwareBinding {
+        let deadline = Instant::now() + Duration::from_millis(500);
+        loop {
+            if let Some(binding) = store.poll_hardware_events() {
+                return binding;
+            }
+            assert!(Instant::now() < deadline, "timed out waiting for OSC event");
+            thread::sleep(Duration::from_millis(10));
+        }
     }
 }
