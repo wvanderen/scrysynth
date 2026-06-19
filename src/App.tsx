@@ -53,7 +53,15 @@ function App() {
     removeMacro,
     setMacroValue,
     hardwareBindings,
+    hardwareSettings,
+    hardwareStatus,
+    midiInputPorts,
+    refreshHardwareRuntime,
+    updateHardwareSettings,
+    startHardwareRuntime,
+    stopHardwareRuntime,
     startMidiLearn,
+    stopMidiLearn,
     removeHardwareBinding,
   } = useSessionStore();
 
@@ -169,7 +177,15 @@ function App() {
           onRemoveMacro={(macroId) => void removeMacro(macroId)}
           onSetMacroValue={(macroId, value) => void setMacroValue(macroId, value)}
           hardwareBindings={hardwareBindings ?? []}
+          hardwareSettings={hardwareSettings}
+          hardwareStatus={hardwareStatus}
+          midiInputPorts={midiInputPorts}
+          onRefreshHardware={() => void refreshHardwareRuntime()}
+          onUpdateHardwareSettings={(settings) => void updateHardwareSettings(settings)}
+          onStartHardwareRuntime={() => void startHardwareRuntime()}
+          onStopHardwareRuntime={() => void stopHardwareRuntime()}
           onStartMidiLearn={(target) => void startMidiLearn(target)}
+          onStopMidiLearn={() => void stopMidiLearn()}
           onRemoveHardwareBinding={(bindingId) => void removeHardwareBinding(bindingId)}
         />
       ) : null}

@@ -10,6 +10,9 @@ const clientMocks = vi.hoisted(() => ({
   createDefaultSession: vi.fn<() => Promise<SessionDocument>>(),
   getAgentRuntimeState: vi.fn(),
   getCurrentSession: vi.fn<() => Promise<SessionDocument>>(),
+  getHardwareRuntimeSettings: vi.fn(),
+  getHardwareRuntimeStatus: vi.fn(),
+  listMidiInputPorts: vi.fn(),
   openSessionFromPath: vi.fn<(path: string) => Promise<SessionDocument>>(),
   panicAudioRuntime: vi.fn<() => Promise<SessionDocument>>(),
   panicVisualRuntime: vi.fn<() => Promise<SessionDocument>>(),
@@ -21,17 +24,20 @@ const clientMocks = vi.hoisted(() => ({
   sendAgentMessage: vi.fn(),
   startAudioRuntime: vi.fn<() => Promise<SessionDocument>>(),
   startHardwareLearn: vi.fn(),
+  startHardwareListeners: vi.fn(),
   startVisualRuntime: vi.fn<() => Promise<SessionDocument>>(),
   stopAudioRuntime: vi.fn<() => Promise<SessionDocument>>(),
+  stopHardwareListeners: vi.fn(),
   stopHardwareLearn: vi.fn(),
   stopVisualRuntime: vi.fn<() => Promise<SessionDocument>>(),
   toggleAgentFreeze: vi.fn(),
+  updateHardwareRuntimeSettings: vi.fn(),
 }));
 
 vi.mock("../lib/session-client", () => clientMocks);
 
 import { projectSessionState, deriveActiveSceneId } from "./session-projections";
-import { useSessionStore } from "./sessionStore";
+import { shouldPollHardware, useSessionStore } from "./sessionStore";
 
 function createSession(overrides: Partial<SessionDocument> = {}): SessionDocument {
   return {
@@ -142,9 +148,45 @@ function createSession(overrides: Partial<SessionDocument> = {}): SessionDocumen
   };
 }
 
+function createHardwareStatus(overrides: Partial<import("../generated/session-types").HardwareRuntimeStatus> = {}): import("../generated/session-types").HardwareRuntimeStatus {
+  return {
+    midi: {
+      lifecycle: "stopped",
+      selectedInputId: null,
+      selectedDisplayName: null,
+      availableInputCount: 0,
+      lastError: null,
+    },
+    osc: {
+      lifecycle: "stopped",
+      bindHost: "127.0.0.1",
+      listenPort: 9001,
+      lastError: null,
+    },
+    learn: {
+      lifecycle: "idle",
+      target: null,
+      source: null,
+    },
+    diagnostics: [],
+    ...overrides,
+  };
+}
+
+function createHardwareSettings(overrides: Partial<import("../generated/session-types").HardwareRuntimeSettings> = {}): import("../generated/session-types").HardwareRuntimeSettings {
+  return {
+    midi: { selectedInputId: null, autoStart: false },
+    osc: { bindHost: "127.0.0.1", listenPort: 9001, autoStart: false },
+    ...overrides,
+  };
+}
+
 describe("session projections", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clientMocks.getHardwareRuntimeSettings.mockResolvedValue(createHardwareSettings());
+    clientMocks.getHardwareRuntimeStatus.mockResolvedValue(createHardwareStatus());
+    clientMocks.listMidiInputPorts.mockResolvedValue([]);
     useSessionStore.setState({
       session: null,
       selectedNodeId: null,
@@ -161,6 +203,12 @@ describe("session projections", () => {
       agentFrozen: false,
       pendingActions: [],
       actionHistory: [],
+      hardwareBindings: [],
+      hardwareSettings: null,
+      hardwareStatus: null,
+      midiInputPorts: [],
+      midiLearnActive: false,
+      midiLearnTarget: null,
     });
   });
 
@@ -576,5 +624,135 @@ describe("performance workspace", () => {
 
     useSessionStore.getState().setWorkspaceView("conversation");
     expect(useSessionStore.getState().workspaceView).toBe("conversation");
+  });
+
+  it("bootstrapSession projects hardware settings status diagnostics and MIDI ports", async () => {
+    const session = createSession();
+    const status = createHardwareStatus({
+      midi: {
+        lifecycle: "unavailable",
+        selectedInputId: null,
+        selectedDisplayName: null,
+        availableInputCount: 0,
+        lastError: "No MIDI devices",
+      },
+      diagnostics: [
+        {
+          code: "no_midi_ports",
+          message: "No MIDI input ports are available.",
+          recoverable: true,
+          detail: "Connect a controller.",
+        },
+      ],
+    });
+    const settings = createHardwareSettings({
+      osc: { bindHost: "0.0.0.0", listenPort: 7777, autoStart: true },
+    });
+    clientMocks.getCurrentSession.mockResolvedValue(session);
+    clientMocks.getHardwareRuntimeSettings.mockResolvedValue(settings);
+    clientMocks.getHardwareRuntimeStatus.mockResolvedValue(status);
+    clientMocks.listMidiInputPorts.mockResolvedValue([
+      { id: "midi-0", displayName: "Launch Control", isSelected: false },
+    ]);
+
+    await useSessionStore.getState().bootstrapSession();
+
+    const state = useSessionStore.getState();
+    expect(state.hardwareSettings?.osc.listenPort).toBe(7777);
+    expect(state.hardwareStatus?.midi.lifecycle).toBe("unavailable");
+    expect(state.hardwareStatus?.diagnostics[0]?.message).toContain("No MIDI");
+    expect(state.midiInputPorts[0]?.displayName).toBe("Launch Control");
+  });
+
+  it("hardware settings and listener actions use the command contract", async () => {
+    const settings = createHardwareSettings({
+      midi: { selectedInputId: "midi-0", autoStart: true },
+      osc: { bindHost: "127.0.0.1", listenPort: 9123, autoStart: true },
+    });
+    const listening = createHardwareStatus({
+      midi: { lifecycle: "listening", selectedInputId: "midi-0", selectedDisplayName: "Keys", availableInputCount: 1, lastError: null },
+      osc: { lifecycle: "listening", bindHost: "127.0.0.1", listenPort: 9123, lastError: null },
+    });
+    const stopped = createHardwareStatus();
+    clientMocks.updateHardwareRuntimeSettings.mockResolvedValue(listening);
+    clientMocks.listMidiInputPorts.mockResolvedValue([
+      { id: "midi-0", displayName: "Keys", isSelected: true },
+    ]);
+    clientMocks.startHardwareListeners.mockResolvedValue(listening);
+    clientMocks.stopHardwareListeners.mockResolvedValue(stopped);
+
+    await useSessionStore.getState().updateHardwareSettings(settings);
+    expect(clientMocks.updateHardwareRuntimeSettings).toHaveBeenCalledWith(settings);
+    expect(useSessionStore.getState().hardwareStatus?.osc.listenPort).toBe(9123);
+
+    await useSessionStore.getState().startHardwareRuntime();
+    expect(clientMocks.startHardwareListeners).toHaveBeenCalled();
+    expect(useSessionStore.getState().hardwareStatus?.midi.lifecycle).toBe("listening");
+
+    await useSessionStore.getState().stopHardwareRuntime();
+    expect(clientMocks.stopHardwareListeners).toHaveBeenCalled();
+    expect(useSessionStore.getState().hardwareStatus?.midi.lifecycle).toBe("stopped");
+  });
+
+  it("learn cancel and binding removal update hardware-facing state", async () => {
+    const withBinding = createSession({
+      hardwareBindings: [
+        {
+          id: "binding-1",
+          source: { kind: "oscAddress", config: { address: "/scrysynth/energy" } },
+          target: { kind: "transportPanic" },
+          transform: { inputMin: 0, inputMax: 1, outputMin: 0, outputMax: 1 },
+        },
+      ],
+    });
+    const learning = createHardwareStatus({
+      learn: { lifecycle: "learning", target: { kind: "transportPlay" }, source: null },
+    });
+    clientMocks.getCurrentSession.mockResolvedValue(withBinding);
+    clientMocks.startHardwareLearn.mockResolvedValue(learning);
+    clientMocks.stopHardwareLearn.mockResolvedValue(undefined);
+    clientMocks.removeHardwareBinding.mockResolvedValue(createSession({ hardwareBindings: [] }));
+
+    await useSessionStore.getState().bootstrapSession();
+    await useSessionStore.getState().startMidiLearn({ kind: "transportPlay" });
+    expect(clientMocks.startHardwareLearn).toHaveBeenCalledWith({ kind: "transportPlay" });
+    expect(useSessionStore.getState().midiLearnActive).toBe(true);
+
+    await useSessionStore.getState().stopMidiLearn();
+    expect(clientMocks.stopHardwareLearn).toHaveBeenCalled();
+    expect(useSessionStore.getState().midiLearnActive).toBe(false);
+
+    await useSessionStore.getState().removeHardwareBinding("binding-1");
+    expect(clientMocks.removeHardwareBinding).toHaveBeenCalledWith("binding-1");
+    expect(useSessionStore.getState().hardwareBindings).toHaveLength(0);
+  });
+
+  it("hardware polling predicate follows listeners learn state and bindings", () => {
+    expect(shouldPollHardware({
+      midiLearnActive: false,
+      hardwareBindings: [],
+      hardwareStatus: createHardwareStatus(),
+    })).toBe(false);
+
+    expect(shouldPollHardware({
+      midiLearnActive: false,
+      hardwareBindings: [],
+      hardwareStatus: createHardwareStatus({
+        osc: { lifecycle: "listening", bindHost: "127.0.0.1", listenPort: 9001, lastError: null },
+      }),
+    })).toBe(true);
+
+    expect(shouldPollHardware({
+      midiLearnActive: false,
+      hardwareBindings: [
+        {
+          id: "binding-1",
+          source: { kind: "midiCc", config: { channel: 0, controller: 1 } },
+          target: { kind: "transportStop" },
+          transform: { inputMin: 0, inputMax: 127, outputMin: 0, outputMax: 1 },
+        },
+      ],
+      hardwareStatus: createHardwareStatus(),
+    })).toBe(true);
   });
 });

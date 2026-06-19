@@ -2,8 +2,7 @@ import { useEffect } from "react";
 
 import type { BindingTarget, HardwareBinding } from "../../generated/session-types";
 import {
-  startHardwarePolling,
-  stopHardwarePolling,
+  ensureHardwarePolling,
   useSessionStore,
 } from "../../store/sessionStore";
 
@@ -47,14 +46,7 @@ export function MidiLearnOverlay() {
   const stopMidiLearn = useSessionStore((s) => s.stopMidiLearn);
 
   useEffect(() => {
-    if (midiLearnActive || (hardwareBindings ?? []).length > 0) {
-      startHardwarePolling();
-    }
-    return () => {
-      if (!midiLearnActive && (hardwareBindings ?? []).length === 0) {
-        stopHardwarePolling();
-      }
-    };
+    ensureHardwarePolling();
   }, [midiLearnActive, hardwareBindings]);
 
   if (!midiLearnActive) return null;

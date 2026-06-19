@@ -304,6 +304,171 @@ button:disabled {
   background: rgba(10, 28, 26, 0.88);
 }
 
+.hardware-panel {
+  display: grid;
+  gap: 1rem;
+}
+
+.hardware-panel-header,
+.hardware-actions,
+.hardware-section-title,
+.hardware-binding-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.hardware-panel-header,
+.hardware-section-title {
+  justify-content: space-between;
+}
+
+.hardware-actions,
+.hardware-learn-group div {
+  flex-wrap: wrap;
+}
+
+.hardware-actions button,
+.hardware-learn-group button,
+.hardware-bindings button,
+.hardware-section-title button,
+.hardware-settings-grid button {
+  padding: 0.45rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.86rem;
+}
+
+.hardware-status-grid,
+.hardware-settings-grid,
+.hardware-learn-groups {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.hardware-status-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.hardware-status-pill {
+  min-width: 0;
+  border-radius: 14px;
+  padding: 0.7rem 0.75rem;
+  background: rgba(10, 28, 26, 0.78);
+  border: 1px solid rgba(92, 127, 120, 0.42);
+  display: grid;
+  gap: 0.1rem;
+}
+
+.hardware-status-pill span,
+.hardware-status-pill small,
+.hardware-learn-group span {
+  color: #a8b8b0;
+}
+
+.hardware-status-pill strong {
+  font-size: 0.98rem;
+}
+
+.hardware-status-ok {
+  border-color: rgba(143, 212, 176, 0.55);
+}
+
+.hardware-status-warn {
+  border-color: rgba(247, 198, 106, 0.55);
+}
+
+.hardware-status-error {
+  border-color: rgba(255, 147, 118, 0.58);
+}
+
+.hardware-settings-grid {
+  grid-template-columns: minmax(180px, 1.2fr) minmax(140px, 0.9fr) minmax(110px, 0.55fr) auto;
+  align-items: end;
+}
+
+.field-stack {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.field-stack span {
+  color: #c2b68c;
+  font-size: 0.8rem;
+}
+
+.hardware-input {
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid rgba(92, 127, 120, 0.55);
+  padding: 0.7rem 0.8rem;
+  font: inherit;
+  color: #f2eee5;
+  background: rgba(10, 28, 26, 0.88);
+}
+
+.hardware-learn-groups {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.hardware-learn-group {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.hardware-learn-group div,
+.hardware-binding-list {
+  display: flex;
+  gap: 0.45rem;
+}
+
+.hardware-binding-list {
+  flex-direction: column;
+}
+
+.hardware-binding-row {
+  padding: 0.55rem 0.65rem;
+  border-radius: 12px;
+  background: rgba(10, 28, 26, 0.86);
+  border: 1px solid rgba(58, 88, 83, 0.55);
+}
+
+.hardware-binding-row button {
+  margin-left: auto;
+}
+
+.source-badge {
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  color: #f7c66a;
+  background: rgba(247, 198, 106, 0.12);
+  border: 1px solid rgba(247, 198, 106, 0.32);
+  font-size: 0.75rem;
+}
+
+.binding-arrow {
+  color: #a8b8b0;
+}
+
+.hardware-diagnostics {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.hardware-diagnostic {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 12px;
+  color: #ffd0bd;
+  background: rgba(76, 18, 16, 0.6);
+  border: 1px solid rgba(255, 147, 118, 0.4);
+}
+
+.hardware-diagnostic span {
+  color: #f3b9a7;
+  font-size: 0.86rem;
+}
+
 .runtime-strip {
   padding: 0.85rem;
   border-radius: 22px;
@@ -739,6 +904,16 @@ button:disabled {
 
   .performance-grid {
     grid-template-columns: 1fr;
+  }
+
+  .hardware-status-grid,
+  .hardware-settings-grid,
+  .hardware-learn-groups {
+    grid-template-columns: 1fr;
+  }
+
+  .hardware-settings-grid button {
+    justify-self: start;
   }
 }
 

@@ -10,6 +10,9 @@ const clientMocks = vi.hoisted(() => ({
   createDefaultSession: vi.fn(),
   getAgentRuntimeState: vi.fn(),
   getCurrentSession: vi.fn(),
+  getHardwareRuntimeSettings: vi.fn(),
+  getHardwareRuntimeStatus: vi.fn(),
+  listMidiInputPorts: vi.fn(),
   openSessionFromPath: vi.fn(),
   panicAudioRuntime: vi.fn(),
   panicVisualRuntime: vi.fn(),
@@ -21,11 +24,14 @@ const clientMocks = vi.hoisted(() => ({
   sendAgentMessage: vi.fn<(message: string) => Promise<{ session: SessionDocument; intent: AgentIntent }>>(),
   startAudioRuntime: vi.fn(),
   startHardwareLearn: vi.fn(),
+  startHardwareListeners: vi.fn(),
   startVisualRuntime: vi.fn(),
   stopAudioRuntime: vi.fn(),
+  stopHardwareListeners: vi.fn(),
   stopHardwareLearn: vi.fn(),
   stopVisualRuntime: vi.fn(),
   toggleAgentFreeze: vi.fn<() => Promise<SessionDocument>>(),
+  updateHardwareRuntimeSettings: vi.fn(),
 }));
 
 vi.mock("../lib/session-client", () => clientMocks);
@@ -99,6 +105,17 @@ function createSession(overrides: Partial<SessionDocument> = {}): SessionDocumen
 describe("agent collaboration store actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clientMocks.getHardwareRuntimeSettings.mockResolvedValue({
+      midi: { selectedInputId: null, autoStart: false },
+      osc: { bindHost: "127.0.0.1", listenPort: 9001, autoStart: false },
+    });
+    clientMocks.getHardwareRuntimeStatus.mockResolvedValue({
+      midi: { lifecycle: "stopped", selectedInputId: null, selectedDisplayName: null, availableInputCount: 0, lastError: null },
+      osc: { lifecycle: "stopped", bindHost: "127.0.0.1", listenPort: 9001, lastError: null },
+      learn: { lifecycle: "idle", target: null, source: null },
+      diagnostics: [],
+    });
+    clientMocks.listMidiInputPorts.mockResolvedValue([]);
     useSessionStore.setState({
       session: null,
       selectedNodeId: null,
@@ -115,6 +132,12 @@ describe("agent collaboration store actions", () => {
       agentFrozen: false,
       pendingActions: [],
       actionHistory: [],
+      hardwareBindings: [],
+      hardwareSettings: null,
+      hardwareStatus: null,
+      midiInputPorts: [],
+      midiLearnActive: false,
+      midiLearnTarget: null,
     });
   });
 

@@ -1,10 +1,22 @@
 import { useMemo } from "react";
 
-import type { ActionHistoryEntry, BindingTarget, HardwareBinding, MacroDefinition, Node, SceneDefinition, VariationDefinition } from "../../generated/session-types";
+import type {
+  ActionHistoryEntry,
+  BindingTarget,
+  HardwareBinding,
+  HardwareRuntimeSettings,
+  HardwareRuntimeStatus,
+  MacroDefinition,
+  MidiInputPort,
+  Node,
+  SceneDefinition,
+  VariationDefinition,
+} from "../../generated/session-types";
 import { ActivityPanel } from "./ActivityPanel";
+import { HardwarePanel } from "./HardwarePanel";
 import { MacroEditor } from "./MacroEditor";
 import { MacroSlider } from "./MacroSlider";
-import { MidiLearnOverlay, formatSource, formatTarget } from "./MidiLearnOverlay";
+import { MidiLearnOverlay } from "./MidiLearnOverlay";
 import { ScenePanel } from "./ScenePanel";
 import { VariationPanel } from "./VariationPanel";
 
@@ -16,6 +28,9 @@ type PerformanceViewProps = {
   macros: MacroDefinition[];
   actionHistory: ActionHistoryEntry[];
   hardwareBindings: HardwareBinding[];
+  hardwareSettings: HardwareRuntimeSettings | null;
+  hardwareStatus: HardwareRuntimeStatus | null;
+  midiInputPorts: MidiInputPort[];
   isLoading: boolean;
   onRecallScene: (sceneId: string) => void;
   onSaveVariation: (name: string, sceneId: string) => void;
@@ -24,7 +39,12 @@ type PerformanceViewProps = {
   onUpdateMacro: (macroId: string, updates: { name?: string; targets?: import("../../generated/session-types").MacroTarget[]; rangeStart?: number; rangeEnd?: number }) => void;
   onRemoveMacro: (macroId: string) => void;
   onSetMacroValue: (macroId: string, value: number) => void;
+  onRefreshHardware: () => void;
+  onUpdateHardwareSettings: (settings: HardwareRuntimeSettings) => void;
+  onStartHardwareRuntime: () => void;
+  onStopHardwareRuntime: () => void;
   onStartMidiLearn: (target: BindingTarget) => void;
+  onStopMidiLearn: () => void;
   onRemoveHardwareBinding: (bindingId: string) => void;
 };
 
@@ -36,6 +56,9 @@ export function PerformanceView({
   macros,
   actionHistory,
   hardwareBindings,
+  hardwareSettings,
+  hardwareStatus,
+  midiInputPorts,
   isLoading,
   onRecallScene,
   onSaveVariation,
@@ -44,7 +67,12 @@ export function PerformanceView({
   onUpdateMacro,
   onRemoveMacro,
   onSetMacroValue,
+  onRefreshHardware,
+  onUpdateHardwareSettings,
+  onStartHardwareRuntime,
+  onStopHardwareRuntime,
   onStartMidiLearn,
+  onStopMidiLearn,
   onRemoveHardwareBinding,
 }: PerformanceViewProps) {
   const activeSceneId = useMemo(() => {
@@ -135,87 +163,22 @@ export function PerformanceView({
         onRemoveMacro={onRemoveMacro}
       />
 
-      <div className="inspector-group" style={{ marginTop: 16 }}>
-        <h2>Hardware Bindings</h2>
-        {macros.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-            {macros.map((macro) => (
-              <button
-                key={macro.id}
-                onClick={() => onStartMidiLearn({ kind: "macro", config: { macro_id: macro.id } })}
-                disabled={isLoading}
-                style={{
-                  padding: "4px 12px",
-                  background: "transparent",
-                  border: "1px solid var(--color-accent, #6c63ff)",
-                  color: "var(--color-accent, #6c63ff)",
-                  borderRadius: 4,
-                  cursor: "pointer",
-                  fontSize: 12,
-                }}
-              >
-                Learn: {macro.name}
-              </button>
-            ))}
-            {scenes.map((scene) => (
-              <button
-                key={scene.id}
-                onClick={() => onStartMidiLearn({ kind: "sceneRecall", config: { scene_id: scene.id } })}
-                disabled={isLoading}
-                style={{
-                  padding: "4px 12px",
-                  background: "transparent",
-                  border: "1px solid var(--color-accent, #6c63ff)",
-                  color: "var(--color-accent, #6c63ff)",
-                  borderRadius: 4,
-                  cursor: "pointer",
-                  fontSize: 12,
-                }}
-              >
-                Learn: {scene.name}
-              </button>
-            ))}
-          </div>
-        )}
-        {(hardwareBindings ?? []).length > 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {(hardwareBindings ?? []).map((binding) => (
-              <div
-                key={binding.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "4px 8px",
-                  background: "var(--color-bg-secondary, #2a2a3e)",
-                  borderRadius: 4,
-                }}
-              >
-                <span style={{ fontSize: 13 }}>
-                  {formatSource(binding)} → {formatTarget(binding.target)}
-                </span>
-                <button
-                  onClick={() => onRemoveHardwareBinding(binding.id)}
-                  style={{
-                    marginLeft: "auto",
-                    padding: "2px 8px",
-                    background: "transparent",
-                    border: "1px solid #ff6b6b",
-                    color: "#ff6b6b",
-                    borderRadius: 3,
-                    cursor: "pointer",
-                    fontSize: 11,
-                  }}
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="empty-copy">No hardware bindings. Click Learn to bind a hardware control.</p>
-        )}
-      </div>
+      <HardwarePanel
+        bindings={hardwareBindings ?? []}
+        settings={hardwareSettings}
+        status={hardwareStatus}
+        midiInputPorts={midiInputPorts}
+        macros={macros}
+        scenes={scenes}
+        isLoading={isLoading}
+        onRefresh={onRefreshHardware}
+        onUpdateSettings={onUpdateHardwareSettings}
+        onStartListeners={onStartHardwareRuntime}
+        onStopListeners={onStopHardwareRuntime}
+        onStartLearn={onStartMidiLearn}
+        onCancelLearn={onStopMidiLearn}
+        onRemoveBinding={onRemoveHardwareBinding}
+      />
 
       <ActivityPanel actionHistory={actionHistory} />
 

@@ -8,9 +8,12 @@ import type {
   ControllerKind,
   GraphEditCommand,
   HardwareBinding,
+  HardwareRuntimeSettings,
+  HardwareRuntimeStatus,
   MacroCommand,
   MacroDefinition,
   MacroTarget,
+  MidiInputPort,
   Node,
   PendingAction,
   PerformanceCommand,
@@ -25,6 +28,9 @@ import {
   createDefaultSession,
   getCurrentSession,
   getAgentRuntimeState,
+  getHardwareRuntimeSettings,
+  getHardwareRuntimeStatus,
+  listMidiInputPorts,
   openSessionFromPath,
   panicAudioRuntime,
   panicVisualRuntime as panicVisualRuntimeIPC,
@@ -36,11 +42,14 @@ import {
   sendAgentMessage as sendAgentMessageIPC,
   startAudioRuntime,
   startHardwareLearn as startHardwareLearnIPC,
+  startHardwareListeners,
   startVisualRuntime as startVisualRuntimeIPC,
   stopAudioRuntime,
   stopHardwareLearn as stopHardwareLearnIPC,
+  stopHardwareListeners,
   stopVisualRuntime as stopVisualRuntimeIPC,
   toggleAgentFreeze as toggleAgentFreezeIPC,
+  updateHardwareRuntimeSettings,
 } from "../lib/session-client";
 import {
   type AgentRuntimeProjection,
@@ -73,6 +82,9 @@ type SessionStore = {
   agentRuntime: AgentRuntimeProjection | null;
   macros: MacroProjection[];
   hardwareBindings: HardwareBinding[];
+  hardwareSettings: HardwareRuntimeSettings | null;
+  hardwareStatus: HardwareRuntimeStatus | null;
+  midiInputPorts: MidiInputPort[];
   midiLearnActive: boolean;
   midiLearnTarget: BindingTarget | null;
   isLoading: boolean;
@@ -116,6 +128,10 @@ type SessionStore = {
   updateMacro: (macroId: string, updates: { name?: string; targets?: MacroTarget[]; rangeStart?: number; rangeEnd?: number }) => Promise<void>;
   removeMacro: (macroId: string) => Promise<void>;
   setMacroValue: (macroId: string, value: number) => Promise<void>;
+  refreshHardwareRuntime: () => Promise<void>;
+  updateHardwareSettings: (settings: HardwareRuntimeSettings) => Promise<void>;
+  startHardwareRuntime: () => Promise<void>;
+  stopHardwareRuntime: () => Promise<void>;
   startMidiLearn: (target: BindingTarget) => Promise<void>;
   stopMidiLearn: () => Promise<void>;
   removeHardwareBinding: (bindingId: string) => Promise<void>;
@@ -231,6 +247,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   pendingActions: [],
   actionHistory: [],
   hardwareBindings: [],
+  hardwareSettings: null,
+  hardwareStatus: null,
+  midiInputPorts: [],
   midiLearnActive: false,
   midiLearnTarget: null,
   bootstrapSession: async () => {
@@ -238,9 +257,19 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
     try {
       const session = await getCurrentSession();
+      const [hardwareSettings, hardwareStatus, midiInputPorts] = await Promise.all([
+        getHardwareRuntimeSettings().catch(() => null),
+        getHardwareRuntimeStatus().catch(() => null),
+        listMidiInputPorts().catch(() => []),
+      ]);
       const current = get();
       set({
         ...applySession(session, current.selectedNodeId, current),
+        hardwareSettings,
+        hardwareStatus,
+        midiInputPorts,
+        midiLearnActive: hardwareStatus?.learn.lifecycle === "learning",
+        midiLearnTarget: hardwareStatus?.learn.target ?? null,
         isLoading: false,
       });
     } catch (error) {
@@ -673,12 +702,68 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       set({ error: message });
     }
   },
+  refreshHardwareRuntime: async () => {
+    try {
+      const [hardwareSettings, hardwareStatus, midiInputPorts] = await Promise.all([
+        getHardwareRuntimeSettings(),
+        getHardwareRuntimeStatus(),
+        listMidiInputPorts(),
+      ]);
+      set({
+        hardwareSettings,
+        hardwareStatus,
+        midiInputPorts,
+        midiLearnActive: hardwareStatus.learn.lifecycle === "learning",
+        midiLearnTarget: hardwareStatus.learn.lifecycle === "learning" ? hardwareStatus.learn.target : null,
+      });
+      ensureHardwarePolling();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to refresh hardware status.";
+      set({ error: message });
+    }
+  },
+  updateHardwareSettings: async (settings) => {
+    try {
+      const hardwareStatus = await updateHardwareRuntimeSettings(settings);
+      const midiInputPorts = await listMidiInputPorts().catch(() => get().midiInputPorts);
+      set({ hardwareSettings: settings, hardwareStatus, midiInputPorts });
+      ensureHardwarePolling();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to update hardware settings.";
+      set({ error: message });
+    }
+  },
+  startHardwareRuntime: async () => {
+    try {
+      const hardwareStatus = await startHardwareListeners();
+      set({ hardwareStatus });
+      ensureHardwarePolling();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to start hardware listeners.";
+      set({ error: message });
+    }
+  },
+  stopHardwareRuntime: async () => {
+    try {
+      const hardwareStatus = await stopHardwareListeners();
+      set({
+        hardwareStatus,
+        midiLearnActive: false,
+        midiLearnTarget: null,
+      });
+      ensureHardwarePolling();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to stop hardware listeners.";
+      set({ error: message });
+    }
+  },
   startMidiLearn: async (target) => {
     try {
-      await startHardwareLearnIPC(target);
-      set({ midiLearnActive: true, midiLearnTarget: target });
+      const hardwareStatus = await startHardwareLearnIPC(target);
+      set({ hardwareStatus, midiLearnActive: true, midiLearnTarget: target });
+      ensureHardwarePolling();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to start MIDI learn.";
+      const message = error instanceof Error ? error.message : "Unable to start hardware learn.";
       set({ error: message });
     }
   },
@@ -686,8 +771,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     try {
       await stopHardwareLearnIPC();
       set({ midiLearnActive: false, midiLearnTarget: null });
+      void get().refreshHardwareRuntime();
+      ensureHardwarePolling();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to stop MIDI learn.";
+      const message = error instanceof Error ? error.message : "Unable to stop hardware learn.";
       set({ error: message });
     }
   },
@@ -696,6 +783,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const session = await removeHardwareBindingIPC(bindingId);
       const current = get();
       set({ ...applySession(session, current.selectedNodeId, current) });
+      ensureHardwarePolling();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to remove binding.";
       set({ error: message });
@@ -705,16 +793,43 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
 let hardwarePollInterval: ReturnType<typeof setInterval> | null = null;
 
+export function shouldPollHardware(state: Pick<SessionStore, "midiLearnActive" | "hardwareBindings" | "hardwareStatus">): boolean {
+  const status = state.hardwareStatus;
+  return Boolean(
+    state.midiLearnActive ||
+      (state.hardwareBindings ?? []).length > 0 ||
+      status?.learn.lifecycle === "learning" ||
+      status?.midi.lifecycle === "listening" ||
+      status?.midi.lifecycle === "restarting" ||
+      status?.osc.lifecycle === "listening" ||
+      status?.osc.lifecycle === "restarting",
+  );
+}
+
+export function ensureHardwarePolling() {
+  const state = useSessionStore.getState();
+  if (shouldPollHardware(state)) {
+    startHardwarePolling();
+  } else {
+    stopHardwarePolling();
+  }
+}
+
 export function startHardwarePolling() {
-  stopHardwarePolling();
+  if (hardwarePollInterval !== null) {
+    return;
+  }
   hardwarePollInterval = setInterval(async () => {
     const state = useSessionStore.getState();
-    if (!state.midiLearnActive && (state.hardwareBindings ?? []).length === 0) {
+    if (!shouldPollHardware(state)) {
       stopHardwarePolling();
       return;
     }
     try {
-      const session = await pollHardwareEventsIPC();
+      const [session, hardwareStatus] = await Promise.all([
+        pollHardwareEventsIPC(),
+        getHardwareRuntimeStatus().catch(() => state.hardwareStatus),
+      ]);
       const current = useSessionStore.getState();
       const hadLearnActive = current.midiLearnActive;
       const newBindings = session.hardwareBindings ?? [];
@@ -723,12 +838,16 @@ export function startHardwarePolling() {
       if (hadLearnActive && newBindings.length > prevBindings.length) {
         useSessionStore.setState({
           ...applySession(session, current.selectedNodeId, current),
+          hardwareStatus,
           midiLearnActive: false,
           midiLearnTarget: null,
         });
       } else {
         useSessionStore.setState({
           ...applySession(session, current.selectedNodeId, current),
+          hardwareStatus,
+          midiLearnActive: hardwareStatus?.learn.lifecycle === "learning",
+          midiLearnTarget: hardwareStatus?.learn.lifecycle === "learning" ? hardwareStatus.learn.target : current.midiLearnTarget,
         });
       }
     } catch {
