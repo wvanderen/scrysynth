@@ -11,6 +11,7 @@ import { NodeInspector } from "./components/session/NodeInspector";
 import { SessionToolbar } from "./components/session/SessionToolbar";
 import { ActivityPanel } from "./components/workspace/ActivityPanel";
 import { ConversationView } from "./components/workspace/ConversationView";
+import { GlobalSafetyChrome } from "./components/workspace/GlobalSafetyChrome";
 import { HardwarePanel } from "./components/workspace/HardwarePanel";
 import { PerformanceView } from "./components/workspace/PerformanceView";
 import { RuntimeHealthPanel } from "./components/workspace/RuntimeHealthPanel";
@@ -52,6 +53,7 @@ function App() {
     recallScene,
     saveVariation,
     restoreVariation,
+    toggleFreezeAgent,
     reclaimOwnership,
     setNodeOwnership,
     createMacro,
@@ -127,20 +129,16 @@ function App() {
           onStop={() => void stopAudio()}
           onPanic={() => void panicAudio()}
         />
-        <section className="runtime-summary" aria-label="Runtime summary">
-          <div>
-            <span>Audio</span>
-            <strong>{audioRuntime?.status ?? "idle"}</strong>
-          </div>
-          <div>
-            <span>Visual</span>
-            <strong>{visualRuntime?.status ?? "idle"}</strong>
-          </div>
-          <div>
-            <span>Agent</span>
-            <strong>{agentRuntime?.status ?? "available"}</strong>
-          </div>
-        </section>
+        <GlobalSafetyChrome
+          audioRuntime={audioRuntime}
+          visualRuntime={visualRuntime}
+          agentRuntime={agentRuntime}
+          pendingActionCount={pendingActions.length}
+          isLoading={isLoading}
+          onFreezeAgent={() => void toggleFreezeAgent()}
+          onReclaimAll={() => void reclaimOwnership()}
+          onPanic={() => void panicAudio()}
+        />
       </header>
 
       {error ? <div className="error-banner">{error}</div> : null}

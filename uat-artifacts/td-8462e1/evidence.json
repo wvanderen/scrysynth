@@ -1,0 +1,31 @@
+{
+  "schema": "td-loop.uat-evidence/v1",
+  "issue_id": "td-8462e1",
+  "workflow": "Global transport, runtime health, pending action, and override controls are visible from the persistent cockpit chrome.",
+  "tool": "computer-use+safari+screencapture",
+  "result": "pass-with-screenshot-gap",
+  "steps": [
+    "Opened http://127.0.0.1:1420 in Safari against the already-running local Vite server.",
+    "Inspected the Safari accessibility tree and screenshot for Graph mode.",
+    "Confirmed the persistent header exposes Audio, Visual, Agent, and Pending status surfaces.",
+    "Confirmed Freeze Agent, Reclaim All, and Panic are visible in the global safety chrome without scrolling.",
+    "Attempted to save a macOS screenshot into the workspace artifact directory; the available screencapture surface captured a different desktop space, so the screenshot was not accepted as evidence."
+  ],
+  "artifacts": [
+    {
+      "label": "global safety chrome Safari screenshot",
+      "source_path": "computer-use get_app_state response for Safari",
+      "tool_emitted": true,
+      "saved": false,
+      "path": null,
+      "note": "Computer-use emitted the verified Safari screenshot in the tool response, but the available macOS screencapture command captured the wrong desktop space and could not persist the browser image into the workspace."
+    }
+  ],
+  "notes": [
+    "Computer-use accessibility tree showed: Global runtime and safety controls, Audio Idle / Unknown, Visual Stopped / Disconnected, Agent Available, 0 Pending Actions, Freeze Agent, Reclaim All, and PANIC.",
+    "The global chrome is mounted in App.tsx outside the conditional workspace viewport, so it persists across workspace modes. Direct computer-use clicks on mode buttons did not switch state during this run, so mode-by-mode GUI interaction was inferred from component placement and verified build output rather than clicked in Safari.",
+    "Playwright package was present but its bundled Chromium binary was missing; Chrome Canary existed but aborted under headless Playwright in this environment."
+  ],
+  "recorded_at": "2026-06-20T04:30:00Z",
+  "recorded_by_session": "ses_522b08"
+}
