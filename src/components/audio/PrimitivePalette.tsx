@@ -26,7 +26,7 @@ export function PrimitivePalette({
       <div className="panel-heading">
         <div>
           <p className="eyebrow">Primitive palette</p>
-          <h2>Shape the playable patch</h2>
+          <h2>Add nodes</h2>
         </div>
         <span>{session?.nodes.length ?? 0} voices</span>
       </div>

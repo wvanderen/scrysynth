@@ -52,6 +52,9 @@ export type AgentRuntimeProjection = {
   status: string;
 };
 
+const GRAPH_NODE_WIDTH = 190;
+const GRAPH_NODE_HEIGHT = 74;
+
 export type SessionProjection = {
   session: SessionDocument;
   selectedNodeId: string | null;
@@ -101,6 +104,8 @@ function projectGraphNodes(session: SessionDocument, selectedNodeId: string | nu
     },
     draggable: false,
     selectable: true,
+    width: GRAPH_NODE_WIDTH,
+    height: GRAPH_NODE_HEIGHT,
     data: {
       label: labelForNode(node),
       title: labelForNode(node),
@@ -109,18 +114,18 @@ function projectGraphNodes(session: SessionDocument, selectedNodeId: string | nu
       isEnabled: node.enabled,
     },
     style: {
-      borderRadius: 18,
-      border: selectedNodeId === node.id ? "1px solid #f7c66a" : "1px solid #2d4442",
+      borderRadius: 8,
+      border: selectedNodeId === node.id ? "1px solid #38bdf8" : "1px solid rgba(133, 146, 166, 0.28)",
       background: node.enabled
         ? selectedNodeId === node.id
-          ? "#173734"
-          : "#112725"
-        : "#1d2323",
-      color: "#f2eee5",
+          ? "#122334"
+          : "#11141c"
+        : "#1b1f29",
+      color: "#eef2f7",
       opacity: node.enabled ? 1 : 0.7,
       padding: 16,
-      width: 190,
-      boxShadow: "0 20px 40px rgba(5, 12, 12, 0.35)",
+      width: GRAPH_NODE_WIDTH,
+      boxShadow: "0 18px 38px rgba(0, 0, 0, 0.32)",
     },
   }));
 }
@@ -132,14 +137,21 @@ function projectGraphEdges(session: SessionDocument): GraphEdge[] {
     target: route.targetNodeId,
     animated: false,
     style: {
-      stroke: "#f7c66a",
+      stroke: "#38bdf8",
       strokeWidth: 2,
     },
     label: route.busId ? "bus" : undefined,
     labelStyle: {
-      fill: "#d9c8a0",
+      fill: "#a8b2c1",
       fontSize: 12,
     },
+    labelBgStyle: {
+      fill: "#11141c",
+      stroke: "rgba(133, 146, 166, 0.28)",
+      strokeWidth: 1,
+    },
+    labelBgPadding: [6, 4],
+    labelBgBorderRadius: 4,
   }));
 }
 

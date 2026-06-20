@@ -9,8 +9,11 @@ import { PrimitivePalette } from "./components/audio/PrimitivePalette";
 import { GraphViewport } from "./components/session/GraphViewport";
 import { NodeInspector } from "./components/session/NodeInspector";
 import { SessionToolbar } from "./components/session/SessionToolbar";
+import { ActivityPanel } from "./components/workspace/ActivityPanel";
 import { ConversationView } from "./components/workspace/ConversationView";
+import { HardwarePanel } from "./components/workspace/HardwarePanel";
 import { PerformanceView } from "./components/workspace/PerformanceView";
+import { RuntimeHealthPanel } from "./components/workspace/RuntimeHealthPanel";
 import { WorkspaceViewSwitcher } from "./components/workspace/WorkspaceViewSwitcher";
 import { useSessionStore } from "./store/sessionStore";
 
@@ -23,10 +26,13 @@ function App() {
     graphNodes,
     graphEdges,
     audioRuntime,
+    visualRuntime,
+    agentRuntime,
     isLoading,
     error,
     workspaceView,
     actionHistory,
+    pendingActions,
     bootstrapSession,
     newSession,
     saveSession,
@@ -101,45 +107,124 @@ function App() {
     void connectNodes(connection.source, connection.target);
   };
 
+  const latestAction = actionHistory[actionHistory.length - 1];
+  const runtimeCount = session?.runtimeStatus.length ?? 0;
+
   return (
     <main className="workspace-shell">
-      <SessionToolbar
-        title={session?.title ?? "Loading Session"}
-        isLoading={isLoading}
-        onNewSession={() => void newSession()}
-        onSaveSession={handleSaveSession}
-        onOpenSession={handleOpenSession}
-      />
+      <header className="top-chrome">
+        <SessionToolbar
+          title={session?.title ?? "Loading Session"}
+          isLoading={isLoading}
+          onNewSession={() => void newSession()}
+          onSaveSession={handleSaveSession}
+          onOpenSession={handleOpenSession}
+        />
+        <AudioTransportStrip
+          runtime={audioRuntime}
+          isLoading={isLoading}
+          onStart={() => void startAudio()}
+          onStop={() => void stopAudio()}
+          onPanic={() => void panicAudio()}
+        />
+        <section className="runtime-summary" aria-label="Runtime summary">
+          <div>
+            <span>Audio</span>
+            <strong>{audioRuntime?.status ?? "idle"}</strong>
+          </div>
+          <div>
+            <span>Visual</span>
+            <strong>{visualRuntime?.status ?? "idle"}</strong>
+          </div>
+          <div>
+            <span>Agent</span>
+            <strong>{agentRuntime?.status ?? "available"}</strong>
+          </div>
+        </section>
+      </header>
 
       {error ? <div className="error-banner">{error}</div> : null}
 
-      <AudioTransportStrip
-        runtime={audioRuntime}
-        isLoading={isLoading}
-        onStart={() => void startAudio()}
-        onStop={() => void stopAudio()}
-        onPanic={() => void panicAudio()}
-      />
-
       <WorkspaceViewSwitcher currentView={workspaceView} onViewChange={setWorkspaceView} />
 
-      {workspaceView === "graph" ? (
-        <section className="workspace-grid">
-          <div className="workspace-main-column">
-            <GraphViewport
-              graphNodes={graphNodes}
-              graphEdges={graphEdges}
-              onSelectNode={selectNode}
-              onConnect={handleConnect}
-            />
-            <PrimitivePalette
-              session={session}
-              selectedNode={selectedNode}
+      <section className="cockpit-viewport" aria-label={`${workspaceView} workspace`}>
+        <div className="workspace-main-column">
+          {workspaceView === "graph" ? (
+            <div className="graph-cockpit">
+              <GraphViewport
+                graphNodes={graphNodes}
+                graphEdges={graphEdges}
+                onSelectNode={selectNode}
+                onConnect={handleConnect}
+              />
+              <PrimitivePalette
+                session={session}
+                selectedNode={selectedNode}
+                isLoading={isLoading}
+                onAddNode={(node) => void addNode(node)}
+                onRemoveNode={(nodeId) => void removeNode(nodeId)}
+              />
+            </div>
+          ) : null}
+
+          {workspaceView === "conversation" ? (
+            <ConversationView />
+          ) : null}
+
+          {workspaceView === "performance" ? (
+            <PerformanceView
+              scenes={session?.scenes ?? []}
+              variations={session?.variations ?? []}
+              enabledNodes={session?.nodes ?? []}
+              allNodes={session?.nodes ?? []}
+              macros={session?.macros ?? []}
+              actionHistory={actionHistory}
               isLoading={isLoading}
-              onAddNode={(node) => void addNode(node)}
-              onRemoveNode={(nodeId) => void removeNode(nodeId)}
+              onRecallScene={(sceneId) => void recallScene(sceneId)}
+              onSaveVariation={(name, sceneId) => void saveVariation(name, sceneId)}
+              onRestoreVariation={(variationId) => void restoreVariation(variationId)}
+              onCreateMacro={(definition) => void createMacro(definition)}
+              onUpdateMacro={(macroId, updates) => void updateMacro(macroId, updates)}
+              onRemoveMacro={(macroId) => void removeMacro(macroId)}
+              onSetMacroValue={(macroId, value) => void setMacroValue(macroId, value)}
+              hardwareBindings={hardwareBindings ?? []}
+              hardwareSettings={hardwareSettings}
+              hardwareStatus={hardwareStatus}
+              midiInputPorts={midiInputPorts}
+              onRefreshHardware={() => void refreshHardwareRuntime()}
+              onUpdateHardwareSettings={(settings) => void updateHardwareSettings(settings)}
+              onStartHardwareRuntime={(settings) => void startHardwareRuntime(settings)}
+              onStopHardwareRuntime={() => void stopHardwareRuntime()}
+              onStartMidiLearn={(target) => void startMidiLearn(target)}
+              onStopMidiLearn={() => void stopMidiLearn()}
+              onRemoveHardwareBinding={(bindingId) => void removeHardwareBinding(bindingId)}
             />
-          </div>
+          ) : null}
+
+          {workspaceView === "runtime" ? <RuntimeHealthPanel /> : null}
+
+          {workspaceView === "hardware" ? (
+            <HardwarePanel
+              bindings={hardwareBindings ?? []}
+              settings={hardwareSettings}
+              status={hardwareStatus}
+              midiInputPorts={midiInputPorts}
+              macros={session?.macros ?? []}
+              scenes={session?.scenes ?? []}
+              isLoading={isLoading}
+              onRefresh={() => void refreshHardwareRuntime()}
+              onUpdateSettings={(settings) => void updateHardwareSettings(settings)}
+              onStartListeners={(settings) => void startHardwareRuntime(settings)}
+              onStopListeners={() => void stopHardwareRuntime()}
+              onStartLearn={(target) => void startMidiLearn(target)}
+              onCancelLearn={() => void stopMidiLearn()}
+              onRemoveBinding={(bindingId) => void removeHardwareBinding(bindingId)}
+            />
+          ) : null}
+        </div>
+
+        <aside className="context-inspector" aria-label="Context inspector">
+          {workspaceView === "graph" ? (
           <NodeInspector
             selectedNode={selectedNode}
             buses={session?.buses ?? []}
@@ -153,51 +238,36 @@ function App() {
             onReclaimOwnership={(nodeIds) => void reclaimOwnership(nodeIds)}
             onSetNodeOwnership={(nodeIds, controller) => void setNodeOwnership(nodeIds, controller)}
           />
-        </section>
-      ) : null}
-
-      {workspaceView === "conversation" ? (
-        <ConversationView />
-      ) : null}
-
-      {workspaceView === "performance" ? (
-        <PerformanceView
-          scenes={session?.scenes ?? []}
-          variations={session?.variations ?? []}
-          enabledNodes={session?.nodes ?? []}
-          allNodes={session?.nodes ?? []}
-          macros={session?.macros ?? []}
-          actionHistory={actionHistory}
-          isLoading={isLoading}
-          onRecallScene={(sceneId) => void recallScene(sceneId)}
-          onSaveVariation={(name, sceneId) => void saveVariation(name, sceneId)}
-          onRestoreVariation={(variationId) => void restoreVariation(variationId)}
-          onCreateMacro={(definition) => void createMacro(definition)}
-          onUpdateMacro={(macroId, updates) => void updateMacro(macroId, updates)}
-          onRemoveMacro={(macroId) => void removeMacro(macroId)}
-          onSetMacroValue={(macroId, value) => void setMacroValue(macroId, value)}
-          hardwareBindings={hardwareBindings ?? []}
-          hardwareSettings={hardwareSettings}
-          hardwareStatus={hardwareStatus}
-          midiInputPorts={midiInputPorts}
-          onRefreshHardware={() => void refreshHardwareRuntime()}
-          onUpdateHardwareSettings={(settings) => void updateHardwareSettings(settings)}
-          onStartHardwareRuntime={(settings) => void startHardwareRuntime(settings)}
-          onStopHardwareRuntime={() => void stopHardwareRuntime()}
-          onStartMidiLearn={(target) => void startMidiLearn(target)}
-          onStopMidiLearn={() => void stopMidiLearn()}
-          onRemoveHardwareBinding={(bindingId) => void removeHardwareBinding(bindingId)}
-        />
-      ) : null}
+          ) : (
+            <ActivityPanel actionHistory={actionHistory} />
+          )}
+        </aside>
+      </section>
 
       <footer className="runtime-strip">
-        {(session?.runtimeStatus ?? []).map((runtime) => (
-          <div key={runtime.id} className="runtime-pill">
-            <strong>{runtime.runtime}</strong>
-            <span>{runtime.status}</span>
-            <small>{runtime.targetId ?? "no target"}</small>
+        <div className="bottom-summary">
+          <div>
+            <span>Pending</span>
+            <strong>{pendingActions.length}</strong>
           </div>
-        ))}
+          <div>
+            <span>Runtime reports</span>
+            <strong>{runtimeCount}</strong>
+          </div>
+          <div>
+            <span>Recent activity</span>
+            <strong>{latestAction?.diff.description ?? "No actions yet"}</strong>
+          </div>
+        </div>
+        <div className="runtime-pill-row">
+          {(session?.runtimeStatus ?? []).map((runtime) => (
+            <div key={runtime.id} className="runtime-pill">
+              <strong>{runtime.runtime}</strong>
+              <span>{runtime.status}</span>
+              <small>{runtime.targetId ?? "no target"}</small>
+            </div>
+          ))}
+        </div>
       </footer>
     </main>
   );

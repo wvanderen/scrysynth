@@ -130,7 +130,7 @@ export function HardwarePanel({
     selectedMidiDisplayName ?? status?.midi.lastError ?? "No input selected";
 
   return (
-    <div className="inspector-group hardware-panel" style={{ marginTop: 16 }}>
+    <div className="inspector-group hardware-panel">
       <div className="hardware-panel-header">
         <div>
           <h2>Hardware</h2>

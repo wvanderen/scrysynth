@@ -61,7 +61,7 @@ import {
   projectSessionState,
 } from "./session-projections";
 
-export type WorkspaceView = "graph" | "conversation" | "performance";
+export type WorkspaceView = "graph" | "performance" | "conversation" | "runtime" | "hardware";
 
 export type ConversationMessage = {
   id: string;

@@ -275,6 +275,7 @@ describe("session projections", () => {
     const state = useSessionStore.getState();
 
     expect(state.graphNodes).toHaveLength(3);
+    expect(state.graphNodes.every((node) => node.width === 190 && node.height === 74)).toBe(true);
     expect(state.graphEdges).toHaveLength(2);
     expect(state.selectedNode?.id).toBe("fx-1");
     expect(state.selectedNode?.parameters[0]?.name).toBe("mix");

@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import { z } from "zod";
 
 import type {
@@ -17,6 +17,28 @@ import type {
   SessionDocument,
   TypedCommand,
 } from "../generated/session-types";
+import { invokeBrowserPreview } from "./browser-preview-session";
+
+type TauriWindow = Window & {
+  __TAURI_INTERNALS__?: {
+    invoke?: unknown;
+  };
+};
+
+async function invokeCommand(command: string, args?: Record<string, unknown>) {
+  if (hasTauriInvokeBridge()) {
+    return tauriInvoke(command, args);
+  }
+
+  return invokeBrowserPreview(command, args);
+}
+
+function hasTauriInvokeBridge(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof (window as TauriWindow).__TAURI_INTERNALS__?.invoke === "function"
+  );
+}
 const transportStateSchema = z.object({
   tempoBpm: z.number(),
   isPlaying: z.boolean(),
@@ -389,7 +411,7 @@ const sessionDocumentSchema: z.ZodType<SessionDocument> = z.object({
 });
 
 async function invokeSession(command: string, args?: Record<string, unknown>) {
-  const payload = await invoke(command, args);
+  const payload = await invokeCommand(command, args);
   return sessionDocumentSchema.parse(payload);
 }
 
@@ -406,7 +428,7 @@ export async function getCurrentSession(): Promise<SessionDocument> {
 }
 
 export async function saveSessionToPath(path: string): Promise<void> {
-  await invoke("save_session_to_path", { path });
+  await invokeCommand("save_session_to_path", { path });
 }
 
 export async function openSessionFromPath(path: string): Promise<SessionDocument> {
@@ -444,7 +466,7 @@ const agentMessageResponseSchema = z.object({
 });
 
 export async function sendAgentMessage(message: string): Promise<{ session: SessionDocument; intent: AgentIntent }> {
-  const payload = await invoke("send_agent_message", { message });
+  const payload = await invokeCommand("send_agent_message", { message });
   return agentMessageResponseSchema.parse(payload);
 }
 
@@ -486,18 +508,18 @@ const agentRuntimeStateResponseSchema: z.ZodType<AgentRuntimeState> = z.object({
 });
 
 export async function getAgentRuntimeState(): Promise<AgentRuntimeState> {
-  const payload = await invoke("get_agent_runtime_state");
+  const payload = await invokeCommand("get_agent_runtime_state");
   return agentRuntimeStateResponseSchema.parse(payload);
 }
 
 export async function startHardwareLearn(target: BindingTarget): Promise<HardwareRuntimeStatus> {
   bindingTargetSchema.parse(target);
-  const payload = await invoke("start_hardware_learn", { target });
+  const payload = await invokeCommand("start_hardware_learn", { target });
   return hardwareRuntimeStatusSchema.parse(payload);
 }
 
 export async function stopHardwareLearn(): Promise<void> {
-  await invoke("stop_hardware_learn");
+  await invokeCommand("stop_hardware_learn");
 }
 
 export async function pollHardwareEvents(): Promise<SessionDocument> {
@@ -509,33 +531,33 @@ export async function removeHardwareBinding(bindingId: string): Promise<SessionD
 }
 
 export async function listMidiInputPorts(): Promise<MidiInputPort[]> {
-  const payload = await invoke("list_midi_input_ports");
+  const payload = await invokeCommand("list_midi_input_ports");
   return z.array(midiInputPortSchema).parse(payload);
 }
 
 export async function getHardwareRuntimeSettings(): Promise<HardwareRuntimeSettings> {
-  const payload = await invoke("get_hardware_runtime_settings");
+  const payload = await invokeCommand("get_hardware_runtime_settings");
   return hardwareRuntimeSettingsSchema.parse(payload);
 }
 
 export async function updateHardwareRuntimeSettings(settings: HardwareRuntimeSettings): Promise<HardwareRuntimeStatus> {
   hardwareRuntimeSettingsSchema.parse(settings);
-  const payload = await invoke("update_hardware_runtime_settings", { settings });
+  const payload = await invokeCommand("update_hardware_runtime_settings", { settings });
   return hardwareRuntimeStatusSchema.parse(payload);
 }
 
 export async function getHardwareRuntimeStatus(): Promise<HardwareRuntimeStatus> {
-  const payload = await invoke("get_hardware_runtime_status");
+  const payload = await invokeCommand("get_hardware_runtime_status");
   return hardwareRuntimeStatusSchema.parse(payload);
 }
 
 export async function startHardwareListeners(): Promise<HardwareRuntimeStatus> {
-  const payload = await invoke("start_hardware_listeners");
+  const payload = await invokeCommand("start_hardware_listeners");
   return hardwareRuntimeStatusSchema.parse(payload);
 }
 
 export async function stopHardwareListeners(): Promise<HardwareRuntimeStatus> {
-  const payload = await invoke("stop_hardware_listeners");
+  const payload = await invokeCommand("stop_hardware_listeners");
   return hardwareRuntimeStatusSchema.parse(payload);
 }
 
