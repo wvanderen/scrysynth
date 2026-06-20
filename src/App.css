@@ -262,7 +262,7 @@ button:disabled {
 .cockpit-viewport {
   grid-area: viewport;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  grid-template-columns: minmax(0, 1fr) minmax(286px, 336px);
   gap: var(--space-3);
   min-height: 0;
   overflow: hidden;
@@ -277,12 +277,16 @@ button:disabled {
 }
 
 .graph-cockpit {
-  position: relative;
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr);
+  grid-template-areas: "palette canvas";
+  gap: var(--space-2);
   min-height: 0;
   overflow: hidden;
 }
 
 .graph-cockpit .graph-panel {
+  grid-area: canvas;
   height: 100%;
 }
 
@@ -329,19 +333,24 @@ button:disabled {
   overflow: hidden;
   border-radius: var(--radius-card);
   min-height: 0;
-  height: calc(100% - 2.25rem);
+  height: 100%;
   border: 1px solid var(--border-subtle);
   background: #0b0e14;
 }
 
-.graph-hint {
+.graph-hint,
+.graph-count {
   border-radius: var(--radius-pill);
   padding: 0.3rem 0.55rem;
   color: var(--text-secondary);
-  background: rgba(12, 15, 21, 0.64);
+  background: rgba(12, 15, 21, 0.58);
   border: 1px solid var(--border-subtle);
   font-size: 0.72rem;
   pointer-events: none;
+}
+
+.graph-count {
+  color: var(--text-muted);
 }
 
 .react-flow__attribution {
@@ -501,15 +510,14 @@ button:disabled {
 }
 
 .primitive-palette {
-  position: absolute;
-  z-index: 5;
-  top: calc(var(--space-3) + 2.35rem);
-  left: var(--space-3);
-  width: min(232px, calc(100% - 2 * var(--space-3)));
+  grid-area: palette;
+  min-height: 0;
+  height: 100%;
   padding: var(--space-2);
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-2);
-  background: rgba(17, 20, 28, 0.82);
+  background: rgba(17, 20, 28, 0.86);
 }
 
 .primitive-palette .panel-heading {
@@ -540,6 +548,10 @@ button:disabled {
   min-height: 28px;
   padding: 0.28rem 0.5rem;
   font-size: 0.76rem;
+}
+
+.primitive-palette .destructive-button {
+  margin-top: auto;
 }
 
 .destructive-button {
@@ -1448,6 +1460,14 @@ button:disabled {
     overflow: visible;
   }
 
+  .graph-cockpit {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "canvas"
+      "palette";
+    overflow: visible;
+  }
+
   .context-inspector {
     display: none;
   }
@@ -1460,6 +1480,16 @@ button:disabled {
   .graph-surface {
     min-height: 52vh;
     height: auto;
+  }
+
+  .primitive-palette {
+    height: auto;
+    min-height: auto;
+    order: 2;
+  }
+
+  .primitive-palette .palette-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .transport-strip {
@@ -1553,11 +1583,8 @@ button:disabled {
   }
 
   .cockpit-viewport {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .context-inspector {
-    display: none;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
+    gap: var(--space-2);
   }
 
   .runtime-strip {
@@ -1585,8 +1612,8 @@ button:disabled {
     display: none;
   }
 
-  .primitive-palette {
-    top: calc(var(--space-2) + 2rem);
-    width: 196px;
+  .graph-cockpit {
+    grid-template-columns: 148px minmax(0, 1fr);
+    grid-template-areas: "palette canvas";
   }
 }

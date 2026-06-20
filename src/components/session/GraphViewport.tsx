@@ -51,10 +51,6 @@ export function GraphViewport({ graphNodes, graphEdges, onSelectNode, onConnect 
 
   return (
     <section className="graph-panel">
-      <div className="panel-heading">
-        <p className="eyebrow">Graph viewport</p>
-        <span>{graphNodes.length} nodes</span>
-      </div>
       <div className="graph-surface">
         <ReactFlow
           nodes={graphNodes}
@@ -67,8 +63,11 @@ export function GraphViewport({ graphNodes, graphEdges, onSelectNode, onConnect 
           onConnect={handleConnect}
           onPaneClick={() => onSelectNode(null)}
         >
+          <Panel position="top-left" className="graph-count">
+            {graphNodes.length} nodes
+          </Panel>
           <Panel position="top-right" className="graph-hint">
-            Drag handles to patch.
+            Patch handles
           </Panel>
           <MiniMap
             pannable

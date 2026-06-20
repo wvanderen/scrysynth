@@ -25,8 +25,8 @@ export function PrimitivePalette({
     <section className="primitive-palette">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Primitive palette</p>
-          <h2>Add nodes</h2>
+          <p className="eyebrow">Palette</p>
+          <h2>Nodes</h2>
         </div>
         <span>{session?.nodes.length ?? 0} voices</span>
       </div>

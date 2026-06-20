@@ -149,18 +149,18 @@ function App() {
         <div className="workspace-main-column">
           {workspaceView === "graph" ? (
             <div className="graph-cockpit">
-              <GraphViewport
-                graphNodes={graphNodes}
-                graphEdges={graphEdges}
-                onSelectNode={selectNode}
-                onConnect={handleConnect}
-              />
               <PrimitivePalette
                 session={session}
                 selectedNode={selectedNode}
                 isLoading={isLoading}
                 onAddNode={(node) => void addNode(node)}
                 onRemoveNode={(nodeId) => void removeNode(nodeId)}
+              />
+              <GraphViewport
+                graphNodes={graphNodes}
+                graphEdges={graphEdges}
+                onSelectNode={selectNode}
+                onConnect={handleConnect}
               />
             </div>
           ) : null}
