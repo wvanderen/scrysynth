@@ -11,13 +11,49 @@ function describeCommand(cmd: TypedCommand): string {
   return cmd.payload.type;
 }
 
+type AgentRuntimeDiagnosticsProps = {
+  providerStatus: string;
+  runtimeConnectionStatus: string;
+  pendingCount: number;
+  blockedReason: string | null;
+};
+
+export function AgentRuntimeDiagnostics({
+  providerStatus,
+  runtimeConnectionStatus,
+  pendingCount,
+  blockedReason,
+}: AgentRuntimeDiagnosticsProps) {
+  return (
+    <div className="sidecar-section agent-runtime-diagnostics">
+      <div className="diagnostic-row">
+        <span>Provider</span>
+        <strong>{providerStatus}</strong>
+      </div>
+      <div className="diagnostic-row">
+        <span>Runtime</span>
+        <strong>{runtimeConnectionStatus}</strong>
+      </div>
+      <div className="diagnostic-row">
+        <span>Approvals</span>
+        <strong>{pendingCount} waiting</strong>
+      </div>
+      {blockedReason ? (
+        <p className="diagnostic-detail">{blockedReason}</p>
+      ) : null}
+    </div>
+  );
+}
+
 export function ConversationView() {
   const [inputValue, setInputValue] = useState("");
 
   const {
+    session,
     conversationMessages,
     pendingActions,
     agentFrozen,
+    agentRuntime,
     isLoading,
     sendAgentMessage,
     toggleFreezeAgent,
@@ -41,7 +77,19 @@ export function ConversationView() {
   };
 
   const pendingQueue = pendingActions.filter((a) => a.status === "pending");
+  const reviewedQueue = pendingActions.filter((a) => a.status !== "pending").slice(-3).reverse();
   const pendingCountLabel = `${pendingQueue.length} pending`;
+  const agentRuntimeStatus = agentRuntime?.status ?? (agentFrozen ? "Frozen" : "Available");
+  const agentRuntimeRef = session?.runtimeStatus.find((runtime) => runtime.runtime === "agent") ?? null;
+  const providerStatus = agentRuntime?.isAvailable === false ? "Provider unavailable" : "Provider available";
+  const runtimeConnectionStatus = agentRuntimeRef
+    ? `${agentRuntimeRef.status}${agentRuntimeRef.targetId ? ` / ${agentRuntimeRef.targetId}` : ""}`
+    : "local planner";
+  const blockedReason = agentRuntime?.isAvailable === false
+    ? agentRuntimeRef?.lastError ?? "Agent provider is unavailable; proposals cannot be generated."
+    : agentFrozen
+      ? "Agent is frozen by performer override; new commands stay parked until unfrozen."
+      : agentRuntimeRef?.lastError ?? null;
 
   return (
     <section className="conversation-view" aria-label="Agent collaborator sidecar">
@@ -54,8 +102,8 @@ export function ConversationView() {
           <span className="queue-count-pill">{pendingCountLabel}</span>
         </div>
 
-        {agentFrozen ? (
-          <div className="frozen-banner">Agent is frozen. Commands stay parked.</div>
+        {blockedReason ? (
+          <div className="frozen-banner">{blockedReason}</div>
         ) : null}
 
         <div className="conversation-messages">
@@ -109,7 +157,7 @@ export function ConversationView() {
         <div className="sidecar-section conversation-safety-strip">
           <div>
             <p className="eyebrow">Safety</p>
-            <strong>{agentFrozen ? "Frozen" : "Agent live"}</strong>
+            <strong>{agentRuntimeStatus}</strong>
           </div>
           <button
             type="button"
@@ -128,9 +176,16 @@ export function ConversationView() {
           </button>
         </div>
 
+        <AgentRuntimeDiagnostics
+          providerStatus={providerStatus}
+          runtimeConnectionStatus={runtimeConnectionStatus}
+          pendingCount={pendingQueue.length}
+          blockedReason={blockedReason}
+        />
+
         <div className="sidecar-section pending-actions">
           <div className="pending-actions-heading">
-            <p className="eyebrow">Pending Actions</p>
+            <p className="eyebrow">Plan Review</p>
             <strong>{pendingQueue.length}</strong>
           </div>
           {pendingQueue.length === 0 ? (
@@ -141,6 +196,7 @@ export function ConversationView() {
                 <PendingActionCard
                   key={action.id}
                   action={action}
+                  session={session}
                   isLoading={isLoading}
                   onApprove={() => void approvePendingAction(action.id)}
                   onReject={() => void rejectPendingAction(action.id)}
@@ -148,6 +204,21 @@ export function ConversationView() {
               ))}
             </div>
           )}
+          {reviewedQueue.length > 0 ? (
+            <div className="reviewed-actions">
+              <p className="eyebrow">Recent Decisions</p>
+              {reviewedQueue.map((action) => (
+                <PendingActionCard
+                  key={action.id}
+                  action={action}
+                  session={session}
+                  isLoading={isLoading}
+                  onApprove={() => void approvePendingAction(action.id)}
+                  onReject={() => void rejectPendingAction(action.id)}
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
       </aside>
     </section>

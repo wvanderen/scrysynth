@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 import type { AgentIntent, SessionDocument } from "../generated/session-types";
 
@@ -37,6 +39,8 @@ const clientMocks = vi.hoisted(() => ({
 vi.mock("../lib/session-client", () => clientMocks);
 
 import { useSessionStore } from "../store/sessionStore";
+import { AgentRuntimeDiagnostics } from "../components/workspace/ConversationView";
+import { PendingActionCard } from "../components/workspace/PendingActionCard";
 
 function createSession(overrides: Partial<SessionDocument> = {}): SessionDocument {
   return {
@@ -291,5 +295,67 @@ describe("agent collaboration store actions", () => {
     await useSessionStore.getState().bootstrapSession();
     expect(useSessionStore.getState().actionHistory).toHaveLength(1);
     expect(useSessionStore.getState().actionHistory[0]?.actor.actorId).toBe("agent");
+  });
+
+  it("renders structured plan review details for pending proposals", async () => {
+    const initial = createSession();
+    const html = renderToStaticMarkup(createElement(PendingActionCard, {
+      action: {
+        id: "action-1",
+        correlationId: "corr-1",
+        command: {
+          type: "graphEdit",
+          payload: {
+            type: "setParameterValue",
+            payload: { node_id: "source-1", parameter_id: "source-1-level", value: 0.35 },
+          },
+        },
+        riskTier: "medium",
+        createdAt: "2026-04-12T01:00:00Z",
+        status: "pending",
+      },
+      session: initial,
+      isLoading: false,
+      onApprove: vi.fn(),
+      onReject: vi.fn(),
+    }));
+
+    expect(html).toContain("Medium risk");
+    expect(html).toContain("Affected");
+    expect(html).toContain("Before");
+    expect(html).toContain("source-1.source-1-level = 0.35");
+  });
+
+  it("renders frozen unavailable diagnostics and rejection reasons", async () => {
+    const initial = createSession();
+    const diagnosticsHtml = renderToStaticMarkup(createElement(AgentRuntimeDiagnostics, {
+      providerStatus: "Provider unavailable",
+      runtimeConnectionStatus: "error / local-planner",
+      pendingCount: 1,
+      blockedReason: "Provider token missing",
+    }));
+    const cardHtml = renderToStaticMarkup(createElement(PendingActionCard, {
+      action: {
+        id: "action-1",
+        correlationId: "corr-1",
+        command: {
+          type: "performance",
+          payload: { type: "recallScene", payload: { scene_id: "scene-1" } },
+        },
+        riskTier: "high",
+        createdAt: "2026-04-12T01:00:00Z",
+        status: "rejected",
+      },
+      session: initial,
+      isLoading: false,
+      onApprove: vi.fn(),
+      onReject: vi.fn(),
+    }));
+    const html = `${diagnosticsHtml}${cardHtml}`;
+
+    expect(html).toContain("Provider unavailable");
+    expect(html).toContain("Provider token missing");
+    expect(html).toContain("Rejected by performer");
+    expect(html).toContain("High risk");
   });
 });

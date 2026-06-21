@@ -1,4 +1,6 @@
 use scrysynth_lib::application::agent_command;
+use std::cell::RefCell;
+
 use scrysynth_lib::application::agent_planner::{
     derive_session_context_packet, plan_agent_request, ParserPlannerProvider, PlannerProvider,
     PlannerProviderError, PlannerProviderOutput, PlannerRequest, SessionContextBounds,
@@ -147,6 +149,75 @@ impl PlannerProvider for JsonPlannerProvider {
     }
 }
 
+struct CapturingPlannerProvider {
+    output: Result<PlannerProviderOutput, PlannerProviderError>,
+    last_request: RefCell<Option<PlannerRequest>>,
+}
+
+impl CapturingPlannerProvider {
+    fn json(json: serde_json::Value) -> Self {
+        Self {
+            output: Ok(PlannerProviderOutput::Json(json.to_string())),
+            last_request: RefCell::new(None),
+        }
+    }
+}
+
+impl PlannerProvider for CapturingPlannerProvider {
+    fn provider_id(&self) -> &str {
+        "mock-fixture-planner"
+    }
+
+    fn is_available(&self) -> bool {
+        true
+    }
+
+    fn plan(
+        &self,
+        request: &PlannerRequest,
+    ) -> Result<PlannerProviderOutput, PlannerProviderError> {
+        self.last_request.replace(Some(request.clone()));
+        self.output.clone()
+    }
+}
+
+fn realistic_multi_step_proposal_json() -> serde_json::Value {
+    serde_json::json!({
+        "commands": [
+            {
+                "type": "graphEdit",
+                "payload": {
+                    "type": "setParameterValue",
+                    "payload": {
+                        "node_id": "node-agent",
+                        "parameter_id": "param-lvl",
+                        "value": 0.42
+                    }
+                }
+            },
+            {
+                "type": "performance",
+                "payload": {
+                    "type": "recallScene",
+                    "payload": {
+                        "scene_id": "scene-intro"
+                    }
+                }
+            },
+            {
+                "type": "graphEdit",
+                "payload": {
+                    "type": "removeNode",
+                    "payload": {
+                        "node_id": "node-agent"
+                    }
+                }
+            }
+        ],
+        "confidence": 0.88
+    })
+}
+
 #[test]
 fn intent_parser_add_oscillator_produces_add_node() {
     let session = test_session();
@@ -254,6 +325,209 @@ fn session_context_packet_contains_bounded_planner_context() {
     assert_eq!(packet.history.summaries[0].id, "hist-new");
     assert_eq!(packet.truncation.total_nodes, 4);
     assert_eq!(packet.truncation.included_nodes, 2);
+}
+
+#[test]
+fn mock_planner_receives_context_and_normalizes_realistic_multi_step_fixture() {
+    let session = test_session();
+    let provider = CapturingPlannerProvider::json(realistic_multi_step_proposal_json());
+
+    let proposal = plan_agent_request(
+        &session,
+        "tighten the agent voice, recall intro, then clear the agent layer",
+        &provider,
+        SessionContextBounds {
+            max_nodes: 3,
+            max_routes: 10,
+            max_buses: 10,
+            max_macros: 10,
+            max_scenes: 10,
+            max_ownership_rules: 10,
+            max_pending_actions: 10,
+            max_history_entries: 10,
+        },
+    )
+    .unwrap();
+
+    let request = provider.last_request.borrow();
+    let request = request.as_ref().expect("planner request captured");
+    assert_eq!(
+        request.raw_input,
+        "tighten the agent voice, recall intro, then clear the agent layer"
+    );
+    assert_eq!(request.context.graph.nodes.len(), 3);
+    assert!(request
+        .context
+        .ownership
+        .agent_owned_node_ids
+        .contains(&"node-agent".to_string()));
+    assert!(!request.context.runtime_health.agent_frozen);
+
+    assert_eq!(
+        proposal.raw_input,
+        "tighten the agent voice, recall intro, then clear the agent layer"
+    );
+    assert_eq!(proposal.provider_id, "mock-fixture-planner");
+    assert_eq!(proposal.confidence, 0.88);
+    assert_eq!(proposal.commands.len(), 3);
+    assert!(matches!(
+        proposal.commands[0],
+        TypedCommand::GraphEdit(GraphEditCommand::SetParameterValue { .. })
+    ));
+    assert!(matches!(
+        proposal.commands[1],
+        TypedCommand::Performance(PerformanceCommand::RecallScene { .. })
+    ));
+    assert!(matches!(
+        proposal.commands[2],
+        TypedCommand::GraphEdit(GraphEditCommand::RemoveNode { .. })
+    ));
+}
+
+#[test]
+fn mock_planner_rejects_invalid_realistic_proposal_before_mutation() {
+    let mut store = SessionStore::new_default();
+    store.replace_current(test_session());
+    let provider = CapturingPlannerProvider::json(serde_json::json!({
+        "rawInput": "push the agent source above the allowed ceiling",
+        "commands": [
+            {
+                "type": "graphEdit",
+                "payload": {
+                    "type": "setParameterValue",
+                    "payload": {
+                        "node_id": "node-agent",
+                        "parameter_id": "param-lvl",
+                        "value": 1.5
+                    }
+                }
+            }
+        ],
+        "confidence": 0.74
+    }));
+
+    let result = agent_command::plan_and_apply_agent_request(
+        &mut store,
+        agent_actor(),
+        "push the agent source above the allowed ceiling",
+        &provider,
+    )
+    .unwrap();
+
+    assert!(result.applied.is_empty());
+    assert!(result.pending.is_empty());
+    assert_eq!(result.rejected.len(), 1);
+    assert!(result.rejected[0].1.contains("must be between 0 and 1"));
+    let current = store.current();
+    let node = current
+        .nodes
+        .iter()
+        .find(|node| node.id == "node-agent")
+        .unwrap();
+    assert_eq!(node.parameters[0].value, 0.7);
+}
+
+#[test]
+fn mock_planner_high_risk_fixture_waits_for_approve_or_reject_flow() {
+    let mut store = SessionStore::new_default();
+    store.replace_current(test_session());
+    let provider = CapturingPlannerProvider::json(realistic_multi_step_proposal_json());
+
+    let result = agent_command::plan_and_apply_agent_request(
+        &mut store,
+        agent_actor(),
+        "tighten the agent voice, recall intro, then clear the agent layer",
+        &provider,
+    )
+    .unwrap();
+
+    assert_eq!(result.applied.len(), 2);
+    assert_eq!(result.pending.len(), 1);
+    assert_eq!(result.pending[0].risk_tier, RiskTier::High);
+    assert!(store
+        .current()
+        .nodes
+        .iter()
+        .any(|node| node.id == "node-agent"));
+    let current = store.current();
+    let node = current
+        .nodes
+        .iter()
+        .find(|node| node.id == "node-agent")
+        .unwrap();
+    assert_eq!(node.parameters[0].value, 0.42);
+
+    let pending_id = result.pending[0].id.clone();
+    let rejected = agent_command::reject_pending_action(&mut store, &pending_id).unwrap();
+    let rejected_action = rejected
+        .pending_actions
+        .iter()
+        .find(|action| action.id == pending_id)
+        .unwrap();
+    assert_eq!(rejected_action.status, PendingActionStatus::Rejected);
+    assert!(rejected.nodes.iter().any(|node| node.id == "node-agent"));
+
+    let second_result = agent_command::plan_and_apply_agent_request(
+        &mut store,
+        agent_actor(),
+        "clear the agent layer after review",
+        &CapturingPlannerProvider::json(serde_json::json!({
+            "commands": [
+                {
+                    "type": "graphEdit",
+                    "payload": {
+                        "type": "removeNode",
+                        "payload": {
+                            "node_id": "node-agent"
+                        }
+                    }
+                }
+            ],
+            "confidence": 0.91
+        })),
+    )
+    .unwrap();
+
+    let approved =
+        agent_command::approve_pending_action(&mut store, &second_result.pending[0].id).unwrap();
+    assert!(!approved.nodes.iter().any(|node| node.id == "node-agent"));
+    assert!(approved
+        .pending_actions
+        .iter()
+        .all(|action| action.status != PendingActionStatus::Pending));
+}
+
+#[test]
+fn mock_planner_fixture_is_rejected_when_agent_is_frozen() {
+    let mut store = SessionStore::new_default();
+    store.replace_current(test_session());
+    agent_command::toggle_agent_freeze(&mut store).unwrap();
+    let provider = CapturingPlannerProvider::json(realistic_multi_step_proposal_json());
+
+    let result = agent_command::plan_and_apply_agent_request(
+        &mut store,
+        agent_actor(),
+        "tighten the agent voice, recall intro, then clear the agent layer",
+        &provider,
+    )
+    .unwrap();
+
+    let request = provider.last_request.borrow();
+    assert!(
+        request
+            .as_ref()
+            .expect("planner request captured")
+            .context
+            .runtime_health
+            .agent_frozen
+    );
+    assert!(result.applied.is_empty());
+    assert!(result.pending.is_empty());
+    assert_eq!(result.rejected.len(), 3);
+    assert!(result
+        .rejected
+        .iter()
+        .all(|(_, reason)| reason.contains("frozen")));
 }
 
 #[test]

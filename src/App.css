@@ -1120,7 +1120,7 @@ button:disabled {
 
 .conversation-sidecar {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: var(--space-3);
   overflow: hidden;
 }
@@ -1152,6 +1152,40 @@ button:disabled {
 
 .conversation-safety-strip button {
   width: 100%;
+}
+
+.agent-runtime-diagnostics {
+  padding: var(--space-3);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.diagnostic-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: 0.82rem;
+}
+
+.diagnostic-row span {
+  color: var(--text-muted);
+}
+
+.diagnostic-row strong {
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: 0.84rem;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.diagnostic-detail {
+  margin: 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+  color: var(--accent-warning);
+  font-size: 0.8rem;
 }
 
 .freeze-button-active {
@@ -1296,6 +1330,8 @@ button:disabled {
   border-radius: var(--radius-card);
   background: var(--surface-panel-solid);
   border: 1px solid var(--border-subtle);
+  display: grid;
+  gap: var(--space-2);
 }
 
 .risk-badge {
@@ -1329,7 +1365,7 @@ button:disabled {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.5rem;
+  gap: var(--space-2);
 }
 
 .pending-action-time {
@@ -1338,9 +1374,75 @@ button:disabled {
 }
 
 .pending-action-command {
-  margin: 0 0 0.5rem;
+  margin: 0;
   font-family: "IBM Plex Mono", "Fira Code", monospace;
   font-size: 0.88rem;
+}
+
+.proposal-summary {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.proposal-status {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.proposal-review-grid {
+  margin: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.proposal-review-grid div,
+.proposal-diff div {
+  min-width: 0;
+}
+
+.proposal-review-grid dt,
+.proposal-diff span {
+  margin-bottom: 0.16rem;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.proposal-review-grid dd {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.proposal-diff {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  background: rgba(9, 11, 16, 0.4);
+}
+
+.proposal-diff code {
+  display: block;
+  margin-top: 0.18rem;
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.reviewed-actions {
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
 }
 
 .pending-action-actions {
