@@ -8,7 +8,7 @@ use scrysynth_lib::domain::session::{
     new_id, ActionHistoryEntry, ActorRef, AgentIntent, AgentRuntimeState, ControllerKind,
     DiffSummary, GraphEditCommand, Node, NodeType, OwnershipAssignment, OwnershipRule,
     ParameterValue, PendingAction, PendingActionStatus, PerformanceCommand, Port, PortDirection,
-    RiskTier, SceneDefinition, SessionDocument, SignalType, TypedCommand,
+    RiskTier, Route, SceneDefinition, SessionDocument, SignalType, TypedCommand,
 };
 
 fn test_session() -> SessionDocument {
@@ -656,6 +656,111 @@ fn apply_agent_command_rejects_user_owned_commands() {
     };
 
     let result = agent_command::apply_agent_command(&mut store, actor, intent).unwrap();
+    assert!(result.applied.is_empty());
+    assert_eq!(result.rejected.len(), 1);
+    assert!(result.rejected[0].1.contains("user-owned"));
+}
+
+#[test]
+fn apply_agent_command_rejects_invalid_target_before_mutation() {
+    let mut store = SessionStore::new_default();
+    store.replace_current(test_session());
+
+    let intent = AgentIntent {
+        raw_input: "set missing".to_string(),
+        parsed_commands: vec![TypedCommand::GraphEdit(
+            GraphEditCommand::SetParameterValue {
+                node_id: "missing-node".to_string(),
+                parameter_id: "param-lvl".to_string(),
+                value: 0.2,
+            },
+        )],
+        confidence: 0.9,
+    };
+
+    let result = agent_command::apply_agent_command(&mut store, agent_actor(), intent).unwrap();
+    assert!(result.applied.is_empty());
+    assert!(result.pending.is_empty());
+    assert_eq!(result.rejected.len(), 1);
+    assert!(result.rejected[0]
+        .1
+        .contains("node 'missing-node' was not found"));
+    assert!(store.current().action_history.is_empty());
+}
+
+#[test]
+fn apply_agent_command_rejects_out_of_range_parameter_with_diagnostic() {
+    let mut store = SessionStore::new_default();
+    store.replace_current(test_session());
+
+    let intent = AgentIntent {
+        raw_input: "set level too hot".to_string(),
+        parsed_commands: vec![TypedCommand::GraphEdit(
+            GraphEditCommand::SetParameterValue {
+                node_id: "node-agent".to_string(),
+                parameter_id: "param-lvl".to_string(),
+                value: 2.0,
+            },
+        )],
+        confidence: 0.9,
+    };
+
+    let result = agent_command::apply_agent_command(&mut store, agent_actor(), intent).unwrap();
+    assert!(result.applied.is_empty());
+    assert_eq!(result.rejected.len(), 1);
+    assert!(result.rejected[0].1.contains("must be between 0 and 1"));
+}
+
+#[test]
+fn apply_agent_command_rejects_invalid_route_with_diagnostic() {
+    let mut store = SessionStore::new_default();
+    store.replace_current(test_session());
+
+    let intent = AgentIntent {
+        raw_input: "route bad target".to_string(),
+        parsed_commands: vec![TypedCommand::GraphEdit(GraphEditCommand::AddRoute {
+            route: Route {
+                id: "bad-route".to_string(),
+                source_node_id: "node-src".to_string(),
+                source_port_id: "port-src-out".to_string(),
+                target_node_id: "missing-node".to_string(),
+                target_port_id: "missing-port".to_string(),
+                bus_id: None,
+            },
+        })],
+        confidence: 0.9,
+    };
+
+    let result = agent_command::apply_agent_command(&mut store, agent_actor(), intent).unwrap();
+    assert!(result.applied.is_empty());
+    assert_eq!(result.rejected.len(), 1);
+    assert!(result.rejected[0].1.contains("missing-node"));
+}
+
+#[test]
+fn remove_route_respects_endpoint_ownership() {
+    let mut session = test_session();
+    session.routes.push(Route {
+        id: "route-user-owned".to_string(),
+        source_node_id: "node-src".to_string(),
+        source_port_id: "port-src-out".to_string(),
+        target_node_id: "node-user".to_string(),
+        target_port_id: "port-user-in".to_string(),
+        bus_id: None,
+    });
+
+    let mut store = SessionStore::new_default();
+    store.replace_current(session);
+
+    let intent = AgentIntent {
+        raw_input: "remove user route".to_string(),
+        parsed_commands: vec![TypedCommand::GraphEdit(GraphEditCommand::RemoveRoute {
+            route_id: "route-user-owned".to_string(),
+        })],
+        confidence: 0.9,
+    };
+
+    let result = agent_command::apply_agent_command(&mut store, agent_actor(), intent).unwrap();
     assert!(result.applied.is_empty());
     assert_eq!(result.rejected.len(), 1);
     assert!(result.rejected[0].1.contains("user-owned"));

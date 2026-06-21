@@ -285,6 +285,10 @@ fn approve_pending_action_applies_command() {
     let session = store.current();
     assert!(session.pending_actions.is_empty());
     assert!(!session.nodes.iter().any(|n| n.id == "node-src"));
+    assert!(session
+        .action_history
+        .iter()
+        .any(|entry| entry.diff.description.contains("Approved pending action")));
 }
 
 #[test]
@@ -311,6 +315,10 @@ fn reject_pending_action_discards_command() {
         .iter()
         .any(|pa| pa.id == pending_id && pa.status == PendingActionStatus::Pending));
     assert!(session.nodes.iter().any(|n| n.id == "node-src"));
+    assert!(session
+        .action_history
+        .iter()
+        .any(|entry| entry.diff.description.contains("Rejected pending action")));
 }
 
 #[test]
@@ -320,6 +328,40 @@ fn approve_nonexistent_pending_action_fails() {
 
     let result = agent_command::approve_pending_action(&mut store, "nonexistent");
     assert!(result.is_err());
+}
+
+#[test]
+fn approve_stale_pending_action_fails_without_resolving_pending() {
+    let mut store = SessionStore::new_default();
+    store.replace_current(test_session());
+
+    let actor = agent_actor();
+    let intent = scrysynth_lib::domain::session::AgentIntent {
+        raw_input: "remove node-src".to_string(),
+        parsed_commands: vec![TypedCommand::GraphEdit(GraphEditCommand::RemoveNode {
+            node_id: "node-src".to_string(),
+        })],
+        confidence: 0.9,
+    };
+
+    let result = agent_command::apply_agent_command(&mut store, actor, intent).unwrap();
+    let pending_id = result.pending[0].id.clone();
+    store
+        .mutate_current(|session| {
+            session.nodes.retain(|node| node.id != "node-src");
+            Ok::<(), ()>(())
+        })
+        .unwrap();
+
+    let err = agent_command::approve_pending_action(&mut store, &pending_id).unwrap_err();
+    assert!(err.to_string().contains("node 'node-src' was not found"));
+
+    let session = store.current();
+    assert_eq!(session.pending_actions.len(), 1);
+    assert_eq!(
+        session.pending_actions[0].status,
+        PendingActionStatus::Pending
+    );
 }
 
 #[test]

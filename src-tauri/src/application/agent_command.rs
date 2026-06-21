@@ -10,7 +10,7 @@ use crate::application::session_store::SessionStore;
 use crate::domain::session::{
     new_id, ActorRef, AgentIntent, AudioPrimitive, AudioSourceNode, AudioSourceType, ChannelMode,
     ControllerKind, GraphEditCommand, Node, NodeType, OwnershipAssignment, PendingAction,
-    PendingActionStatus, PerformanceCommand, Port, PortDirection, RiskTier, SessionDocument,
+    PendingActionStatus, PerformanceCommand, Port, PortDirection, RiskTier, Route, SessionDocument,
     SignalType, TypedCommand,
 };
 
@@ -308,6 +308,11 @@ pub fn apply_agent_command(
     let mut pending = Vec::new();
 
     for command in intent.parsed_commands.clone() {
+        if let Err(reason) = validate_proposed_command(&store.current(), &command) {
+            rejected.push((command, reason));
+            continue;
+        }
+
         match store.check_ownership(&actor, &command) {
             Ok(()) => {
                 let risk = classify_risk(&command);
@@ -401,6 +406,9 @@ pub fn approve_pending_action(
             ))
         })?;
 
+    validate_proposed_command(&store.current(), &pa.command)
+        .map_err(AgentCommandError::OwnershipBlocked)?;
+
     store
         .mutate_current(|session| {
             if let Some(pa) = session
@@ -432,6 +440,15 @@ pub fn approve_pending_action(
         })
         .map_err(|e| AgentCommandError::OwnershipBlocked(e))?;
 
+    store.log_action_with_description(
+        &ActorRef {
+            actor_id: "user".to_string(),
+            correlation_id: pa.correlation_id.clone(),
+        },
+        &pa.command,
+        Some(format!("Approved pending action {}", pending_action_id)),
+    );
+
     Ok(result)
 }
 
@@ -439,6 +456,13 @@ pub fn reject_pending_action(
     store: &mut SessionStore,
     pending_action_id: &str,
 ) -> Result<SessionDocument, AgentCommandError> {
+    let rejected_command = store
+        .current()
+        .pending_actions
+        .iter()
+        .find(|pa| pa.id == pending_action_id && pa.status == PendingActionStatus::Pending)
+        .map(|pa| (pa.command.clone(), pa.correlation_id.clone()));
+
     store
         .mutate_current(|session| {
             let pa = session
@@ -458,8 +482,190 @@ pub fn reject_pending_action(
         })
         .map_err(|e| AgentCommandError::OwnershipBlocked(e))?;
 
+    if let Some((command, correlation_id)) = rejected_command {
+        store.log_action_with_description(
+            &ActorRef {
+                actor_id: "user".to_string(),
+                correlation_id,
+            },
+            &command,
+            Some(format!("Rejected pending action {}", pending_action_id)),
+        );
+    }
+
     let session = store.current();
     Ok(session)
+}
+
+pub fn validate_proposed_command(
+    session: &SessionDocument,
+    command: &TypedCommand,
+) -> Result<RiskTier, String> {
+    match command {
+        TypedCommand::GraphEdit(graph_command) => validate_graph_proposal(session, graph_command)?,
+        TypedCommand::Performance(performance_command) => {
+            validate_performance_proposal(session, performance_command)?
+        }
+    }
+
+    Ok(classify_risk(command))
+}
+
+fn validate_graph_proposal(
+    session: &SessionDocument,
+    command: &GraphEditCommand,
+) -> Result<(), String> {
+    match command {
+        GraphEditCommand::AddNode { node } => validate_add_node(session, node),
+        GraphEditCommand::RemoveNode { node_id }
+        | GraphEditCommand::SetNodeEnabled { node_id, .. } => {
+            require_node(session, node_id).map(|_| ())
+        }
+        GraphEditCommand::SetParameterValue {
+            node_id,
+            parameter_id,
+            value,
+        } => {
+            let node = require_node(session, node_id)?;
+            let parameter = node
+                .parameters
+                .iter()
+                .find(|parameter| &parameter.id == parameter_id)
+                .ok_or_else(|| {
+                    format!(
+                        "parameter '{}' was not found on node '{}'",
+                        parameter_id, node_id
+                    )
+                })?;
+            if *value < parameter.min_value || *value > parameter.max_value {
+                return Err(format!(
+                    "parameter '{}' on node '{}' must be between {} and {}",
+                    parameter_id, node_id, parameter.min_value, parameter.max_value
+                ));
+            }
+            Ok(())
+        }
+        GraphEditCommand::AddRoute { route } => validate_route_proposal(session, route),
+        GraphEditCommand::RemoveRoute { route_id } => session
+            .routes
+            .iter()
+            .any(|route| &route.id == route_id)
+            .then_some(())
+            .ok_or_else(|| format!("route '{}' was not found", route_id)),
+        GraphEditCommand::AssignNodeToBus { node_id, bus_id } => {
+            let node = require_node(session, node_id)?;
+            if node.audio_primitive.is_none() {
+                return Err(format!(
+                    "node '{}' does not support bus assignment",
+                    node_id
+                ));
+            }
+            session
+                .buses
+                .iter()
+                .any(|bus| &bus.id == bus_id)
+                .then_some(())
+                .ok_or_else(|| format!("bus '{}' was not found", bus_id))
+        }
+        GraphEditCommand::ClearNodeBusAssignment { node_id } => {
+            let node = require_node(session, node_id)?;
+            if node.audio_primitive.is_none() {
+                return Err(format!(
+                    "node '{}' does not support bus assignment",
+                    node_id
+                ));
+            }
+            Ok(())
+        }
+    }
+}
+
+fn validate_add_node(session: &SessionDocument, node: &Node) -> Result<(), String> {
+    if session.nodes.iter().any(|existing| existing.id == node.id) {
+        return Err(format!("node '{}' already exists", node.id));
+    }
+
+    for parameter in &node.parameters {
+        if parameter.min_value > parameter.max_value {
+            return Err(format!(
+                "parameter '{}' on node '{}' has an invalid range",
+                parameter.id, node.id
+            ));
+        }
+        if parameter.value < parameter.min_value || parameter.value > parameter.max_value {
+            return Err(format!(
+                "parameter '{}' on node '{}' must be between {} and {}",
+                parameter.id, node.id, parameter.min_value, parameter.max_value
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_route_proposal(session: &SessionDocument, route: &Route) -> Result<(), String> {
+    graph_edit::validate_route(session, route).map_err(|err| err.to_string())?;
+    if let Some(bus_id) = &route.bus_id {
+        session
+            .buses
+            .iter()
+            .any(|bus| &bus.id == bus_id)
+            .then_some(())
+            .ok_or_else(|| format!("bus '{}' was not found", bus_id))?;
+    }
+    Ok(())
+}
+
+fn validate_performance_proposal(
+    session: &SessionDocument,
+    command: &PerformanceCommand,
+) -> Result<(), String> {
+    match command {
+        PerformanceCommand::RecallScene { scene_id }
+        | PerformanceCommand::SaveVariation { scene_id, .. } => session
+            .scenes
+            .iter()
+            .any(|scene| &scene.id == scene_id)
+            .then_some(())
+            .ok_or_else(|| format!("scene '{}' was not found", scene_id)),
+        PerformanceCommand::RestoreVariation { variation_id } => session
+            .variations
+            .iter()
+            .find(|variation| &variation.id == variation_id)
+            .ok_or_else(|| format!("variation '{}' was not found", variation_id))
+            .and_then(|variation| {
+                for override_param in &variation.parameter_overrides {
+                    let parameter = session
+                        .nodes
+                        .iter()
+                        .flat_map(|node| {
+                            node.parameters
+                                .iter()
+                                .map(move |parameter| (node.id.as_str(), parameter))
+                        })
+                        .find(|(_, parameter)| parameter.id == override_param.parameter_id);
+                    if let Some((node_id, parameter)) = parameter {
+                        if override_param.value < parameter.min_value
+                            || override_param.value > parameter.max_value
+                        {
+                            return Err(format!(
+                                "parameter '{}' is out of range on node '{}'",
+                                parameter.id, node_id
+                            ));
+                        }
+                    }
+                }
+                Ok(())
+            }),
+    }
+}
+
+fn require_node<'a>(session: &'a SessionDocument, node_id: &str) -> Result<&'a Node, String> {
+    session
+        .nodes
+        .iter()
+        .find(|node| node.id == node_id)
+        .ok_or_else(|| format!("node '{}' was not found", node_id))
 }
 
 fn apply_typed_command(

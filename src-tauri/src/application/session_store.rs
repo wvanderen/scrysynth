@@ -691,7 +691,7 @@ impl SessionStore {
             }]);
         }
 
-        let target_ids = extract_target_node_ids(command);
+        let target_ids = extract_target_node_ids(&self.current, command);
         let mut errors = Vec::new();
 
         for node_id in &target_ids {
@@ -718,8 +718,20 @@ impl SessionStore {
     }
 
     pub fn log_action(&mut self, actor: &ActorRef, command: &TypedCommand) {
+        self.log_action_with_description(actor, command, None);
+    }
+
+    pub fn log_action_with_description(
+        &mut self,
+        actor: &ActorRef,
+        command: &TypedCommand,
+        description: Option<String>,
+    ) {
         let _ = self.mutate_current(|session| {
-            let diff = generate_diff_summary(command, session);
+            let mut diff = generate_diff_summary(command, session);
+            if let Some(description) = description {
+                diff.description = description;
+            }
             let entry = ActionHistoryEntry {
                 id: new_id(),
                 timestamp: "2026-04-12T00:00:00Z".to_string(),
@@ -790,7 +802,7 @@ fn osc_bind_diagnostic(bind_host: &str, listen_port: u16, err: &str) -> Hardware
     }
 }
 
-fn extract_target_node_ids(command: &TypedCommand) -> Vec<String> {
+fn extract_target_node_ids(session: &SessionDocument, command: &TypedCommand) -> Vec<String> {
     match command {
         TypedCommand::GraphEdit(gec) => match gec {
             GraphEditCommand::AddNode { .. } => vec![],
@@ -800,7 +812,12 @@ fn extract_target_node_ids(command: &TypedCommand) -> Vec<String> {
             GraphEditCommand::AddRoute { route } => {
                 vec![route.source_node_id.clone(), route.target_node_id.clone()]
             }
-            GraphEditCommand::RemoveRoute { .. } => vec![],
+            GraphEditCommand::RemoveRoute { route_id } => session
+                .routes
+                .iter()
+                .find(|route| &route.id == route_id)
+                .map(|route| vec![route.source_node_id.clone(), route.target_node_id.clone()])
+                .unwrap_or_default(),
             GraphEditCommand::AssignNodeToBus { node_id, .. } => vec![node_id.clone()],
             GraphEditCommand::ClearNodeBusAssignment { node_id } => vec![node_id.clone()],
         },
