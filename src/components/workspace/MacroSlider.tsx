@@ -36,36 +36,21 @@ export function MacroSlider({
   const scaledValue = rangeStart + (localValue * (rangeEnd - rangeStart));
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 4,
-        padding: "8px 12px",
-        background: "#112725",
-        border: "1px solid #2d4442",
-        borderRadius: 10,
-      }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ color: "#f2eee5", fontSize: 13, fontWeight: 600 }}>{macroName}</span>
-        <span style={{ color: "#d9c8a0", fontSize: 11 }}>
+    <div className="macro-slider">
+      <div className="macro-slider-header">
+        <span>{macroName}</span>
+        <span>
           {scaledValue.toFixed(2)} ({rangeStart}–{rangeEnd})
         </span>
       </div>
       <input
+        className="macro-slider-input"
         type="range"
         min={0}
         max={1}
         step={0.001}
         value={localValue}
         onChange={handleChange}
-        style={{
-          width: "100%",
-          height: 24,
-          accentColor: "#f7c66a",
-          cursor: "pointer",
-        }}
       />
     </div>
   );

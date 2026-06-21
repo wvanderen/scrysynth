@@ -1,0 +1,35 @@
+{
+  "schema": "td-loop.uat-evidence/v1",
+  "issue_id": "td-cf808e",
+  "workflow": "conversation sidecar workflow",
+  "tool": "computer-use with Chrome Canary plus screencapture",
+  "result": "pass",
+  "steps": [
+    "Opened http://127.0.0.1:1420/ in Chrome Canary.",
+    "Selected the Conversation mode from the mode rail.",
+    "Confirmed the conversation workspace opens inside the cockpit viewport rather than a long page.",
+    "Confirmed the message/empty state and input are contained in the left collaborator pane.",
+    "Confirmed Pending Actions are visible as a compact queue in the sidecar with an empty-state count.",
+    "Confirmed Freeze Agent and Reclaim All are visible in the sidecar and remain consistent with the global safety chrome.",
+    "Sent a command through the focused message input using computer-use key events; the transcript rendered user and agent bubbles in the sidecar.",
+    "Clicked Freeze Agent and confirmed the sidecar safety state changed to Frozen, the button became Unfreeze Agent, and the global safety chrome also showed Frozen.",
+    "Clicked Reclaim All from the sidecar safety strip and confirmed the control remained available without changing the layout."
+  ],
+  "artifacts": [
+    {
+      "label": "conversation sidecar screenshot",
+      "source_path": "uat-artifacts/td-cf808e/conversation-sidecar.png",
+      "tool_emitted": true,
+      "saved": true,
+      "path": "uat-artifacts/td-cf808e/conversation-sidecar.png",
+      "note": "Captured from the visible Chrome Canary window after opening the Conversation workspace."
+    }
+  ],
+  "notes": [
+    "Accessibility tree showed Agent collaborator sidecar, 0 pending queue badge, Pending agent actions, Safety, Freeze Agent/Reclaim All, Pending Actions, No approvals waiting, and the message input within the conversation workspace.",
+    "After sending, the accessibility tree showed YOU/oscillator and AGENT/No commands parsed from that input with confidence in the transcript.",
+    "Existing automated tests verify sendAgentMessage, approvePendingAction, rejectPendingAction, toggleFreezeAgent, and reclaimOwnership store flows."
+  ],
+  "recorded_at": "2026-06-20T16:20:56Z",
+  "recorded_by_session": "ses_cf7c14"
+}

@@ -1,0 +1,33 @@
+{
+  "schema": "td-loop.uat-evidence/v1",
+  "issue_id": "td-726d00",
+  "workflow": "runtime and hardware operational cockpit surfaces",
+  "tool": "computer-use with Safari plus screencapture",
+  "result": "pass",
+  "steps": [
+    "Opened http://127.0.0.1:1420/ in Safari.",
+    "Selected Runtime from the mode rail.",
+    "Confirmed Audio, Visual, and Agent runtime cards are compact and expose collapsed Details controls.",
+    "Expanded Audio runtime Details and confirmed detail text is inspectable without crowding the viewport.",
+    "Selected Hardware from the mode rail.",
+    "Confirmed status, settings, learn targets, and bindings are laid out densely and remain readable.",
+    "Clicked Refresh, Start, a learn target, and Stop; observed MIDI/OSC statuses move to Listening and then back to Stopped, and Learn move through Learning and back to Idle.",
+    "Confirmed the workspace keeps global transport, panic, runtime status, side activity, and bottom runtime strip visible."
+  ],
+  "artifacts": [
+    {
+      "label": "runtime hardware cockpit screenshot",
+      "source_path": "uat-artifacts/td-726d00/runtime-hardware-cockpit.png",
+      "tool_emitted": true,
+      "saved": true,
+      "path": "uat-artifacts/td-726d00/runtime-hardware-cockpit.png",
+      "note": "Captured from Safari after exercising hardware refresh/start/learn/stop controls."
+    }
+  ],
+  "notes": [
+    "Accessibility tree exposed Runtime details summaries and Hardware Refresh/Start/Stop, MIDI/OSC settings, Learn Targets, and Bindings controls.",
+    "No physical MIDI device was attached, so the MIDI input selector remained on No MIDI input; the available local listener and learn workflows were still exercised."
+  ],
+  "recorded_at": "2026-06-20T16:36:00Z",
+  "recorded_by_session": "ses_cf7c14"
+}

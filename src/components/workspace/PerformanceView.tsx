@@ -107,22 +107,23 @@ export function PerformanceView({
 
   return (
     <section className="performance-view">
-      <div className="panel-heading">
-        <p className="eyebrow">Performance</p>
-        <h2>Shape the live set with scenes and variations</h2>
+      <div className="panel-heading performance-heading">
+        <div>
+          <p className="eyebrow">Performance</p>
+          <h2>Live control surface</h2>
+        </div>
+        <span className="queue-count-pill">{macros.length} macros</span>
       </div>
 
-      <div className="performance-grid">
-        <div className="performance-column">
+      <div className="performance-cockpit-grid">
+        <div className="performance-pad-grid">
           <ScenePanel
             scenes={scenes}
             activeSceneId={activeSceneId}
             isLoading={isLoading}
             onRecallScene={onRecallScene}
           />
-        </div>
 
-        <div className="performance-column">
           <VariationPanel
             variations={variations}
             scenes={scenes}
@@ -132,55 +133,64 @@ export function PerformanceView({
             onSaveVariation={onSaveVariation}
           />
         </div>
-      </div>
 
-      <div className="inspector-group" style={{ marginTop: 16 }}>
-        <h2>Macro Controls</h2>
-        {macros.length > 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {macros.map((macro) => (
-              <MacroSlider
-                key={macro.id}
-                macroId={macro.id}
-                macroName={macro.name}
-                rangeStart={macro.rangeStart}
-                rangeEnd={macro.rangeEnd}
-                onValueChange={onSetMacroValue}
-              />
-            ))}
+        <div className="performance-macro-strip">
+          <div className="performance-section-heading">
+            <h2>Macro Controls</h2>
+            <span>{macros.length} assigned</span>
           </div>
-        ) : (
-          <p className="empty-copy">No macros defined.</p>
-        )}
+          {macros.length > 0 ? (
+            <div className="macro-control-grid">
+              {macros.map((macro) => (
+                <MacroSlider
+                  key={macro.id}
+                  macroId={macro.id}
+                  macroName={macro.name}
+                  rangeStart={macro.rangeStart}
+                  rangeEnd={macro.rangeEnd}
+                  onValueChange={onSetMacroValue}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="empty-copy">No macros defined.</p>
+          )}
+        </div>
+
+        <div className="performance-editor-drawer">
+          <MacroEditor
+            macros={macros}
+            nodes={allNodes}
+            isLoading={isLoading}
+            onCreateMacro={onCreateMacro}
+            onUpdateMacro={onUpdateMacro}
+            onRemoveMacro={onRemoveMacro}
+          />
+        </div>
+
+        <div className="performance-hardware-drawer">
+          <HardwarePanel
+            bindings={hardwareBindings ?? []}
+            settings={hardwareSettings}
+            status={hardwareStatus}
+            midiInputPorts={midiInputPorts}
+            macros={macros}
+            scenes={scenes}
+            isLoading={isLoading}
+            onRefresh={onRefreshHardware}
+            onUpdateSettings={onUpdateHardwareSettings}
+            onStartListeners={onStartHardwareRuntime}
+            onStopListeners={onStopHardwareRuntime}
+            onStartLearn={onStartMidiLearn}
+            onCancelLearn={onStopMidiLearn}
+            onRemoveBinding={onRemoveHardwareBinding}
+          />
+        </div>
       </div>
 
-      <MacroEditor
-        macros={macros}
-        nodes={allNodes}
-        isLoading={isLoading}
-        onCreateMacro={onCreateMacro}
-        onUpdateMacro={onUpdateMacro}
-        onRemoveMacro={onRemoveMacro}
-      />
-
-      <HardwarePanel
-        bindings={hardwareBindings ?? []}
-        settings={hardwareSettings}
-        status={hardwareStatus}
-        midiInputPorts={midiInputPorts}
-        macros={macros}
-        scenes={scenes}
-        isLoading={isLoading}
-        onRefresh={onRefreshHardware}
-        onUpdateSettings={onUpdateHardwareSettings}
-        onStartListeners={onStartHardwareRuntime}
-        onStopListeners={onStopHardwareRuntime}
-        onStartLearn={onStartMidiLearn}
-        onCancelLearn={onStopMidiLearn}
-        onRemoveBinding={onRemoveHardwareBinding}
-      />
-
-      <ActivityPanel actionHistory={actionHistory} />
+      <div className="performance-activity-strip">
+        <ActivityPanel actionHistory={actionHistory} />
+      </div>
 
       <MidiLearnOverlay />
     </section>

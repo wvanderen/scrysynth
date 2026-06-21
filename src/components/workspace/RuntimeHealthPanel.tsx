@@ -42,12 +42,17 @@ export function RuntimeHealthPanel() {
   return (
     <div className="runtime-health-grid">
       <div className="runtime-health-card">
-        <div className="runtime-health-label">
-          <span className={`status-dot status-dot-${audioDot}`} />
-          Audio Runtime
+        <div className="runtime-card-summary">
+          <div className="runtime-health-label">
+            <span className={`status-dot status-dot-${audioDot}`} />
+            Audio Runtime
+          </div>
+          <strong>{audioRuntime?.status ?? "idle / unknown"}</strong>
         </div>
-        <div className="runtime-health-detail">{audioRuntime?.status ?? "idle / unknown"}</div>
-        {audioRuntime?.detail ? <div className="runtime-health-detail">{audioRuntime.detail}</div> : null}
+        <details className="runtime-health-details">
+          <summary>Details</summary>
+          <div className="runtime-health-detail">{audioRuntime?.detail ?? "No audio runtime detail reported."}</div>
+        </details>
         <div className="dense-control-row">
           {audioRuntime?.canStart ? <button type="button" className="compact-button" onClick={startAudio}>Start</button> : null}
           {audioRuntime?.canStop ? <button type="button" className="compact-button" onClick={stopAudio}>Stop</button> : null}
@@ -56,24 +61,29 @@ export function RuntimeHealthPanel() {
       </div>
 
       <div className="runtime-health-card">
-        <div className="runtime-health-label">
-          <span className={`status-dot status-dot-${visualDot}`} />
-          Visual Runtime
-        </div>
-        <div className="runtime-health-detail">{visualRuntime?.status ?? "idle / unknown"}</div>
-        {visualRuntime?.detail ? <div className="runtime-health-detail">{visualRuntime.detail}</div> : null}
-        {visualRuntime ? (
-          <div className="runtime-health-metadata">
-            <span>Connection</span>
-            <strong>{visualRuntime.connectionStatus}</strong>
-            <span>Scene</span>
-            <strong>{visualRuntime.activeSceneLabel}</strong>
-            <span>Renderer</span>
-            <strong>{visualRuntime.rendererLabel}</strong>
-            <span>Telemetry</span>
-            <strong>{visualRuntime.fpsLabel}</strong>
+        <div className="runtime-card-summary">
+          <div className="runtime-health-label">
+            <span className={`status-dot status-dot-${visualDot}`} />
+            Visual Runtime
           </div>
-        ) : null}
+          <strong>{visualRuntime?.status ?? "idle / unknown"}</strong>
+        </div>
+        <details className="runtime-health-details">
+          <summary>Details</summary>
+          {visualRuntime?.detail ? <div className="runtime-health-detail">{visualRuntime.detail}</div> : null}
+          {visualRuntime ? (
+            <div className="runtime-health-metadata">
+              <span>Connection</span>
+              <strong>{visualRuntime.connectionStatus}</strong>
+              <span>Scene</span>
+              <strong>{visualRuntime.activeSceneLabel}</strong>
+              <span>Renderer</span>
+              <strong>{visualRuntime.rendererLabel}</strong>
+              <span>Telemetry</span>
+              <strong>{visualRuntime.fpsLabel}</strong>
+            </div>
+          ) : null}
+        </details>
         <div className="dense-control-row">
           {visualRuntime?.canStart ? <button type="button" className="compact-button" onClick={startVisual}>Start</button> : null}
           {visualRuntime?.canStop ? <button type="button" className="compact-button" onClick={stopVisual}>Stop</button> : null}
@@ -82,16 +92,21 @@ export function RuntimeHealthPanel() {
       </div>
 
       <div className="runtime-health-card">
-        <div className="runtime-health-label">
-          <span className={`status-dot status-dot-${agentDot}`} />
-          Agent System
+        <div className="runtime-card-summary">
+          <div className="runtime-health-label">
+            <span className={`status-dot status-dot-${agentDot}`} />
+            Agent System
+          </div>
+          <strong>{agentRuntime?.status ?? "Available"}</strong>
         </div>
-        <div className="runtime-health-detail">{agentRuntime?.status ?? "Available"}</div>
-        <div className="runtime-health-detail">
-          {agentRuntime?.isAvailable ? "Online" : "Offline"}
-          {agentRuntime?.isFrozen ? " · Frozen" : ""}
-          {agentRuntime?.pendingActionCount ? ` · ${agentRuntime.pendingActionCount} pending` : ""}
-        </div>
+        <details className="runtime-health-details">
+          <summary>Details</summary>
+          <div className="runtime-health-detail">
+            {agentRuntime?.isAvailable ? "Online" : "Offline"}
+            {agentRuntime?.isFrozen ? " · Frozen" : ""}
+            {agentRuntime?.pendingActionCount ? ` · ${agentRuntime.pendingActionCount} pending` : ""}
+          </div>
+        </details>
       </div>
     </div>
   );

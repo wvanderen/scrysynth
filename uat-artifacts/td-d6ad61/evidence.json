@@ -1,0 +1,32 @@
+{
+  "schema": "td-loop.uat-evidence/v1",
+  "issue_id": "td-d6ad61",
+  "workflow": "performance dense live control surface",
+  "tool": "computer-use with Zen plus screencapture",
+  "result": "pass",
+  "steps": [
+    "Started a fresh Vite dev server at http://127.0.0.1:1420/.",
+    "Opened the app in Zen and selected Performance from the mode rail.",
+    "Confirmed the Performance workspace shows Live control surface with scenes, variations, save variation, macro controls, macro editor, hardware controls, and activity in one bounded cockpit viewport.",
+    "Confirmed the macro editor remains available as a bounded panel and does not dominate the default view.",
+    "Clicked Restore on the visible variation.",
+    "Focused the macro slider control and confirmed it remains in the compact macro strip.",
+    "Confirmed activity is summarized in the bottom strip/panel and hardware controls remain readable in the right column."
+  ],
+  "artifacts": [
+    {
+      "label": "performance control surface screenshot",
+      "source_path": "uat-artifacts/td-d6ad61/performance-control-surface.png",
+      "tool_emitted": true,
+      "saved": true,
+      "path": "uat-artifacts/td-d6ad61/performance-control-surface.png",
+      "note": "Captured from the visible Zen browser after opening Performance mode with the dense cockpit layout."
+    }
+  ],
+  "notes": [
+    "Accessibility tree exposed Performance workspace, Live control surface, scenes, variations, macro controls, macro editor, hardware, and activity sections.",
+    "Existing automated tests plus build cover recall scene, save/restore variation, macro create/update/remove, and macro value action wiring through the store/backend paths."
+  ],
+  "recorded_at": "2026-06-20T16:31:00Z",
+  "recorded_by_session": "ses_cf7c14"
+}

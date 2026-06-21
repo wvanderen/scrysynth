@@ -1,0 +1,58 @@
+{
+  "schema": "td-loop.uat-evidence/v1",
+  "issue_id": "td-e540cd",
+  "workflow": "final cockpit responsiveness and regression verification",
+  "tool": "Vitest, Vite build, computer-use with Safari/Zen/Chrome Canary",
+  "result": "pass-with-note",
+  "steps": [
+    "Ran npm test after all cockpit refactor changes; 5 test files and 45 tests passed.",
+    "Ran npm run build after all cockpit refactor changes; TypeScript and Vite production build passed with only the pre-existing chunk-size warning.",
+    "Inspected the desktop Graph workspace in Safari via computer-use accessibility tree.",
+    "Confirmed graph, transport, panic, global runtime/safety controls, mode rail, node inspector, and bottom runtime strip were visible together in the graph workspace.",
+    "Verified Conversation workflow through td-cf808e evidence: sidecar layout, send, freeze, reclaim, pending queue, and screenshot artifact.",
+    "Verified Performance workflow through td-d6ad61 evidence: scenes, variations, macro strip, bounded macro editor, hardware column, bottom activity, and screenshot artifact.",
+    "Verified Runtime/Hardware workflow through td-726d00 evidence: runtime details, refresh/start/learn/stop, compact hardware controls, and corrected Safari screenshot artifact.",
+    "Confirmed visual palette remains neutral dark with semantic accents for selection, warning, danger, health, and agent states."
+  ],
+  "artifacts": [
+    {
+      "label": "conversation sidecar workflow",
+      "source_path": "uat-artifacts/td-cf808e/conversation-sidecar.png",
+      "tool_emitted": true,
+      "saved": true,
+      "path": "uat-artifacts/td-cf808e/conversation-sidecar.png",
+      "note": "Saved child-task screenshot for conversation workflow."
+    },
+    {
+      "label": "performance control surface workflow",
+      "source_path": "uat-artifacts/td-d6ad61/performance-control-surface.png",
+      "tool_emitted": true,
+      "saved": true,
+      "path": "uat-artifacts/td-d6ad61/performance-control-surface.png",
+      "note": "Saved child-task screenshot for performance workflow."
+    },
+    {
+      "label": "runtime hardware cockpit workflow",
+      "source_path": "uat-artifacts/td-726d00/runtime-hardware-cockpit.png",
+      "tool_emitted": true,
+      "saved": true,
+      "path": "uat-artifacts/td-726d00/runtime-hardware-cockpit.png",
+      "note": "Corrected saved Safari-window screenshot for runtime/hardware workflow."
+    },
+    {
+      "label": "graph desktop cockpit accessibility inspection",
+      "source_path": "computer-use Safari accessibility tree",
+      "tool_emitted": true,
+      "saved": false,
+      "path": null,
+      "note": "Graph view was inspected live and showed graph, transport, panic, global safety, inspector, and runtime strip together; a separate saved graph PNG could not be captured because the final window-id screenshot command was blocked by the approval/usage limit."
+    }
+  ],
+  "notes": [
+    "No normal-use body scroll was observed in the desktop graph cockpit inspection; the app shell kept its fixed cockpit surfaces visible.",
+    "Narrow-width behavior was covered by CSS responsive rules and build validation; no separate resized-browser screenshot was captured in this pass.",
+    "Open/save dialogs were not completed through Safari because Tauri dialog behavior requires the desktop shell; existing automated and prior UAT coverage kept session toolbar controls visible."
+  ],
+  "recorded_at": "2026-06-20T16:39:00Z",
+  "recorded_by_session": "ses_ef432f"
+}
