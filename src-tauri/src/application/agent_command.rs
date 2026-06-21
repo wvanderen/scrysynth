@@ -1,5 +1,9 @@
 use thiserror::Error;
 
+use crate::application::agent_planner::{
+    plan_agent_request, PlannerProposal, PlannerProvider, PlannerProviderError,
+    SessionContextBounds,
+};
 use crate::application::graph_edit::{self, GraphEditError};
 use crate::application::performance_command::{self, PerformanceCommandError};
 use crate::application::session_store::SessionStore;
@@ -18,6 +22,8 @@ pub enum AgentCommandError {
     GraphEdit(#[from] GraphEditError),
     #[error("performance command failed: {0}")]
     PerformanceCommand(#[from] PerformanceCommandError),
+    #[error("planner failed: {0}")]
+    Planner(#[from] PlannerProviderError),
     #[error("no session is loaded")]
     NoSession,
 }
@@ -289,6 +295,7 @@ pub struct AgentCommandResult {
     pub rejected: Vec<(TypedCommand, String)>,
     pub pending: Vec<PendingAction>,
     pub intent: AgentIntent,
+    pub planner_provider_id: Option<String>,
 }
 
 pub fn apply_agent_command(
@@ -343,7 +350,34 @@ pub fn apply_agent_command(
         rejected,
         pending,
         intent,
+        planner_provider_id: None,
     })
+}
+
+pub fn plan_and_apply_agent_request(
+    store: &mut SessionStore,
+    actor: ActorRef,
+    raw_input: &str,
+    provider: &dyn PlannerProvider,
+) -> Result<AgentCommandResult, AgentCommandError> {
+    let proposal = plan_agent_request(
+        &store.current(),
+        raw_input,
+        provider,
+        SessionContextBounds::default(),
+    )?;
+    apply_planner_proposal(store, actor, proposal)
+}
+
+pub fn apply_planner_proposal(
+    store: &mut SessionStore,
+    actor: ActorRef,
+    proposal: PlannerProposal,
+) -> Result<AgentCommandResult, AgentCommandError> {
+    let provider_id = proposal.provider_id.clone();
+    let mut result = apply_agent_command(store, actor, proposal.into_intent())?;
+    result.planner_provider_id = Some(provider_id);
+    Ok(result)
 }
 
 fn chrono_now_string() -> String {

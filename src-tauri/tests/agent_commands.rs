@@ -1,9 +1,14 @@
 use scrysynth_lib::application::agent_command;
+use scrysynth_lib::application::agent_planner::{
+    derive_session_context_packet, plan_agent_request, ParserPlannerProvider, PlannerProvider,
+    PlannerProviderError, PlannerProviderOutput, PlannerRequest, SessionContextBounds,
+};
 use scrysynth_lib::application::session_store::{OwnershipGateReason, SessionStore};
 use scrysynth_lib::domain::session::{
-    new_id, ActorRef, AgentIntent, ControllerKind, GraphEditCommand, Node, NodeType,
-    OwnershipAssignment, ParameterValue, PerformanceCommand, Port, PortDirection, SceneDefinition,
-    SessionDocument, SignalType, TypedCommand,
+    new_id, ActionHistoryEntry, ActorRef, AgentIntent, AgentRuntimeState, ControllerKind,
+    DiffSummary, GraphEditCommand, Node, NodeType, OwnershipAssignment, OwnershipRule,
+    ParameterValue, PendingAction, PendingActionStatus, PerformanceCommand, Port, PortDirection,
+    RiskTier, SceneDefinition, SessionDocument, SignalType, TypedCommand,
 };
 
 fn test_session() -> SessionDocument {
@@ -119,6 +124,29 @@ fn user_actor() -> ActorRef {
     }
 }
 
+#[derive(Clone)]
+struct JsonPlannerProvider {
+    output: Result<PlannerProviderOutput, PlannerProviderError>,
+    available: bool,
+}
+
+impl PlannerProvider for JsonPlannerProvider {
+    fn provider_id(&self) -> &str {
+        "json-test-provider"
+    }
+
+    fn is_available(&self) -> bool {
+        self.available
+    }
+
+    fn plan(
+        &self,
+        _request: &PlannerRequest,
+    ) -> Result<PlannerProviderOutput, PlannerProviderError> {
+        self.output.clone()
+    }
+}
+
 #[test]
 fn intent_parser_add_oscillator_produces_add_node() {
     let session = test_session();
@@ -131,6 +159,241 @@ fn intent_parser_add_oscillator_produces_add_node() {
         }
         _ => panic!("expected AddNode"),
     }
+}
+
+#[test]
+fn session_context_packet_contains_bounded_planner_context() {
+    let mut session = test_session();
+    session.ownership_rules.push(OwnershipRule {
+        id: "rule-1".to_string(),
+        scope: "graph".to_string(),
+        controller: ControllerKind::Shared,
+        can_override: true,
+    });
+    session.pending_actions.push(PendingAction {
+        id: "pending-old".to_string(),
+        correlation_id: "corr-old".to_string(),
+        command: TypedCommand::GraphEdit(GraphEditCommand::RemoveNode {
+            node_id: "node-src".to_string(),
+        }),
+        risk_tier: RiskTier::High,
+        created_at: "2026-04-12T00:00:00Z".to_string(),
+        status: PendingActionStatus::Pending,
+    });
+    session.pending_actions.push(PendingAction {
+        id: "pending-new".to_string(),
+        correlation_id: "corr-new".to_string(),
+        command: TypedCommand::GraphEdit(GraphEditCommand::RemoveNode {
+            node_id: "node-agent".to_string(),
+        }),
+        risk_tier: RiskTier::High,
+        created_at: "2026-04-13T00:00:00Z".to_string(),
+        status: PendingActionStatus::Pending,
+    });
+    session.action_history.push(ActionHistoryEntry {
+        id: "hist-old".to_string(),
+        timestamp: "2026-04-12T00:00:00Z".to_string(),
+        actor: user_actor(),
+        command: TypedCommand::Performance(PerformanceCommand::RecallScene {
+            scene_id: "scene-intro".to_string(),
+        }),
+        diff: DiffSummary {
+            description: "old action".to_string(),
+            affected_node_ids: vec!["node-src".to_string()],
+            before_snippet: "before".to_string(),
+            after_snippet: "after".to_string(),
+        },
+    });
+    session.action_history.push(ActionHistoryEntry {
+        id: "hist-new".to_string(),
+        timestamp: "2026-04-13T00:00:00Z".to_string(),
+        actor: agent_actor(),
+        command: TypedCommand::GraphEdit(GraphEditCommand::SetParameterValue {
+            node_id: "node-agent".to_string(),
+            parameter_id: "param-lvl".to_string(),
+            value: 0.2,
+        }),
+        diff: DiffSummary {
+            description: "new action".to_string(),
+            affected_node_ids: vec!["node-agent".to_string()],
+            before_snippet: "before".to_string(),
+            after_snippet: "after".to_string(),
+        },
+    });
+
+    let packet = derive_session_context_packet(
+        &session,
+        SessionContextBounds {
+            max_nodes: 2,
+            max_routes: 10,
+            max_buses: 10,
+            max_macros: 10,
+            max_scenes: 10,
+            max_ownership_rules: 10,
+            max_pending_actions: 1,
+            max_history_entries: 1,
+        },
+    );
+
+    assert_eq!(packet.graph.nodes.len(), 2);
+    assert_eq!(packet.scenes.len(), 1);
+    assert_eq!(packet.ownership.rules.len(), 1);
+    assert!(packet
+        .ownership
+        .locked_node_ids
+        .contains(&"node-locked".to_string()));
+    assert!(packet
+        .ownership
+        .user_owned_node_ids
+        .contains(&"node-user".to_string()));
+    assert!(packet
+        .ownership
+        .agent_owned_node_ids
+        .contains(&"node-agent".to_string()));
+    assert_eq!(packet.pending_actions[0].id, "pending-new");
+    assert_eq!(packet.history.summaries[0].id, "hist-new");
+    assert_eq!(packet.truncation.total_nodes, 4);
+    assert_eq!(packet.truncation.included_nodes, 2);
+}
+
+#[test]
+fn planner_json_output_is_parsed_into_typed_proposal_commands() {
+    let session = test_session();
+    let json = serde_json::json!({
+        "rawInput": "set level",
+        "commands": [
+            {
+                "type": "graphEdit",
+                "payload": {
+                    "type": "setParameterValue",
+                    "payload": {
+                        "node_id": "node-agent",
+                        "parameter_id": "param-lvl",
+                        "value": 0.25
+                    }
+                }
+            }
+        ],
+        "confidence": 0.81
+    })
+    .to_string();
+    let provider = JsonPlannerProvider {
+        output: Ok(PlannerProviderOutput::Json(json)),
+        available: true,
+    };
+
+    let proposal = plan_agent_request(
+        &session,
+        "set level",
+        &provider,
+        SessionContextBounds::default(),
+    )
+    .unwrap();
+
+    assert_eq!(proposal.provider_id, "json-test-provider");
+    assert_eq!(proposal.commands.len(), 1);
+    match &proposal.commands[0] {
+        TypedCommand::GraphEdit(GraphEditCommand::SetParameterValue { node_id, value, .. }) => {
+            assert_eq!(node_id, "node-agent");
+            assert_eq!(*value, 0.25);
+        }
+        _ => panic!("expected typed SetParameterValue proposal"),
+    }
+}
+
+#[test]
+fn planner_provider_unavailable_is_explicit() {
+    let session = test_session();
+    let provider = ParserPlannerProvider::unavailable("offline-provider");
+
+    let err = plan_agent_request(
+        &session,
+        "add oscillator",
+        &provider,
+        SessionContextBounds::default(),
+    )
+    .unwrap_err();
+
+    assert_eq!(
+        err,
+        PlannerProviderError::Unavailable {
+            provider_id: "offline-provider".to_string(),
+            reason: "provider is not available".to_string()
+        }
+    );
+}
+
+#[test]
+fn planner_session_unavailable_is_explicit() {
+    let mut session = test_session();
+    session.agent_runtime = AgentRuntimeState {
+        is_available: false,
+        pending_action_count: 0,
+        is_frozen: false,
+    };
+    let provider = ParserPlannerProvider::default();
+
+    let err = plan_agent_request(
+        &session,
+        "add oscillator",
+        &provider,
+        SessionContextBounds::default(),
+    )
+    .unwrap_err();
+
+    assert_eq!(
+        err,
+        PlannerProviderError::Unavailable {
+            provider_id: "local-parser".to_string(),
+            reason: "session agent runtime is unavailable".to_string()
+        }
+    );
+}
+
+#[test]
+fn invalid_planner_json_is_explicit() {
+    let session = test_session();
+    let provider = JsonPlannerProvider {
+        output: Ok(PlannerProviderOutput::Json("{\"commands\":}".to_string())),
+        available: true,
+    };
+
+    let err = plan_agent_request(
+        &session,
+        "bad output",
+        &provider,
+        SessionContextBounds::default(),
+    )
+    .unwrap_err();
+
+    assert!(matches!(
+        err,
+        PlannerProviderError::InvalidOutput {
+            provider_id,
+            detail: _
+        } if provider_id == "json-test-provider"
+    ));
+}
+
+#[test]
+fn plan_and_apply_routes_through_planner_before_validation() {
+    let mut store = SessionStore::new_default();
+    store.replace_current(test_session());
+    let provider = ParserPlannerProvider::default();
+
+    let result = agent_command::plan_and_apply_agent_request(
+        &mut store,
+        agent_actor(),
+        "set level to 0.2 on node-agent",
+        &provider,
+    )
+    .unwrap();
+
+    assert_eq!(result.planner_provider_id.as_deref(), Some("local-parser"));
+    assert_eq!(result.applied.len(), 1);
+    let current = store.current();
+    let node = current.nodes.iter().find(|n| n.id == "node-agent").unwrap();
+    assert_eq!(node.parameters[0].value, 0.2);
 }
 
 #[test]

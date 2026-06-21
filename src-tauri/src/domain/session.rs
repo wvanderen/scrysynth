@@ -137,13 +137,23 @@ pub struct VisualRuntimeState {
     pub renderer: Option<String>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentRuntimeState {
     #[serde(default = "default_true")]
     pub is_available: bool,
     pub pending_action_count: u32,
     pub is_frozen: bool,
+}
+
+impl Default for AgentRuntimeState {
+    fn default() -> Self {
+        Self {
+            is_available: true,
+            pending_action_count: 0,
+            is_frozen: false,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
