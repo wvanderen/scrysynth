@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: v1 runtime hardening
 status: hardening
-stopped_at: Phase 9 hardware input runtime wiring verified through app-runtime UAT
-last_updated: "2026-06-19T16:09:55-05:00"
-last_activity: 2026-06-19
+stopped_at: Phase 10 session-aware agent orchestration planned
+last_updated: "2026-06-21T00:00:00-05:00"
+last_activity: 2026-06-21
 progress:
   foundation_phases_total: 5
   foundation_phases_completed: 5
   hardening_phases_total: 6
   hardening_phases_completed: 3
-  current_stage: Phase 10 agent orchestration remains the next major runtime gap
+  current_stage: Phase 10 agent orchestration is planned and ready for implementation
 ---
 
 # Project State
@@ -48,7 +48,7 @@ The project is not yet a complete local audiovisual instrument. Runtime executio
 ## Active Hardening Work
 
 1. Local developer readiness and docs.
-2. Session-aware agent orchestration.
+2. Session-aware agent orchestration. Phase plan: `.planning/phases/10-session-aware-agent-orchestration/10-session-aware-agent-orchestration-01-PLAN.md`.
 3. Packaging, UAT, and release readiness.
 
 ## Completed Hardening Work
@@ -79,9 +79,16 @@ The project is not yet a complete local audiovisual instrument. Runtime executio
 
 ## Pending Todos
 
+- Implement Phase 10 session-aware agent orchestration from epic `td-cebec0`.
 - Run a physical-controller GUI click-through pass when hardware is available.
 
 ## Latest Verification
+
+2026-06-21 planning:
+
+- Phase 10 session-aware agent orchestration was planned in `.planning/phases/10-session-aware-agent-orchestration/10-session-aware-agent-orchestration-01-PLAN.md`.
+- `td-cebec0` was created as the Phase 10 epic with child tasks `td-665cc6`, `td-0e888f`, `td-84b783`, `td-a842b4`, `td-4a9cfe`, and `td-ab3c29`.
+- Phase 10 scope keeps all agent mutations behind typed commands, ownership gates, risk tiers, approvals, freeze/reclaim controls, and action history while adding a bounded session context packet and provider-agnostic planner above that safety boundary.
 
 2026-06-19 task `td-8062dd`:
 
@@ -124,5 +131,5 @@ The project is not yet a complete local audiovisual instrument. Runtime executio
 ## Session Continuity
 
 Last consolidated: 2026-06-12.
-Current Phase 9 epic: `td-dcaf9a`.
-Current completed task: `td-8062dd`.
+Current Phase 10 epic: `td-cebec0`.
+Current planning task: `td-543912`.

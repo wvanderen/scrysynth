@@ -105,12 +105,28 @@ Remaining Phase 9 follow-on work belongs in release polish:
 
 **Goal:** Agent collaboration becomes meaningfully intelligent while preserving human override.
 
+Status: Planned. The Phase 10 plan is `.planning/phases/10-session-aware-agent-orchestration/10-session-aware-agent-orchestration-01-PLAN.md`.
+
+Design note: Phase 10 keeps the existing typed-command, ownership, risk, approval, freeze, reclaim, and action-history pipeline as the safety boundary. The new work belongs above that boundary: a bounded session context packet, provider-agnostic planner, structured proposals, validation diagnostics, and review UI.
+
 Success criteria:
 
 1. Replace or augment the deterministic parser with a session-aware agent planning layer.
 2. Keep all agent changes flowing through typed commands, ownership gates, risk tiers, and approvals.
 3. Show structured proposed changes before high-risk mutation.
 4. Preserve action history and readable diffs for both user and agent actions.
+5. Surface provider unavailable, invalid response, stale context, unsafe target, and validation failure states in agent runtime status and conversation UI.
+6. Verify realistic graph, parameter/macro, scene/variation, approval/rejection, freeze, and reclaim flows through deterministic/mock planner UAT before claiming Phase 10 complete.
+
+Planned task breakdown:
+
+- `td-cebec0`: Phase 10 epic.
+- `td-665cc6`: Define agent orchestration contract.
+- `td-0e888f`: Build session context packet and planner interface.
+- `td-84b783`: Validate proposals through command and ownership gates.
+- `td-a842b4`: Add proposal review UI and agent runtime status.
+- `td-4a9cfe`: Add deterministic/mock planner tests and realistic proposal fixtures.
+- `td-ab3c29`: Verify agent orchestration UAT and update docs.
 
 ### Phase 11: Release Readiness
 
