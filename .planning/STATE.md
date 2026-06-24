@@ -3,15 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: v1 runtime hardening
 status: hardening
-stopped_at: Phase 10 reconciled into GSD; ready for Phase 11 planning
-last_updated: "2026-06-23T00:00:00-05:00"
-last_activity: 2026-06-23
+stopped_at: Completed 11-release-readiness-01-PLAN.md
+last_updated: "2026-06-24T03:31:43.403Z"
 progress:
-  foundation_phases_total: 5
-  foundation_phases_completed: 5
-  hardening_phases_total: 6
-  hardening_phases_completed: 4
-  current_stage: Phase 10 deterministic/mock agent orchestration is verified; live provider-backed orchestration remains
+  total_phases: 6
+  completed_phases: 1
+  total_plans: 6
+  completed_plans: 2
+  percent: 17
 ---
 
 # Project State
@@ -22,7 +21,7 @@ See `.planning/PROJECT.md` and `.planning/ROADMAP.md`.
 
 **Core value:** The instrument must let a human and agent shape a live audiovisual session together through conversation, graph structure, and direct performance control without losing legibility or human override.
 
-**Current focus:** v1 runtime hardening.
+**Current focus:** Phase 11 — release-readiness
 
 ## Current Position
 
@@ -77,6 +76,7 @@ The project is not yet a complete local audiovisual instrument. Runtime executio
 - Preserve SuperCollider as the v1 audio execution target, but require real OSC/resource application before claiming playable audio.
 - Preserve the separate visual runtime boundary, but require an actual sidecar/protocol before claiming visual execution.
 - Keep human override, ownership, freeze/reclaim, and approval gates as non-negotiable product constraints.
+- [Phase ?]: Phase 11 Plan 01: v1 Tauri bundle config delivered (1.0.0, ad-hoc macOS signing, Apple Silicon only, targets [app,dmg], externalBin visual sidecar via tauri-plugin-shell). BevySidecarAdapter launches the bundled sidecar through app.shell().sidecar() in the packaged path and keeps the raw-Command dev/test override. scsynth stays external with a polished discovery message. REL-01 substrate delivered here; the actual release build + first-run smoke (REL-01 verification) is owned by Plan 02.
 
 ## Pending Todos
 
@@ -139,7 +139,16 @@ The project is not yet a complete local audiovisual instrument. Runtime executio
 
 ## Session Continuity
 
-Last session: 2026-06-23.
+**Stopped at:** Completed 11-release-readiness-01-PLAN.md
+**Resume file:** None
+
+Last session: 2026-06-24T03:30:08.671Z
 Phase 10 reconciled into GSD: implementation commits back-referenced via `10-session-aware-agent-orchestration-01-SUMMARY.md`, Phase 10.6 UAT + doc reconciliation committed, `td-ab3c29` review closed.
 Phase 10 epic: `td-cebec0` (closed).
 Next: Phase 11 (Release Readiness) planning, or the Phase 10 live-provider follow-on (connect the verified provider-agnostic planner boundary to a live provider + setup/fallback UAT).
+
+## Performance Metrics
+
+| Phase | Plan | Duration | Notes |
+|-------|------|----------|-------|
+| Phase 11 P01 | 54min | 3 tasks | 11 files |
