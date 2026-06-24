@@ -145,6 +145,12 @@ Success criteria:
 3. Manual UAT covers save/open, graph edit, audio playback, scene/variation recall, macro control, hardware learn, agent approval, and panic recovery.
 4. README, planning docs, and release notes describe actual supported behavior without overstating stubs.
 
+**Plans:** 2 plans
+
+Plans:
+- [ ] 11-release-readiness-01-PLAN.md — Release packaging build & visual sidecar wiring (bundle config, externalBin + tauri-plugin-shell, BevySidecarAdapter refactor, missing-binary message polish)
+- [ ] 11-release-readiness-02-PLAN.md — Release build smoke, consolidated manual UAT & documentation (REL-01 build verify, REL-02 nine-scenario UAT, REL-03 README/release-notes/planning-doc honesty)
+
 ## Deferred Beyond v1
 
 - Multiplayer collaboration.
