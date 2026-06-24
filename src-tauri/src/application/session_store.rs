@@ -58,6 +58,11 @@ pub struct SessionStore {
     osc_input_manager: OscInputManager,
     hardware_settings: HardwareRuntimeSettings,
     hardware_status: HardwareRuntimeStatus,
+    /// Tauri `AppHandle`, threaded in from the `.setup` hook so the visual
+    /// sidecar adapter can launch the bundled binary via the shell-plugin
+    /// `app.shell().sidecar()` API in a packaged build. `None` in unit tests
+    /// and dev runs without a registered runtime.
+    app_handle: Option<tauri::AppHandle>,
 }
 
 impl SessionStore {
@@ -75,6 +80,7 @@ impl SessionStore {
             osc_input_manager: OscInputManager::default(),
             hardware_settings: HardwareRuntimeSettings::default(),
             hardware_status: HardwareRuntimeStatus::default(),
+            app_handle: None,
         }
     }
 
@@ -84,6 +90,12 @@ impl SessionStore {
 
     pub fn replace_current(&mut self, session: SessionDocument) {
         self.current = session;
+    }
+
+    /// Store the Tauri `AppHandle` so `start_visual_runtime` can hand it to the
+    /// visual sidecar adapter. Called once from the `.setup` hook in `lib.rs`.
+    pub fn set_app_handle(&mut self, handle: tauri::AppHandle) {
+        self.app_handle = Some(handle);
     }
 
     pub fn start_audio_runtime(&mut self) -> Result<SessionDocument, AudioRuntimeManagerError> {
@@ -136,7 +148,13 @@ impl SessionStore {
     }
 
     pub fn start_visual_runtime(&mut self) -> Result<SessionDocument, VisualRuntimeManagerError> {
+        // Thread the AppHandle into the visual adapter before starting so a
+        // packaged build can launch the bundled sidecar via the shell plugin.
+        let app_handle = self.app_handle.clone();
         let mut manager = std::mem::take(&mut self.visual_runtime_manager);
+        if let Some(handle) = app_handle {
+            manager.set_app_handle(handle);
+        }
         let result = manager.start(self);
         self.visual_runtime_manager = manager;
         result

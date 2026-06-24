@@ -19,4 +19,12 @@ pub trait VisualRuntimeAdapter {
     ) -> Result<(), String>;
     fn stop(&mut self) -> Result<VisualAdapterStatus, String>;
     fn panic(&mut self) -> Result<VisualAdapterStatus, String>;
+
+    /// Provide the Tauri `AppHandle` so the adapter can launch a bundled
+    /// sidecar through `tauri_plugin_shell`'s `app.shell().sidecar()` API.
+    /// The default is a no-op so that adapters used in unit tests or dev runs
+    /// without a real Tauri runtime (which spawn via raw `std::process::Command`)
+    /// keep compiling unchanged.
+    #[allow(unused_variables)]
+    fn set_app_handle(&mut self, handle: tauri::AppHandle) {}
 }

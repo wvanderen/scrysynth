@@ -62,7 +62,7 @@ impl AudioRuntimeAdapter for SuperColliderAdapter<UdpOscTransport> {
             .spawn()
             .map_err(|err| RuntimeAdapterStatus::Failed {
                 message: format!(
-                    "Failed to spawn scsynth at `{}`: {err}. Set {SCSYNTH_OVERRIDE_ENV} to the full scsynth executable path if this install lives outside PATH or the macOS bundle fallback ({MACOS_APP_BUNDLE_SCSYNTH}).",
+                    "SuperCollider (`scsynth`) was found at `{}` but could not be launched: {err}. Reinstall SuperCollider, or if your install lives in a non-standard location set the {SCSYNTH_OVERRIDE_ENV} environment variable to the full path of its `scsynth` executable (the macOS default install is `{MACOS_APP_BUNDLE_SCSYNTH}`).",
                     executable.display()
                 ),
                 active_patch_id: None,
@@ -418,7 +418,7 @@ where
 
 fn missing_scsynth_message() -> String {
     format!(
-        "scsynth not found. Install SuperCollider, put `scsynth` on PATH, or set {SCSYNTH_OVERRIDE_ENV} to the full executable path. On macOS Scrysynth also checks the bundle fallback `{MACOS_APP_BUNDLE_SCSYNTH}`."
+        "SuperCollider was not found, so audio cannot start. Install SuperCollider from https://supercollider.github.io and relaunch Scrysynth. On macOS the default install is `{MACOS_APP_BUNDLE_SCSYNTH}`; if your copy lives elsewhere, set the {SCSYNTH_OVERRIDE_ENV} environment variable to the full path of its `scsynth` executable."
     )
 }
 

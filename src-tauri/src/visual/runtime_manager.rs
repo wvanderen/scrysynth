@@ -42,6 +42,13 @@ where
         Self { adapter }
     }
 
+    /// Provide the Tauri `AppHandle` so a bundled-sidecar-aware adapter (e.g.
+    /// `BevySidecarAdapter`) can launch via `app.shell().sidecar()`. Adapters
+    /// that only spawn via raw `std::process::Command` ignore it.
+    pub fn set_app_handle(&mut self, handle: tauri::AppHandle) {
+        self.adapter.set_app_handle(handle);
+    }
+
     pub fn start(
         &mut self,
         store: &mut SessionStore,

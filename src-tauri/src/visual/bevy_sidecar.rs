@@ -3,8 +3,16 @@ use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc::{self, Receiver};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use std::thread;
 use std::time::{Duration, Instant};
+
+use tauri::AppHandle;
+use tauri_plugin_shell::process::{CommandChild, CommandEvent};
+use tauri_plugin_shell::ShellExt;
 
 use crate::visual::adapter::VisualAdapterStatus;
 use crate::visual::compiler::{CompiledVisualScene, VisualParameterUpdate};
@@ -18,10 +26,34 @@ use super::adapter::VisualRuntimeAdapter;
 
 const BEVY_OVERRIDE_ENV: &str = "SCRYSYNTH_BEVY_PATH";
 const BEVY_BIN: &str = "scrysynth-visual";
+/// Bare sidecar name passed to `app.shell().sidecar(...)`. The shell plugin
+/// resolves the host-triple-suffixed binary that Tauri's `externalBin` placed
+/// next to the main executable; callers must NOT pre-suffix it.
+const SIDECAR_NAME: &str = "scrysynth-visual";
+
+/// Which spawn mechanism produced (or attempted to produce) the live child.
+/// Drives missing-binary message wording so a packaged-app end user gets
+/// reinstall guidance instead of a dev-only env-var instruction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SpawnKind {
+    /// Packaged path: `app.shell().sidecar()` against the bundled binary.
+    Bundled,
+    /// Dev/test path: raw `std::process::Command` against an override/PATH binary.
+    DevOverride,
+}
+
+/// Live child handle, normalized across the two spawn mechanisms.
+#[derive(Debug)]
+enum SidecarChild {
+    /// Raw `std::process` spawn — dev/test override path (no Tauri runtime).
+    Std(Child),
+    /// Tauri shell-plugin sidecar — packaged-app path (`externalBin` binary).
+    Plugin(CommandChild),
+}
 
 #[derive(Debug)]
 pub struct BevySidecarAdapter {
-    process: Option<Child>,
+    process: Option<SidecarChild>,
     stdin: Option<ChildStdin>,
     responses: Option<Receiver<Result<VisualToAppMessage, String>>>,
     next_sequence_id: u64,
@@ -29,6 +61,14 @@ pub struct BevySidecarAdapter {
     timeout: Duration,
     executable_override: Option<PathBuf>,
     executable_args: Vec<String>,
+    app_handle: Option<AppHandle>,
+    /// Set by the sidecar forwarder thread when the child terminates; lets
+    /// `ensure_running` detect exit on the Plugin path, which has no
+    /// `try_wait` equivalent.
+    terminated: Arc<AtomicBool>,
+    /// Tracks which resolution path was last attempted so missing-binary
+    /// messages branch correctly (bundled vs dev override).
+    last_spawn_kind: SpawnKind,
 }
 
 impl Default for BevySidecarAdapter {
@@ -42,6 +82,9 @@ impl Default for BevySidecarAdapter {
             timeout: Duration::from_millis(DEFAULT_READY_TIMEOUT_MS),
             executable_override: None,
             executable_args: Vec::new(),
+            app_handle: None,
+            terminated: Arc::new(AtomicBool::new(false)),
+            last_spawn_kind: SpawnKind::DevOverride,
         }
     }
 }
@@ -65,6 +108,10 @@ impl BevySidecarAdapter {
 }
 
 impl VisualRuntimeAdapter for BevySidecarAdapter {
+    fn set_app_handle(&mut self, handle: AppHandle) {
+        self.app_handle = Some(handle);
+    }
+
     fn start(&mut self) -> Result<VisualAdapterStatus, String> {
         if self.process.is_some() {
             return Ok(VisualAdapterStatus::Booted {
@@ -72,91 +119,21 @@ impl VisualRuntimeAdapter for BevySidecarAdapter {
             });
         }
 
-        let executable = match self.executable_override.clone() {
-            Some(path) if is_executable(&path) => path,
-            Some(path) => {
-                return Ok(VisualAdapterStatus::Failed {
-                    message: missing_sidecar_message(Some(&path)),
-                });
-            }
-            None => match resolve_bevy_executable() {
-                Some(path) => path,
-                None => {
-                    return Ok(VisualAdapterStatus::Failed {
-                        message: missing_sidecar_message(None),
-                    });
-                }
-            },
-        };
+        // Precedence (Pitfall 6 + D-06): an explicit executable override
+        // (tests) or a set SCRYSYNTH_BEVY_PATH (dev override pointing at a
+        // built/debug binary) takes precedence over the bundled sidecar so a
+        // developer can target a non-packaged build. Otherwise, when an
+        // AppHandle is present we launch via the shell-plugin sidecar API
+        // (the packaged-app path). With neither override nor AppHandle we
+        // fall back to raw Command + PATH lookup (unit tests / dev without
+        // the plugin registered).
+        let dev_override_requested = self.executable_override.is_some()
+            || env::var_os(BEVY_OVERRIDE_ENV).is_some();
 
-        let mut command = Command::new(executable);
-        command.args(&self.executable_args);
-        if let Some(mode) = env::var_os("SCRYSYNTH_VISUAL_MODE") {
-            if mode == "minimal" {
-                command.arg("--minimal");
-            }
-            command.env("SCRYSYNTH_VISUAL_MODE", mode);
-        }
-
-        let mut child = command
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .map_err(|err| format!("failed to launch visual runtime: {err}"))?;
-
-        let stdin = child
-            .stdin
-            .take()
-            .ok_or_else(|| "visual runtime stdin was not available".to_string())?;
-        let stdout = child
-            .stdout
-            .take()
-            .ok_or_else(|| "visual runtime stdout was not available".to_string())?;
-        let responses = spawn_response_reader(stdout);
-
-        self.process = Some(child);
-        self.stdin = Some(stdin);
-        self.responses = Some(responses);
-
-        let sequence_id = self.next_sequence_id();
-        let response = self.send_and_wait(
-            AppToVisualMessage::new(
-                sequence_id,
-                AppToVisualPayload::Handshake(VisualHandshake {
-                    app_name: "scrysynth".to_string(),
-                    app_version: env!("CARGO_PKG_VERSION").to_string(),
-                    session_id: "local-session".to_string(),
-                    capabilities: vec![
-                        "scene_load".to_string(),
-                        "parameter_batch".to_string(),
-                        "rendering_status".to_string(),
-                        "shutdown".to_string(),
-                    ],
-                }),
-            ),
-            sequence_id,
-        );
-
-        match response {
-            Ok(VisualToAppPayload::Ready(ready)) => Ok(VisualAdapterStatus::Booted {
-                renderer: ready.renderer,
-            }),
-            Ok(VisualToAppPayload::Error(error)) => {
-                let message = protocol_error_message("visual runtime handshake failed", &error);
-                self.clear_runtime();
-                Ok(VisualAdapterStatus::Failed { message })
-            }
-            Ok(payload) => {
-                let message =
-                    format!("visual runtime handshake returned unexpected payload {payload:?}");
-                self.clear_runtime();
-                Ok(VisualAdapterStatus::Failed { message })
-            }
-            Err(message) => {
-                self.clear_runtime();
-                Ok(VisualAdapterStatus::Failed { message })
-            }
+        if dev_override_requested || self.app_handle.is_none() {
+            self.start_via_command()
+        } else {
+            self.start_via_sidecar()
         }
     }
 
@@ -269,19 +246,217 @@ fn is_executable(path: &Path) -> bool {
     path.is_file()
 }
 
-fn missing_sidecar_message(path: Option<&Path>) -> String {
+/// Missing-binary message for the dev/test override path (`SCRYSYNTH_BEVY_PATH`
+/// or `with_executable_override_and_args`). Preserves the historical substrings
+/// ("visual runtime binary not found", `BEVY_OVERRIDE_ENV`, "scrysynth-visual")
+/// so the Phase 8 missing-sidecar test keeps asserting the same intent.
+fn missing_sidecar_message_dev(path: Option<&Path>) -> String {
     match path {
         Some(path) => format!(
-            "visual runtime binary not found at {}; install scrysynth-visual or set {BEVY_OVERRIDE_ENV}",
+            "visual runtime binary not found at {}; build scrysynth-visual or set the {BEVY_OVERRIDE_ENV} environment variable to a built binary.",
             path.display()
         ),
         None => format!(
-            "visual runtime binary not found; install scrysynth-visual or set {BEVY_OVERRIDE_ENV}"
+            "visual runtime binary not found; build scrysynth-visual or set the {BEVY_OVERRIDE_ENV} environment variable to a built binary."
         ),
     }
 }
 
+/// Missing-binary message for the packaged path, where the bundled sidecar
+/// (placed via Tauri `externalBin`) could not be launched. Speaks to an end
+/// user (reinstall guidance), not to a developer env-var. `detail` carries the
+/// plugin/spawn-layer error for diagnostics.
+fn missing_sidecar_message_bundled(detail: impl std::fmt::Display) -> String {
+    format!(
+        "The bundled visual sidecar ({BEVY_BIN}) could not be launched: {detail}. Reinstall Scrysynth to restore it. (Developers running outside a packaged build can instead set {BEVY_OVERRIDE_ENV} to a built scrysynth-visual binary.)"
+    )
+}
+
 impl BevySidecarAdapter {
+    /// Dev/test path: spawn the visual runtime via raw `std::process::Command`
+    /// against either an explicit `executable_override` (tests) or the
+    /// `SCRYSYNTH_BEVY_PATH`/PATH-discovered binary (dev). Kept intact so the
+    /// Phase 8 `visual_sidecar_uat` integration test and override callers work
+    /// without a real Tauri runtime.
+    fn start_via_command(&mut self) -> Result<VisualAdapterStatus, String> {
+        self.last_spawn_kind = SpawnKind::DevOverride;
+
+        let executable = match self.executable_override.clone() {
+            Some(path) if is_executable(&path) => path,
+            Some(path) => {
+                return Ok(VisualAdapterStatus::Failed {
+                    message: missing_sidecar_message_dev(Some(&path)),
+                });
+            }
+            None => match resolve_bevy_executable() {
+                Some(path) => path,
+                None => {
+                    return Ok(VisualAdapterStatus::Failed {
+                        message: missing_sidecar_message_dev(None),
+                    });
+                }
+            },
+        };
+
+        let mut command = Command::new(executable);
+        command.args(&self.executable_args);
+        if let Some(mode) = env::var_os("SCRYSYNTH_VISUAL_MODE") {
+            if mode == "minimal" {
+                command.arg("--minimal");
+            }
+            command.env("SCRYSYNTH_VISUAL_MODE", mode);
+        }
+
+        let mut child = command
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .map_err(|err| format!("failed to launch visual runtime: {err}"))?;
+
+        let stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| "visual runtime stdin was not available".to_string())?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| "visual runtime stdout was not available".to_string())?;
+        let responses = spawn_response_reader(stdout);
+
+        self.process = Some(SidecarChild::Std(child));
+        self.stdin = Some(stdin);
+        self.responses = Some(responses);
+        self.terminated.store(false, Ordering::SeqCst);
+
+        self.complete_handshake()
+    }
+
+    /// Packaged path: spawn the bundled visual sidecar through Tauri's official
+    /// `app.shell().sidecar()` API. The shell plugin resolves the
+    /// host-triple-suffixed binary placed by `externalBin`. `--minimal` is
+    /// passed explicitly so the GPU-free minimal runtime is the packaged
+    /// default regardless of any inherited `SCRYSYNTH_VISUAL_MODE` (D-04,
+    /// Pitfall 6). Only the spawn mechanism changes; the JSON-lines protocol
+    /// reader/writer is reused unchanged.
+    fn start_via_sidecar(&mut self) -> Result<VisualAdapterStatus, String> {
+        self.last_spawn_kind = SpawnKind::Bundled;
+
+        let Some(app_handle) = self.app_handle.clone() else {
+            return Ok(VisualAdapterStatus::Failed {
+                message: missing_sidecar_message_bundled(
+                    "no Tauri AppHandle available to resolve the sidecar",
+                ),
+            });
+        };
+
+        let sidecar = app_handle.shell().sidecar(SIDECAR_NAME).map_err(|err| {
+            missing_sidecar_message_bundled(format!("failed to resolve sidecar: {err}"))
+        })?;
+        let (mut rx, child) = sidecar.args(["--minimal"]).spawn().map_err(|err| {
+            missing_sidecar_message_bundled(format!("failed to launch bundled sidecar: {err}"))
+        })?;
+
+        let (sender, receiver) = mpsc::channel();
+        let terminated = self.terminated.clone();
+        thread::spawn(move || {
+            loop {
+                let event = tauri::async_runtime::block_on(async { rx.recv().await });
+                match event {
+                    Some(CommandEvent::Stdout(bytes)) => {
+                        let line = String::from_utf8_lossy(&bytes);
+                        if line.trim().is_empty() {
+                            continue;
+                        }
+                        let message = serde_json::from_str::<VisualToAppMessage>(&line)
+                            .map_err(|err| format!("invalid visual runtime response: {err}"));
+                        if sender.send(message).is_err() {
+                            break;
+                        }
+                    }
+                    Some(CommandEvent::Stderr(_)) => {
+                        // Sidecar stderr is intentionally ignored at the protocol layer.
+                    }
+                    Some(CommandEvent::Error(message)) => {
+                        let _ = sender.send(Err(format!("visual runtime error: {message}")));
+                        terminated.store(true, Ordering::SeqCst);
+                        break;
+                    }
+                    Some(CommandEvent::Terminated(payload)) => {
+                        let _ = sender.send(Err(format!(
+                            "visual runtime exited with status code {:?}",
+                            payload.code
+                        )));
+                        terminated.store(true, Ordering::SeqCst);
+                        break;
+                    }
+                    // `CommandEvent` is `#[non_exhaustive]`; treat any future
+                    // variant as a termination so the adapter stops cleanly.
+                    None => {
+                        terminated.store(true, Ordering::SeqCst);
+                        break;
+                    }
+                    _ => {
+                        terminated.store(true, Ordering::SeqCst);
+                        break;
+                    }
+                }
+            }
+        });
+
+        self.process = Some(SidecarChild::Plugin(child));
+        self.responses = Some(receiver);
+        self.stdin = None;
+        self.terminated.store(false, Ordering::SeqCst);
+
+        self.complete_handshake()
+    }
+
+    /// Handshake against the freshly-spawned child (shared by both spawn
+    /// paths). Sends the typed handshake and maps the first response to a
+    /// `VisualAdapterStatus`.
+    fn complete_handshake(&mut self) -> Result<VisualAdapterStatus, String> {
+        let sequence_id = self.next_sequence_id();
+        let response = self.send_and_wait(
+            AppToVisualMessage::new(
+                sequence_id,
+                AppToVisualPayload::Handshake(VisualHandshake {
+                    app_name: "scrysynth".to_string(),
+                    app_version: env!("CARGO_PKG_VERSION").to_string(),
+                    session_id: "local-session".to_string(),
+                    capabilities: vec![
+                        "scene_load".to_string(),
+                        "parameter_batch".to_string(),
+                        "rendering_status".to_string(),
+                        "shutdown".to_string(),
+                    ],
+                }),
+            ),
+            sequence_id,
+        );
+
+        match response {
+            Ok(VisualToAppPayload::Ready(ready)) => Ok(VisualAdapterStatus::Booted {
+                renderer: ready.renderer,
+            }),
+            Ok(VisualToAppPayload::Error(error)) => {
+                let message = protocol_error_message("visual runtime handshake failed", &error);
+                self.clear_runtime();
+                Ok(VisualAdapterStatus::Failed { message })
+            }
+            Ok(payload) => {
+                let message =
+                    format!("visual runtime handshake returned unexpected payload {payload:?}");
+                self.clear_runtime();
+                Ok(VisualAdapterStatus::Failed { message })
+            }
+            Err(message) => {
+                self.clear_runtime();
+                Ok(VisualAdapterStatus::Failed { message })
+            }
+        }
+    }
+
     fn next_sequence_id(&mut self) -> u64 {
         let sequence_id = self.next_sequence_id;
         self.next_sequence_id += 1;
@@ -289,18 +464,51 @@ impl BevySidecarAdapter {
     }
 
     fn ensure_running(&mut self) -> Result<(), String> {
-        if let Some(child) = self.process.as_mut() {
-            if let Some(status) = child
-                .try_wait()
-                .map_err(|err| format!("failed to poll visual runtime: {err}"))?
-            {
-                self.clear_runtime();
-                return Err(format!("visual runtime exited with status {status}"));
+        match self.process.as_mut() {
+            Some(SidecarChild::Std(child)) => {
+                if let Some(status) = child
+                    .try_wait()
+                    .map_err(|err| format!("failed to poll visual runtime: {err}"))?
+                {
+                    self.clear_runtime();
+                    return Err(format!("visual runtime exited with status {status}"));
+                }
+                Ok(())
             }
-            return Ok(());
+            Some(SidecarChild::Plugin(_)) => {
+                if self.terminated.load(Ordering::SeqCst) {
+                    self.clear_runtime();
+                    return Err("visual runtime process exited".to_string());
+                }
+                Ok(())
+            }
+            None => Err("visual runtime process is not running".to_string()),
         }
+    }
 
-        Err("visual runtime process is not running".to_string())
+    /// Write a pre-encoded JSON-lines message to the live child's stdin,
+    /// branching on the spawn mechanism. The std path writes through the
+    /// captured `ChildStdin`; the sidecar path writes through the shell
+    /// plugin's `CommandChild::write`.
+    fn write_stdin(&mut self, bytes: &[u8]) -> Result<(), String> {
+        match self.process.as_mut() {
+            Some(SidecarChild::Plugin(child)) => child
+                .write(bytes)
+                .map_err(|err| format!("failed to write visual runtime message: {err}")),
+            Some(SidecarChild::Std(_)) => {
+                let stdin = self
+                    .stdin
+                    .as_mut()
+                    .ok_or_else(|| "visual runtime stdin is not connected".to_string())?;
+                stdin
+                    .write_all(bytes)
+                    .map_err(|err| format!("failed to write visual runtime message: {err}"))?;
+                stdin
+                    .flush()
+                    .map_err(|err| format!("failed to flush visual runtime message: {err}"))
+            }
+            None => Err("visual runtime process is not running".to_string()),
+        }
     }
 
     fn send_and_wait(
@@ -309,19 +517,11 @@ impl BevySidecarAdapter {
         sequence_id: u64,
     ) -> Result<VisualToAppPayload, String> {
         self.ensure_running()?;
-        let stdin = self
-            .stdin
-            .as_mut()
-            .ok_or_else(|| "visual runtime stdin is not connected".to_string())?;
 
-        serde_json::to_writer(&mut *stdin, &message)
+        let mut bytes = serde_json::to_vec(&message)
             .map_err(|err| format!("failed to encode visual runtime message: {err}"))?;
-        stdin
-            .write_all(b"\n")
-            .map_err(|err| format!("failed to write visual runtime message: {err}"))?;
-        stdin
-            .flush()
-            .map_err(|err| format!("failed to flush visual runtime message: {err}"))?;
+        bytes.push(b'\n');
+        self.write_stdin(&bytes)?;
 
         self.wait_for_response(sequence_id)
     }
@@ -423,18 +623,27 @@ fn protocol_error_message(context: &str, error: &VisualProtocolError) -> String 
     format!("{context}: {:?}: {}", error.code, error.message)
 }
 
-fn terminate_process(process: &mut Option<Child>) -> Result<(), String> {
-    if let Some(child) = process.as_mut() {
-        if child
-            .try_wait()
-            .map_err(|err| format!("failed to poll visual runtime: {err}"))?
-            .is_none()
-        {
-            child
-                .kill()
-                .map_err(|err| format!("failed to stop visual runtime: {err}"))?;
+fn terminate_process(process: &mut Option<SidecarChild>) -> Result<(), String> {
+    if let Some(child) = process.take() {
+        match child {
+            SidecarChild::Std(mut child) => {
+                if child
+                    .try_wait()
+                    .map_err(|err| format!("failed to poll visual runtime: {err}"))?
+                    .is_none()
+                {
+                    child
+                        .kill()
+                        .map_err(|err| format!("failed to stop visual runtime: {err}"))?;
+                }
+                let _ = child.wait();
+            }
+            // `CommandChild::kill` consumes and sends the signal; the shell
+            // plugin's background waiter observes termination on its own.
+            SidecarChild::Plugin(child) => {
+                let _ = child.kill();
+            }
         }
-        let _ = child.wait();
     }
 
     *process = None;

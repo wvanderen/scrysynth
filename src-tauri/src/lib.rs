@@ -20,6 +20,7 @@ use domain::session::{
     MidiInputPort, PerformanceCommand, SessionDocument,
 };
 use persistence::session_file;
+use tauri::Manager;
 
 #[tauri::command]
 fn create_default_session(
@@ -316,6 +317,18 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
+        .setup(|app| {
+            // Thread the AppHandle into the managed SessionStore so the visual
+            // sidecar adapter can launch the bundled binary through the
+            // shell-plugin `app.shell().sidecar()` API in a packaged build.
+            let handle = app.handle().clone();
+            let store = app.state::<Mutex<SessionStore>>();
+            store
+                .lock()
+                .expect("session store mutex must not be poisoned")
+                .set_app_handle(handle);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             create_default_session,
             get_current_session,
