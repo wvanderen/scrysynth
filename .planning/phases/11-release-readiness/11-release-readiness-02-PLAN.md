@@ -165,7 +165,7 @@ Locked decisions honored: D-02 (Apple Silicon only — build smoke runs on aarch
 
     UAT prereq (user_setup): a real local `scsynth` is required for the audio playback and panic-recovery scenarios — set `SCRYSYNTH_SCSYNTH_PATH` to the scsynth inside SuperCollider.app (macOS default `/Applications/SuperCollider.app/Contents/Resources/scsynth`) before launching the packaged app. A CoreMIDI virtual source and a local OSC sender are required for the hardware-learn scenario (the same approach Phase 9 used; physical-controller click-through is explicitly out of scope per D-04/D-05 fences). The deterministic/mock planner (Phase 10) satisfies the agent-approval scenario — a live LLM provider is NOT required and is explicitly out of scope.
 
-    For each of the nine scenario areas below, record: the exact steps performed, the observed Runtime Health / workspace state, pass or fail, and a cross-reference to the Phase 7-10 UAT doc that first verified this scenario in dev mode. Build the checklist directly into `11-release-readiness-03-UAT.md`:
+    For each of the nine scenario areas below, record: the exact steps performed, the observed Runtime Health / workspace state, a result on its own line as exactly `Result: pass` or `Result: fail`, and a cross-reference to the Phase 7-10 UAT doc that first verified this scenario in dev mode. Build the checklist directly into `11-release-readiness-03-UAT.md` (the `Result:` line format is mandatory — the automated verify greps for it):
 
     1. Save/open: create a session, save to a JSON file via the app, close, reopen the file, confirm graph/macros/scenes restore. (Cross-ref Phase 1/3 UAT lineage.)
     2. Graph edit: add/remove/re-route a supported v1 primitive; confirm the inspector and graph view update. (Cross-ref Phase 2.)
@@ -188,7 +188,7 @@ Locked decisions honored: D-02 (Apple Silicon only — build smoke runs on aarch
   <resume-signal>Type "approved" if all nine scenarios pass, or list the failing scenario(s) with observed behavior so Plan 01 can be revised before docs are written.</resume-signal>
   <verify>
     <human-check>Operator confirms all nine REL-02 scenario areas were re-verified against the packaged `.app` (not just dev mode) and recorded with pass status and cross-references.</human-check>
-    <automated>test -f .planning/phases/11-release-readiness/11-release-readiness-03-UAT.md && rg -c 'Cross-ref' .planning/phases/11-release-readiness/11-release-readiness-03-UAT.md | rg -q '^([8-9]|[1-9][0-9]+)$' && ! rg -q -i 'fail' .planning/phases/11-release-readiness/11-release-readiness-03-UAT.md</automated>
+    <automated>F=.planning/phases/11-release-readiness/11-release-readiness-03-UAT.md; test -f "$F" && rg -c 'Cross-ref' "$F" | rg -q '^([8-9]|[1-9][0-9]+)$' && ! rg -q -i 'Result:[[:space:]]*fail' "$F" && [ "$(rg -c -i 'Result:[[:space:]]*pass' "$F")" -ge 9 ]</automated>
   </verify>
   <acceptance_criteria>
     - All nine REL-02 scenario areas have a recorded pass against the packaged `scrysynth.app` (not dev mode).
