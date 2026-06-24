@@ -315,6 +315,7 @@ pub fn run() {
         .manage(Mutex::new(SessionStore::new_default()))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
             create_default_session,
             get_current_session,

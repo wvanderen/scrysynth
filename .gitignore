@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Tauri externalBin sidecar staging (built by scripts/prepare-sidecar.sh)
+src-tauri/binaries/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

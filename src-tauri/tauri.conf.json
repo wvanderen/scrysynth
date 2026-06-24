@@ -1,12 +1,12 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "scrysynth",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "identifier": "com.lem.scrysynth",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://127.0.0.1:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "npm run build && ./scripts/prepare-sidecar.sh",
     "frontendDist": "../dist"
   },
   "app": {
@@ -23,7 +23,13 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["app", "dmg"],
+    "copyright": "© 2026 Scrysynth contributors",
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "signingIdentity": "-"
+    },
+    "externalBin": ["binaries/scrysynth-visual"],
     "resources": [
       "resources/synthdefs"
     ],
