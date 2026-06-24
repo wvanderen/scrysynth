@@ -80,9 +80,9 @@ This file separates foundation completion from release completion:
 
 ### Agent Runtime
 
-- [ ] **AGNT-01R**: User can collaborate with a session-aware agent beyond deterministic keyword parsing.
-- [ ] **AGNT-02R**: Agent proposals remain explainable, reviewable, and constrained to typed commands.
-- [ ] **AGNT-03R**: Approval/rejection flows are verified against realistic agent proposals.
+- [ ] **AGNT-01R**: User can collaborate with a session-aware agent beyond deterministic keyword parsing. Deterministic/mock planner orchestration is verified through bounded context packets and realistic proposal fixtures; live provider-backed planning remains needed before release completion.
+- [x] **AGNT-02R**: Agent proposals remain explainable, reviewable, and constrained to typed commands. Verified for deterministic/mock planner proposals normalized through app-owned typed command, validation, ownership, risk, approval, freeze, reclaim, and diagnostic paths.
+- [x] **AGNT-03R**: Approval/rejection flows are verified against realistic agent proposals. Verified with deterministic/mock multi-step proposal fixtures, including high-risk remove-node approval and rejection.
 
 ### Release Quality
 
@@ -134,5 +134,6 @@ Deferred to future release. Tracked but not in current v1 hardening milestone.
 | AUD-01R..04R | Phase 7 | Pending |
 | VIS-01R..03R | Phase 8 | Pending |
 | CTRL-04R, HW-01 | Phase 9 | App-runtime path verified |
-| AGNT-01R..03R | Phase 10 | Pending |
+| AGNT-01R | Phase 10 | Mock planner path verified; live provider-backed planning pending |
+| AGNT-02R..03R | Phase 10 | Deterministic/mock planner path verified |
 | REL-01..03 | Phase 11 | Pending |

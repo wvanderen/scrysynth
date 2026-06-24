@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: v1 runtime hardening
 status: hardening
-stopped_at: Phase 10 session-aware agent orchestration planned
-last_updated: "2026-06-21T00:00:00-05:00"
-last_activity: 2026-06-21
+stopped_at: Phase 10 reconciled into GSD; ready for Phase 11 planning
+last_updated: "2026-06-23T00:00:00-05:00"
+last_activity: 2026-06-23
 progress:
   foundation_phases_total: 5
   foundation_phases_completed: 5
   hardening_phases_total: 6
-  hardening_phases_completed: 3
-  current_stage: Phase 10 agent orchestration is planned and ready for implementation
+  hardening_phases_completed: 4
+  current_stage: Phase 10 deterministic/mock agent orchestration is verified; live provider-backed orchestration remains
 ---
 
 # Project State
@@ -33,7 +33,7 @@ The project is not yet a complete local audiovisual instrument. Runtime executio
 - Audio can launch `scsynth`, apply v1 SynthDef/topology commands over OSC, produce audible output from the default source-to-output graph, apply live parameter updates, stop, panic, and restart after panic on a real local SuperCollider install.
 - Visual runtime management now launches the in-repo minimal `scrysynth-visual` sidecar, handshakes over JSON lines, loads compiled scene snapshots, applies live parameter batches, stops, panics, and restarts after panic. The renderer remains minimal and GPU-free; richer Bevy output and packaged sidecar wiring are still future work.
 - MIDI/OSC listener startup/configuration, learn, and post-learn routing are verified through the app-owned runtime path with a CoreMIDI virtual source and local OSC sender. GUI click-through hardware UAT remains release polish.
-- Agent collaboration is deterministic parser plus safety policy, not a real session-aware LLM/orchestrator.
+- Agent collaboration now has a verified deterministic/mock session-aware planner path: bounded context packets, provider-agnostic planner requests, typed proposal normalization, safety gates, approval/rejection, freeze/reclaim, and diagnostics. A live provider-backed LLM/orchestrator remains unverified.
 
 ## Completed Foundation
 
@@ -48,7 +48,7 @@ The project is not yet a complete local audiovisual instrument. Runtime executio
 ## Active Hardening Work
 
 1. Local developer readiness and docs.
-2. Session-aware agent orchestration. Phase plan: `.planning/phases/10-session-aware-agent-orchestration/10-session-aware-agent-orchestration-01-PLAN.md`.
+2. Live provider-backed agent orchestration on top of the verified Phase 10 planner boundary.
 3. Packaging, UAT, and release readiness.
 
 ## Completed Hardening Work
@@ -58,6 +58,7 @@ The project is not yet a complete local audiovisual instrument. Runtime executio
 | 7. Real SuperCollider Execution | Complete | Default source-to-output graph verified against local `scsynth` with audible playback, live parameter update, stop, panic, and restart-after-panic. |
 | 8. Real Visual Runtime Path | Complete for minimal sidecar | `scrysynth-visual` starts as a separate process, acknowledges handshake and scene load, applies live parameter batches, stops, panics, and restarts after panic. Runtime Health now surfaces missing sidecar, booting, ready, degraded, disconnected, stopped, panicked, and restartable visual states. |
 | 9. Hardware Input Runtime Wiring | Complete for app-runtime path | CoreMIDI virtual MIDI and local OSC sender verified live learn plus post-learn routing for macro, scene recall, transport play, transport stop, and panic. Panic stopped an active SuperCollider patch and left audio `Idle/PanicRecovered`. |
+| 10. Session-Aware Agent Orchestration | Complete for deterministic/mock planner path | Bounded context packets, provider-agnostic planner requests, realistic mock proposal normalization, typed-command validation, approval/rejection, freeze/reclaim, provider-unavailable diagnostics, invalid-response diagnostics, and frontend proposal/diagnostic rendering are verified. Live provider-backed planning remains future hardening. |
 
 ## Recent Audit Findings
 
@@ -79,10 +80,18 @@ The project is not yet a complete local audiovisual instrument. Runtime executio
 
 ## Pending Todos
 
-- Implement Phase 10 session-aware agent orchestration from epic `td-cebec0`.
+- Connect the verified Phase 10 provider-agnostic planner boundary to a live provider-backed agent and run provider setup/fallback UAT.
 - Run a physical-controller GUI click-through pass when hardware is available.
 
 ## Latest Verification
+
+2026-06-21 task `td-ab3c29`:
+
+- Phase 10 UAT evidence recorded in `.planning/phases/10-session-aware-agent-orchestration/10-session-aware-agent-orchestration-06-UAT.md`.
+- Provider mode was deterministic/mock planner fixtures plus local parser provider; no live remote provider, credentials, or streaming provider UI were claimed.
+- UAT verified bounded context packet derivation, realistic multi-step planner-shaped proposal normalization, parameter validation rejection before mutation, scene recall, high-risk pending approval and rejection, frozen-agent rejection, reclaim ownership, provider-unavailable diagnostics, session-agent-unavailable diagnostics, invalid-provider-response diagnostics, and frontend proposal/diagnostic rendering.
+- Variation save/restore remains covered by performance command/store tests, but no planner-authored Phase 10 variation fixture was claimed.
+- Verification passed: targeted frontend/store tests (3 files, 36 tests), targeted Rust agent command tests (36 tests), `npm test` (5 files, 47 tests), `npm run build`, and full `cargo test --manifest-path src-tauri/Cargo.toml` after rerunning outside the sandbox for OSC UDP bind permission.
 
 2026-06-21 planning:
 
@@ -130,6 +139,7 @@ The project is not yet a complete local audiovisual instrument. Runtime executio
 
 ## Session Continuity
 
-Last consolidated: 2026-06-12.
-Current Phase 10 epic: `td-cebec0`.
-Current planning task: `td-543912`.
+Last session: 2026-06-23.
+Phase 10 reconciled into GSD: implementation commits back-referenced via `10-session-aware-agent-orchestration-01-SUMMARY.md`, Phase 10.6 UAT + doc reconciliation committed, `td-ab3c29` review closed.
+Phase 10 epic: `td-cebec0` (closed).
+Next: Phase 11 (Release Readiness) planning, or the Phase 10 live-provider follow-on (connect the verified provider-agnostic planner boundary to a live provider + setup/fallback UAT).

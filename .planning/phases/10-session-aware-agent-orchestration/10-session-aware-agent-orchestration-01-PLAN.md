@@ -2,7 +2,7 @@
 phase: 10-session-aware-agent-orchestration
 plan: 01
 type: hardening
-status: planned
+status: verified-for-mock-planner-path
 created: 2026-06-21
 depends_on:
   - 09-hardware-input-runtime-wiring
@@ -150,6 +150,12 @@ Acceptance:
 6. 10.6 UAT and docs.
 
 ## UAT Notes
+
+Phase 10.6 deterministic/mock planner UAT evidence is recorded in `.planning/phases/10-session-aware-agent-orchestration/10-session-aware-agent-orchestration-06-UAT.md`.
+
+Verified on 2026-06-21: bounded context packet derivation, realistic mock planner proposals, typed proposal normalization, parameter validation rejection, scene recall, high-risk approval/rejection, freeze behavior, reclaim behavior, provider-unavailable diagnostics, invalid-response diagnostics, and frontend proposal/diagnostic rendering.
+
+Not yet verified: live provider-backed planning, provider credentials/streaming, packaged desktop GUI UAT for a live provider path, stale-context rejection, and a planner-authored variation proposal fixture.
 
 Use a deterministic/mock planner for baseline UAT so the safety and UI behavior are reproducible. If a real provider is available, run an additional provider-backed pass, but do not mark behavior release-complete unless setup, diagnostics, and fallback behavior are documented.
 

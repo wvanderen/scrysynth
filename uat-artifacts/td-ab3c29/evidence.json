@@ -1,0 +1,121 @@
+{
+  "taskId": "td-ab3c29",
+  "date": "2026-06-21",
+  "providerMode": "deterministic/mock planner fixtures plus local parser provider",
+  "liveProviderVerified": false,
+  "setup": {
+    "plannerFiles": [
+      "src-tauri/src/application/agent_planner.rs",
+      "src-tauri/src/application/agent_command.rs"
+    ],
+    "primaryTests": [
+      "src-tauri/tests/agent_commands.rs",
+      "src/__tests__/ConversationView.test.ts",
+      "src/store/session-projections.test.ts",
+      "src/lib/session-client.test.ts"
+    ],
+    "providerIds": [
+      "mock-fixture-planner",
+      "json-test-provider",
+      "local-parser",
+      "offline-provider"
+    ]
+  },
+  "scenarios": [
+    {
+      "name": "bounded context packet",
+      "prompt": "derive_session_context_packet with explicit caps",
+      "proposedCommands": [],
+      "outcome": "passed",
+      "observed": "Context included bounded graph, scene, ownership, pending actions, runtime health, recent history, and truncation counts."
+    },
+    {
+      "name": "realistic multi-step proposal",
+      "prompt": "tighten the agent voice, recall intro, then clear the agent layer",
+      "proposedCommands": [
+        "SetParameterValue node-agent.param-lvl=0.42",
+        "RecallScene scene-intro",
+        "RemoveNode node-agent"
+      ],
+      "outcome": "passed",
+      "observed": "Parameter change and scene recall applied; high-risk remove-node became pending."
+    },
+    {
+      "name": "validation rejection",
+      "prompt": "push the agent source above the allowed ceiling",
+      "proposedCommands": [
+        "SetParameterValue node-agent.param-lvl=1.5"
+      ],
+      "outcome": "passed",
+      "observed": "Out-of-range value rejected before mutation; original value remained 0.7."
+    },
+    {
+      "name": "approval and rejection",
+      "prompt": "clear the agent layer after review",
+      "proposedCommands": [
+        "RemoveNode node-agent"
+      ],
+      "outcome": "passed",
+      "observed": "Reject left node intact; later approval removed node and cleared pending action."
+    },
+    {
+      "name": "freeze behavior",
+      "prompt": "tighten the agent voice, recall intro, then clear the agent layer",
+      "proposedCommands": [
+        "SetParameterValue node-agent.param-lvl=0.42",
+        "RecallScene scene-intro",
+        "RemoveNode node-agent"
+      ],
+      "outcome": "passed",
+      "observed": "Planner context reported frozen agent; all agent commands rejected with frozen-agent reasons."
+    },
+    {
+      "name": "reclaim behavior",
+      "prompt": "reclaim_ownership(None, None)",
+      "proposedCommands": [],
+      "outcome": "passed",
+      "observed": "Agent-owned nodes transferred to user; user-owned and shared nodes were unchanged."
+    },
+    {
+      "name": "runtime diagnostics",
+      "prompt": "unavailable provider, unavailable session agent runtime, malformed provider JSON",
+      "proposedCommands": [],
+      "outcome": "passed",
+      "observed": "Explicit unavailable and invalid-output diagnostics were returned without mutation; UI rendering covered provider unavailable, blocked reason, and rejected state."
+    }
+  ],
+  "verification": [
+    {
+      "command": "npm test -- --run src/__tests__/ConversationView.test.ts src/store/session-projections.test.ts src/lib/session-client.test.ts",
+      "result": "passed",
+      "summary": "3 files, 36 tests"
+    },
+    {
+      "command": "cargo test --manifest-path src-tauri/Cargo.toml --test agent_commands",
+      "result": "passed",
+      "summary": "36 tests"
+    },
+    {
+      "command": "npm test",
+      "result": "passed",
+      "summary": "5 files, 47 tests"
+    },
+    {
+      "command": "npm run build",
+      "result": "passed",
+      "summary": "Vite build completed with existing large chunk warning"
+    },
+    {
+      "command": "cargo test --manifest-path src-tauri/Cargo.toml",
+      "result": "passed after elevated rerun",
+      "summary": "Sandboxed run failed only on OSC UDP bind permissions; elevated rerun passed full Rust suite"
+    }
+  ],
+  "notVerified": [
+    "live provider-backed planning",
+    "provider credentials or streaming provider UI",
+    "packaged desktop GUI UAT for live provider path",
+    "stale-context rejection",
+    "planner-authored variation proposal fixture"
+  ]
+}

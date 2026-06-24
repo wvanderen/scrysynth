@@ -4,12 +4,12 @@
 
 Scrysynth has completed its foundation pass: the canonical session graph, desktop workspace, command handlers, persistence, performance surfaces, agent safety scaffolding, runtime health projections, cross-domain macros, and hardware-binding data paths are implemented.
 
-The project is now in **v1 runtime hardening**, not feature-complete release. Real SuperCollider execution, the minimal visual sidecar path, and the app-owned MIDI/OSC hardware runtime path have been verified locally. The main remaining runtime gaps are richer Bevy visual output/packaging, session-aware agent orchestration, release packaging, and broader manual UAT.
+The project is now in **v1 runtime hardening**, not feature-complete release. Real SuperCollider execution, the minimal visual sidecar path, the app-owned MIDI/OSC hardware runtime path, and deterministic/mock session-aware agent orchestration have been verified locally. The main remaining runtime gaps are richer Bevy visual output/packaging, live provider-backed agent orchestration, release packaging, and broader manual UAT.
 
 Core distinction:
 
 - **Foundation complete:** canonical state, UI projections, command APIs, tests, and adapter boundaries exist.
-- **Runtime incomplete:** richer Bevy visual execution, packaged sidecar wiring, real agent orchestration, and release packaging still need production implementation or verification. The default SuperCollider execution path, minimal visual sidecar process path, and virtual MIDI/local OSC hardware runtime path are verified.
+- **Runtime incomplete:** richer Bevy visual execution, packaged sidecar wiring, live provider-backed agent orchestration, and release packaging still need production implementation or verification. The default SuperCollider execution path, minimal visual sidecar process path, virtual MIDI/local OSC hardware runtime path, and deterministic/mock planner orchestration path are verified.
 
 ## Completed Foundation Phases
 
@@ -28,7 +28,7 @@ Core distinction:
 | Graph workspace | Complete foundation | React Flow projection, inspector, primitive palette, route gestures. |
 | Audio runtime | Phase 7 complete | Can launch/stop/panic `scsynth` when installed; v1 SynthDef/topology commands are applied over OSC; default graph audible playback, live parameter control, stop, panic, and restart-after-panic are verified. |
 | Performance workspace | Complete foundation | Scenes, variations, active scene derivation, macro controls. |
-| Agent collaboration | Scaffolded | Deterministic parser, ownership gates, pending approvals, action history, freeze/reclaim. No real LLM/orchestrator yet. |
+| Agent collaboration | Phase 10 mock planner path verified | Bounded context packets, provider-agnostic planner interface, deterministic/mock proposal fixtures, typed-command normalization, ownership gates, pending approvals, action history, freeze/reclaim, and diagnostics are verified. A live LLM/provider-backed planner remains a release hardening gap. |
 | Visual runtime | Phase 8 minimal path verified | `scrysynth-visual` exists as an in-repo minimal sidecar. The app adapter launches it, handshakes, loads compiled scenes, sends parameter batches, stops, panics, and restarts after panic. Rich Bevy rendering and packaged sidecar bundling remain future hardening. |
 | Hardware bindings | Phase 9 app-runtime path verified | MIDI/OSC listener settings, live learn, post-learn routing, scene recall, transport play/stop, and panic were verified with a CoreMIDI virtual source, local OSC sender, and local SuperCollider. GUI click-through hardware UAT remains a future polish pass. |
 | Testing | Broad but environment-dependent | Rust and frontend tests exist, but require local `cargo` and installed npm dependencies. |
@@ -105,20 +105,20 @@ Remaining Phase 9 follow-on work belongs in release polish:
 
 **Goal:** Agent collaboration becomes meaningfully intelligent while preserving human override.
 
-Status: Planned. The Phase 10 plan is `.planning/phases/10-session-aware-agent-orchestration/10-session-aware-agent-orchestration-01-PLAN.md`.
+Status: Complete for deterministic/mock planner UAT. Evidence is recorded in `.planning/phases/10-session-aware-agent-orchestration/10-session-aware-agent-orchestration-06-UAT.md`.
 
 Design note: Phase 10 keeps the existing typed-command, ownership, risk, approval, freeze, reclaim, and action-history pipeline as the safety boundary. The new work belongs above that boundary: a bounded session context packet, provider-agnostic planner, structured proposals, validation diagnostics, and review UI.
 
 Success criteria:
 
-1. Replace or augment the deterministic parser with a session-aware agent planning layer.
-2. Keep all agent changes flowing through typed commands, ownership gates, risk tiers, and approvals.
-3. Show structured proposed changes before high-risk mutation.
-4. Preserve action history and readable diffs for both user and agent actions.
-5. Surface provider unavailable, invalid response, stale context, unsafe target, and validation failure states in agent runtime status and conversation UI.
-6. Verify realistic graph, parameter/macro, scene/variation, approval/rejection, freeze, and reclaim flows through deterministic/mock planner UAT before claiming Phase 10 complete.
+1. Replace or augment the deterministic parser with a session-aware agent planning layer. **Done for deterministic/mock and local parser providers.**
+2. Keep all agent changes flowing through typed commands, ownership gates, risk tiers, and approvals. **Done and verified.**
+3. Show structured proposed changes before high-risk mutation. **Done for pending action/proposal review UI coverage.**
+4. Preserve action history and readable diffs for both user and agent actions. **Done through the existing command path.**
+5. Surface provider unavailable, invalid response, unsafe target, validation failure, freeze, and rejection states in agent runtime status and conversation UI. **Verified for deterministic/mock diagnostics; stale-context handling remains contract-level only.**
+6. Verify realistic graph, parameter/macro, scene/variation, approval/rejection, freeze, and reclaim flows through deterministic/mock planner UAT before claiming Phase 10 complete. **Verified for graph mutation, parameter change, scene recall, approval/rejection, freeze, and reclaim. Variation command behavior is covered by performance tests but not by a planner-authored Phase 10 fixture.**
 
-Planned task breakdown:
+Task breakdown:
 
 - `td-cebec0`: Phase 10 epic.
 - `td-665cc6`: Define agent orchestration contract.
@@ -127,6 +127,12 @@ Planned task breakdown:
 - `td-a842b4`: Add proposal review UI and agent runtime status.
 - `td-4a9cfe`: Add deterministic/mock planner tests and realistic proposal fixtures.
 - `td-ab3c29`: Verify agent orchestration UAT and update docs.
+
+Remaining Phase 10 follow-on work belongs in release hardening:
+
+- Connect the provider-agnostic planner interface to a live configured provider.
+- Add UAT for live provider setup, unavailable/degraded provider modes, and fallback behavior.
+- Add a planner-authored variation proposal fixture before claiming variation planning coverage.
 
 ### Phase 11: Release Readiness
 

@@ -2,7 +2,7 @@
 
 Scrysynth is a graph-native desktop audiovisual instrument for live co-creation between a human performer and AI agents. It is a Tauri app with a Rust-owned canonical session graph, a React workspace, and adapter boundaries for audio, visuals, hardware input, and agent actions.
 
-Current stage: foundation prototype in v1 runtime hardening. The session model, workspace surfaces, command handlers, tests, and adapter seams are in place. SuperCollider execution, the minimal visual sidecar path, and the app-owned MIDI/OSC hardware runtime path have been verified locally; the next major runtime gap is real session-aware agent orchestration plus packaging/release hardening.
+Current stage: foundation prototype in v1 runtime hardening. The session model, workspace surfaces, command handlers, tests, and adapter seams are in place. SuperCollider execution, the minimal visual sidecar path, the app-owned MIDI/OSC hardware runtime path, and deterministic/mock session-aware agent orchestration have been verified locally; the next major runtime gap is live provider-backed agent orchestration plus packaging/release hardening.
 
 ## What Runs Today
 
@@ -14,7 +14,7 @@ Current stage: foundation prototype in v1 runtime hardening. The session model, 
 - Runtime managers for audio and visuals, including health state, actionable setup/runtime diagnostics, active visual scene/renderer readouts, and panic/stop/restart controls.
 - MIDI/OSC listener settings, learn, and routing through the app-owned hardware runtime path.
 
-Known limitation: the architecture is still ahead of a complete audiovisual instrument. Phase 7 real SuperCollider execution has been verified against a local `scsynth` install for the default source-to-output graph, including audible playback, live parameter change, stop, panic, and restart. Phase 8 has a verified minimal visual sidecar path: the app launches `scrysynth-visual`, handshakes over JSON lines, loads a compiled scene, applies live parameter updates, stops, panics, and restarts after panic. Phase 9 has verified virtual MIDI and local OSC learn/routing through the app runtime for macros, scene recall, transport play/stop, and panic. The renderer remains intentionally minimal; richer Bevy visuals, packaged sidecar wiring, GUI click-through hardware UAT, and agent orchestration remain future hardening work.
+Known limitation: the architecture is still ahead of a complete audiovisual instrument. Phase 7 real SuperCollider execution has been verified against a local `scsynth` install for the default source-to-output graph, including audible playback, live parameter change, stop, panic, and restart. Phase 8 has a verified minimal visual sidecar path: the app launches `scrysynth-visual`, handshakes over JSON lines, loads a compiled scene, applies live parameter updates, stops, panics, and restarts after panic. Phase 9 has verified virtual MIDI and local OSC learn/routing through the app runtime for macros, scene recall, transport play/stop, and panic. Phase 10 has verified deterministic/mock session-aware planner orchestration through bounded context packets, typed proposal normalization, approval/rejection, freeze/reclaim, and diagnostics. The renderer remains intentionally minimal; richer Bevy visuals, packaged sidecar wiring, GUI click-through hardware UAT, live provider-backed agent orchestration, and release packaging remain future hardening work.
 
 ## Local Requirements
 
@@ -107,6 +107,12 @@ The verified pass used a CoreMIDI virtual source named `Scrysynth Phase 9 UAT Vi
 
 The pass exercised the app runtime command path behind the Tauri workspace, not a separate GUI click-through automation pass.
 
+## Manual Agent Orchestration UAT
+
+Phase 10 agent orchestration UAT evidence is tracked in `.planning/phases/10-session-aware-agent-orchestration/10-session-aware-agent-orchestration-06-UAT.md`.
+
+The verified pass used deterministic/mock planner fixtures and the local parser provider, not a live remote LLM provider. It proved bounded session context packets, realistic planner-shaped proposals, typed command normalization, parameter validation, scene recall, high-risk approval/rejection, freeze behavior, reclaim behavior, provider-unavailable diagnostics, invalid-response diagnostics, and frontend rendering of proposal review and runtime diagnostic states.
+
 ## Manual Audio UAT
 
 Phase 7 completion requires a real local SuperCollider check, not just automated tests:
@@ -134,7 +140,7 @@ The project is not release-ready yet. The next milestone is v1 runtime hardening
 
 - Extend the verified SuperCollider path beyond the default graph as new primitives and routing workflows are hardened.
 - Extend the verified minimal visual sidecar into a richer Bevy-rendered runtime and package it as a Tauri sidecar.
-- Replace deterministic agent parsing with a real session-aware agent orchestration layer.
+- Connect the verified session-aware agent orchestration boundary to a live provider-backed planner without weakening typed command, approval, freeze, and reclaim gates.
 - Clean up packaging, docs, release checks, and manual verification.
 
 See `.planning/ROADMAP.md` for the current roadmap and `.planning/STATE.md` for the consolidated project state.
