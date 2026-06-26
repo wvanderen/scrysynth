@@ -3,13 +3,28 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use thiserror::Error;
 
 use crate::catalog::find_catalog_entry;
-use crate::domain::session::{AudioBusType, Node, OutputKind, Route, SessionDocument};
+use crate::domain::session::{AudioBusType, Node, OutputKind, Route, SessionDocument, SignalType};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct CompiledTopology {
     pub buses: Vec<CompiledBus>,
     pub group_order: Vec<CompiledGroup>,
     pub node_launch_order: Vec<CompiledNodeLaunch>,
+    /// Direct port-to-port modulation routes (no audio `bus_id`). These carry
+    /// CV/control-rate modulation and audio-rate FM; the SC resource planner
+    /// allocates buses for them separately from the audio signal chain.
+    pub cv_routes: Vec<CompiledCvRoute>,
+}
+
+/// A modulation route compiled for CV-bus allocation (NODES-05).
+#[derive(Clone, Debug, PartialEq)]
+pub struct CompiledCvRoute {
+    pub route_id: String,
+    pub source_node_id: String,
+    pub source_port_id: String,
+    pub target_node_id: String,
+    pub target_port_id: String,
+    pub signal_type: SignalType,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -71,6 +86,14 @@ pub enum TopologyCompileError {
     },
     #[error("route `{route_id}` connects disabled node `{node_id}`")]
     DisabledNodeRoute { route_id: String, node_id: String },
+    #[error(
+        "route `{route_id}` has a port signal-type mismatch: source `{source_type}` vs target `{target_type}`"
+    )]
+    PortSignalTypeMismatch {
+        route_id: String,
+        source_type: String,
+        target_type: String,
+    },
     #[error("canonical audio graph contains a cycle or unresolved dependency")]
     CyclicGraph,
 }
@@ -94,6 +117,7 @@ pub fn compile_session_to_topology(
             compile_node_launch(node, session, &group_id)
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let cv_routes = compile_cv_routes(session, &nodes);
 
     Ok(CompiledTopology {
         buses,
@@ -102,7 +126,34 @@ pub fn compile_session_to_topology(
             node_ids: ordered_node_ids,
         }],
         node_launch_order: launches,
+        cv_routes,
     })
+}
+
+/// Compile direct modulation routes (no audio `bus_id`) into CV routes for the
+/// SC resource planner. The route's signal rate is the target CV port's rate
+/// (control-rate for LFO/Env/Sequencer → param; audio-rate for oscillator FM).
+fn compile_cv_routes(
+    session: &SessionDocument,
+    nodes: &BTreeMap<String, Node>,
+) -> Vec<CompiledCvRoute> {
+    session
+        .routes
+        .iter()
+        .filter(|route| route.bus_id.is_none())
+        .filter_map(|route| {
+            let target = nodes.get(&route.target_node_id)?;
+            let target_port = target.ports.iter().find(|p| p.id == route.target_port_id)?;
+            Some(CompiledCvRoute {
+                route_id: route.id.clone(),
+                source_node_id: route.source_node_id.clone(),
+                source_port_id: route.source_port_id.clone(),
+                target_node_id: route.target_node_id.clone(),
+                target_port_id: route.target_port_id.clone(),
+                signal_type: target_port.signal_type,
+            })
+        })
+        .collect()
 }
 
 fn compile_buses(session: &SessionDocument) -> Vec<CompiledBus> {
@@ -198,8 +249,18 @@ fn validate_routes(
             .get(&route.target_node_id)
             .ok_or_else(|| missing_node_error(route, route.target_node_id.clone(), session))?;
 
-        validate_port_exists(route, source, &route.source_port_id)?;
-        validate_port_exists(route, target, &route.target_port_id)?;
+        let source_port = validate_port_exists(route, source, &route.source_port_id)?;
+        let target_port = validate_port_exists(route, target, &route.target_port_id)?;
+
+        // Pitfall #3: an Audio↔Control CV mismatch is a silent SC failure — reject
+        // it at compile time. Same-rate connections (incl. audio-rate FM) are fine.
+        if source_port.signal_type != target_port.signal_type {
+            return Err(TopologyCompileError::PortSignalTypeMismatch {
+                route_id: route.id.clone(),
+                source_type: format!("{:?}", source_port.signal_type).to_lowercase(),
+                target_type: format!("{:?}", target_port.signal_type).to_lowercase(),
+            });
+        }
     }
 
     Ok(())
@@ -227,20 +288,19 @@ fn missing_node_error(
     }
 }
 
-fn validate_port_exists(
+fn validate_port_exists<'a>(
     route: &Route,
-    node: &Node,
+    node: &'a Node,
     port_id: &str,
-) -> Result<(), TopologyCompileError> {
-    if node.ports.iter().any(|port| port.id == port_id) {
-        Ok(())
-    } else {
-        Err(TopologyCompileError::UnknownPortReference {
+) -> Result<&'a crate::domain::session::Port, TopologyCompileError> {
+    node.ports
+        .iter()
+        .find(|port| port.id == port_id)
+        .ok_or_else(|| TopologyCompileError::UnknownPortReference {
             route_id: route.id.clone(),
             node_id: node.id.clone(),
             port_id: port_id.to_string(),
         })
-    }
 }
 
 fn topo_sort_nodes(

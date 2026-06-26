@@ -6,6 +6,11 @@ use crate::domain::session::{OutputKind, SignalType};
 
 /// First audio bus index handed out to session buses (0/1 are the hardware outs).
 pub const HARDWARE_AUDIO_BUS_OFFSET: u32 = 2;
+/// Control buses live in a clearly separated high range so they can never
+/// collide with audio bus indices (Pitfall #2). scsynth's bus index space is
+/// shared; the rate is chosen by `In.ar`/`In.kr`, so disjoint ranges prevent a
+/// control write from clobbering an audio signal (or vice versa).
+pub const FIRST_CONTROL_BUS_OFFSET: u32 = 1024;
 pub const FIRST_GROUP_ID: i32 = 1000;
 pub const FIRST_SYNTH_ID: i32 = 2000;
 
@@ -91,7 +96,6 @@ pub enum ScResourcePlanError {
 /// bus index. One bus per source output port is shared by every outgoing CV
 /// route (a mod source writes once; many targets may read). Compiler artifact —
 /// control buses are NEVER canonical `Bus` records (RESEARCH.md anti-pattern).
-#[allow(dead_code)]
 type CvBusMap = BTreeMap<(String, String), u32>;
 
 pub fn plan_sc_resources(
@@ -99,6 +103,8 @@ pub fn plan_sc_resources(
 ) -> Result<ScResourcePlan, ScResourcePlanError> {
     let bus_map = plan_buses(topology)?;
     let group_map = plan_groups(topology)?;
+    let node_out_bus = build_node_output_bus_map(topology, &bus_map);
+    let node_cv_args = plan_cv_buses(topology, &node_out_bus)?;
 
     let mut synthdefs: BTreeSet<&'static str> = BTreeSet::new();
     let mut synths = Vec::new();
@@ -248,7 +254,7 @@ pub fn plan_sc_resources(
         }
 
         // Attach CV-bus args (out_cv_bus on mod sources; <param>_cv_bus on targets).
-        // (Control-bus allocation lands in the follow-up NODES-05 wiring commit.)
+        args.extend(node_cv_args.get(&node.node_id).cloned().unwrap_or_default());
 
         // App-driven nodes (empty synthdef_name, e.g. the step sequencer) launch
         // no SuperCollider synth — skip synthdef/synth allocation for them.
@@ -327,7 +333,6 @@ fn plan_groups(topology: &CompiledTopology) -> Result<BTreeMap<String, i32>, ScR
 }
 
 /// Resolve each node's audio output bus index (for audio-rate CV reuse + bus args).
-#[allow(dead_code)]
 fn build_node_output_bus_map(
     topology: &CompiledTopology,
     bus_map: &BTreeMap<String, f32>,
@@ -341,6 +346,59 @@ fn build_node_output_bus_map(
         }
     }
     out
+}
+
+/// Allocate control buses for CV routes and build the per-node CV-bus args.
+///
+/// - Control-rate CV (LFO/Env/Sequencer → param): allocate ONE control bus per
+///   mod-source output port (shared by all its outgoing routes); the source
+///   synth gets `out_cv_bus`/`<port>_bus` and writes `Out.kr`; each target synth
+///   gets `<cv_port>_bus` and reads `In.kr`.
+/// - Audio-rate CV (oscillator FM): reuse the source's existing audio out bus;
+///   the target gets `<cv_port>_bus` = source out bus index (no new allocation).
+fn plan_cv_buses(
+    topology: &CompiledTopology,
+    node_out_bus: &BTreeMap<String, f32>,
+) -> Result<BTreeMap<String, Vec<ScSynthArg>>, ScResourcePlanError> {
+    let mut cv_args: BTreeMap<String, Vec<ScSynthArg>> = BTreeMap::new();
+    let mut control_buses: CvBusMap = BTreeMap::new();
+    let mut next_control_bus = FIRST_CONTROL_BUS_OFFSET;
+
+    for route in &topology.cv_routes {
+        match route.signal_type {
+            SignalType::Control => {
+                // One control bus per mod-source output port (shared by readers).
+                let key = (route.source_node_id.clone(), route.source_port_id.clone());
+                let bus_index = *control_buses.entry(key).or_insert_with(|| {
+                    let allocated = next_control_bus;
+                    next_control_bus += 1;
+                    allocated
+                }) as f32;
+                // Mod-source writes its signal to the bus.
+                cv_args
+                    .entry(route.source_node_id.clone())
+                    .or_default()
+                    .push(arg("out_cv_bus", bus_index));
+                // Target reads the bus into its modulated parameter.
+                cv_args
+                    .entry(route.target_node_id.clone())
+                    .or_default()
+                    .push(arg(&format!("{}_bus", route.target_port_id), bus_index));
+            }
+            SignalType::Audio => {
+                // Audio-rate CV (FM): the source already writes its audio out
+                // bus; the target reads that bus via In.ar.
+                if let Some(source_out) = node_out_bus.get(&route.source_node_id) {
+                    cv_args
+                        .entry(route.target_node_id.clone())
+                        .or_default()
+                        .push(arg(&format!("{}_bus", route.target_port_id), *source_out));
+                }
+            }
+        }
+    }
+
+    Ok(cv_args)
 }
 
 fn required_output_bus(
@@ -473,6 +531,16 @@ fn topology_fingerprint(topology: &CompiledTopology) -> String {
             hash_str(&mut hash, &parameter.name);
             hash_u64(&mut hash, parameter.value.to_bits());
         }
+    }
+
+    hash_bytes(&mut hash, b"cv_routes");
+    for route in &topology.cv_routes {
+        hash_str(&mut hash, &route.route_id);
+        hash_str(&mut hash, &route.source_node_id);
+        hash_str(&mut hash, &route.source_port_id);
+        hash_str(&mut hash, &route.target_node_id);
+        hash_str(&mut hash, &route.target_port_id);
+        hash_str(&mut hash, &format!("{:?}", route.signal_type));
     }
 
     format!("{hash:016x}")

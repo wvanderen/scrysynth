@@ -188,6 +188,57 @@ mod audio_runtime {
         }
 
         #[test]
+        fn cv_route_with_signal_type_mismatch_is_rejected_at_compile() {
+            // Pitfall #3: an Audio↔Control CV mismatch is a silent SC failure —
+            // the catalog-driven compiler rejects it (TopologyCompileError).
+            let mut session = deterministic_session();
+            // Source's audio out → filter's control `cutoff_cv` port = rate mismatch.
+            session.nodes.push(Node {
+                id: "node-filter".to_string(),
+                node_type_id: "filter".to_string(),
+                ports: vec![
+                    Port {
+                        id: "filter-in".to_string(),
+                        name: "audio_in".to_string(),
+                        direction: PortDirection::Input,
+                        signal_type: SignalType::Audio,
+                    },
+                    Port {
+                        id: "cutoff_cv".to_string(),
+                        name: "Cutoff CV".to_string(),
+                        direction: PortDirection::Input,
+                        signal_type: SignalType::Control,
+                    },
+                ],
+                parameters: vec![],
+                runtime_target: Some("audio/effect/filter".to_string()),
+                scene_membership: vec![],
+                ownership: OwnershipAssignment {
+                    controller: ControllerKind::Shared,
+                    is_locked: false,
+                },
+                enabled: true,
+                bus_target_id: None,
+                output_kind: None,
+                channel_count: None,
+                bypassed: None,
+                channel_mode: None,
+                sequencer_pattern: None,
+            });
+            session.routes.push(Route {
+                id: "bad-cv-route".to_string(),
+                source_node_id: "node-source".to_string(),
+                source_port_id: "node-source-out".to_string(), // Audio
+                target_node_id: "node-filter".to_string(),
+                target_port_id: "cutoff_cv".to_string(), // Control
+                bus_id: None,
+            });
+
+            let error = compile_session_to_topology(&session).expect_err("mismatch rejected");
+            assert!(error.to_string().contains("signal-type mismatch"));
+        }
+
+        #[test]
         fn compile_error_rejects_missing_bus_reference() {
             let mut session = deterministic_session();
             session.buses.clear();
@@ -448,8 +499,137 @@ mod audio_runtime {
                 .any(|arg| arg.name == "delay_time_s" && arg.value == 0.5));
         }
 
-        // NODES-05 control-bus allocation + CV-port signal-type validation are
-        // covered by the follow-up NODES-05 wiring commit.
+        // NODES-05: a control-rate CV route allocates a control bus; the mod source
+        // gains `out_cv_bus` and the target gains `<cv_port>_bus`.
+        #[test]
+        fn cv_route_allocates_control_bus_for_modulation() {
+            let mut session = deterministic_session();
+            session.nodes.push(Node {
+                id: "node-lfo".to_string(),
+                node_type_id: "lfo".to_string(),
+                ports: vec![Port {
+                    id: "lfo_out".to_string(),
+                    name: "LFO Out".to_string(),
+                    direction: PortDirection::Output,
+                    signal_type: SignalType::Control,
+                }],
+                parameters: vec![ParameterValue {
+                    id: "lfo-freq".to_string(),
+                    name: "frequency".to_string(),
+                    value: 0.5,
+                    default_value: 0.5,
+                    min_value: 0.001,
+                    max_value: 100.0,
+                    unit: "hz".to_string(),
+                }],
+                runtime_target: Some("audio/modulator/lfo".to_string()),
+                scene_membership: vec![],
+                ownership: OwnershipAssignment {
+                    controller: ControllerKind::Shared,
+                    is_locked: false,
+                },
+                enabled: true,
+                bus_target_id: None,
+                output_kind: None,
+                channel_count: None,
+                bypassed: None,
+                channel_mode: None,
+                sequencer_pattern: None,
+            });
+            session.nodes.push(Node {
+                id: "node-filter".to_string(),
+                node_type_id: "filter".to_string(),
+                ports: vec![
+                    Port {
+                        id: "filter-in".to_string(),
+                        name: "audio_in".to_string(),
+                        direction: PortDirection::Input,
+                        signal_type: SignalType::Audio,
+                    },
+                    Port {
+                        id: "filter-out".to_string(),
+                        name: "audio_out".to_string(),
+                        direction: PortDirection::Output,
+                        signal_type: SignalType::Audio,
+                    },
+                    Port {
+                        id: "cutoff_cv".to_string(),
+                        name: "Cutoff CV".to_string(),
+                        direction: PortDirection::Input,
+                        signal_type: SignalType::Control,
+                    },
+                ],
+                parameters: vec![],
+                runtime_target: Some("audio/effect/filter".to_string()),
+                scene_membership: vec![],
+                ownership: OwnershipAssignment {
+                    controller: ControllerKind::Shared,
+                    is_locked: false,
+                },
+                enabled: true,
+                bus_target_id: Some("bus-main".to_string()),
+                output_kind: None,
+                channel_count: None,
+                bypassed: Some(false),
+                channel_mode: None,
+                sequencer_pattern: None,
+            });
+            // Audio signal chain: source → filter (so the effect has an input bus),
+            // plus the LFO control out → filter control CV in (CV route, no bus_id).
+            session.routes = vec![
+                Route {
+                    id: "route-source-filter".to_string(),
+                    source_node_id: "node-source".to_string(),
+                    source_port_id: "node-source-out".to_string(),
+                    target_node_id: "node-filter".to_string(),
+                    target_port_id: "filter-in".to_string(),
+                    bus_id: Some("bus-main".to_string()),
+                },
+                Route {
+                    id: "route-lfo-cutoff".to_string(),
+                    source_node_id: "node-lfo".to_string(),
+                    source_port_id: "lfo_out".to_string(),
+                    target_node_id: "node-filter".to_string(),
+                    target_port_id: "cutoff_cv".to_string(),
+                    bus_id: None,
+                },
+            ];
+
+            let topology = compile_session_to_topology(&session).expect("compile succeeds");
+            let plan = plan_sc_resources(&topology).expect("plan succeeds");
+
+            let lfo_synth = plan
+                .synths
+                .iter()
+                .find(|s| s.node_key == "node-lfo")
+                .expect("lfo synth");
+            let filter_synth = plan
+                .synths
+                .iter()
+                .find(|s| s.node_key == "node-filter")
+                .expect("filter synth");
+
+            let out_cv = lfo_synth
+                .args
+                .iter()
+                .find(|a| a.name == "out_cv_bus")
+                .expect("LFO gets out_cv_bus arg");
+            let cutoff_cv = filter_synth
+                .args
+                .iter()
+                .find(|a| a.name == "cutoff_cv_bus")
+                .expect("filter gets cutoff_cv_bus arg");
+
+            assert!(
+                out_cv.value >= scrysynth_lib::audio::synthdefs::FIRST_CONTROL_BUS_OFFSET as f32,
+                "control bus index in the control range (got {})",
+                out_cv.value
+            );
+            assert_eq!(
+                out_cv.value, cutoff_cv.value,
+                "LFO out_cv_bus and filter cutoff_cv_bus share the allocated index"
+            );
+        }
 
         // Every catalog entry with a SynthDef maps to a checked-in .scsyndef with
         // an SCgf v2 header + the embedded name (the full "boots real scsynth per
