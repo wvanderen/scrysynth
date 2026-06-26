@@ -1,158 +1,62 @@
 # Roadmap: Scrysynth
 
-## Current Picture
+## Milestones
 
-Scrysynth is **packaged and evaluated as v1 (1.0.0)** on macOS Apple Silicon. The canonical session graph, desktop workspace, command handlers, persistence, performance surfaces, agent safety scaffolding, runtime health projections, cross-domain macros, and hardware-binding data paths are implemented and have been verified end-to-end against the packaged `scrysynth.app`.
+- ✅ **v1.0 Runtime Hardening** — Phases 1–11 (shipped 2026-06-26) — `[archive](milestones/v1.0-ROADMAP.md)`
+- 📋 **Next milestone** — not yet defined (run `/gsd-new-milestone`)
 
-The v1 runtime-hardening milestone (Phases 7–11) is complete. Real SuperCollider execution, the minimal visual sidecar path (bundled via Tauri), the app-owned MIDI/OSC hardware runtime path, and session-aware agent orchestration (deterministic/local-parser planner wired into the production GUI) have each been re-verified against the packaged app in the consolidated Phase 11 UAT. The release is ad-hoc signed for Apple Silicon; full Developer ID notarization is deferred.
+## v1.0 Phases
 
-Core distinction:
+<details>
+<summary>✅ v1.0 Runtime Hardening (Phases 1–11) — SHIPPED 2026-06-26</summary>
 
-- **v1 shipped & verified:** canonical state, UI projections, command APIs, tests, adapter boundaries, default SuperCollider execution, minimal bundled visual sidecar, virtual MIDI/local OSC hardware runtime path, deterministic/local-parser session-aware planner, and release packaging — all verified against the packaged app.
-- **Deferred beyond v1:** richer Bevy visual output, live provider-backed agent orchestration, physical-controller GUI click-through UAT, Windows/Linux/Intel builds, full notarization + auto-update, and multiplayer.
+**Foundation (Phases 1–5):**
 
-## Completed Foundation Phases
+- [x] Phase 1: Session Core & Recall (6 plans) — completed 2026-04-11
+- [x] Phase 2: Playable Audio Graph Foundation (3 plans) — completed 2026-04-11
+- [x] Phase 3: Performance Workspace (3 plans) — completed 2026-04-11
+- [x] Phase 4: Agent Collaboration Scaffold (3 plans) — completed 2026-04-11
+- [x] Phase 5: Visual Sync & Cross-Modal Control Scaffold (3 plans) — completed 2026-04-11
 
-- [x] **Phase 1: Session Core & Recall** - Sessions are canonical, inspectable, and reloadable from app-owned state.
-- [x] **Phase 2: Playable Audio Graph Foundation** - Users can edit supported graph primitives and drive audio-runtime lifecycle state.
-- [x] **Phase 3: Performance Workspace** - Users can move through graph, conversation, and performance views and recall scenes/variations.
-- [x] **Phase 4: Agent Collaboration Scaffold** - Users can send natural-language instructions through deterministic parsing, inspect diffs/history, approve high-risk pending actions, freeze/reclaim ownership, and see ownership badges.
-- [x] **Phase 5: Visual Sync & Cross-Modal Control Scaffold** - Visual runtime health, cross-domain macro structures, MIDI/OSC binding models, and performance UI are in place.
+**Runtime Hardening (Phases 6–11):**
 
-## Foundation Deliverables
+- [x] Phase 6: Local Developer Readiness — folded into Phase 11 (DEV-01/02 verified there)
+- [x] Phase 7: Real SuperCollider Execution — audible playback + panic + restart verified against local `scsynth`
+- [x] Phase 8: Real Visual Runtime Path — minimal `scrysynth-visual` sidecar, JSON-lines protocol, full lifecycle verified
+- [x] Phase 9: Hardware Input Runtime Wiring — CoreMIDI + local OSC learn and post-learn routing verified
+- [x] Phase 10: Session-Aware Agent Orchestration (1 plan) — bounded context, provider-agnostic planner, typed-command gates, freeze/reclaim verified
+- [x] Phase 11: Release Readiness (2 plans) — ad-hoc-signed Apple-Silicon `.app` + `.dmg`, 9/9 packaged-app UAT scenarios passed
 
-| Area | Current status | Notes |
-|------|----------------|-------|
-| Canonical session graph | Complete foundation | Rust owns `SessionDocument`; TypeScript contract is generated from Rust. |
-| Session persistence | Complete foundation | JSON save/open with schema version validation. |
-| Graph workspace | Complete foundation | React Flow projection, inspector, primitive palette, route gestures. |
-| Audio runtime | Phase 7 complete | Can launch/stop/panic `scsynth` when installed; v1 SynthDef/topology commands are applied over OSC; default graph audible playback, live parameter control, stop, panic, and restart-after-panic are verified. |
-| Performance workspace | Complete foundation | Scenes, variations, active scene derivation, macro controls. |
-| Agent collaboration | Phase 10 mock planner path verified | Bounded context packets, provider-agnostic planner interface, deterministic/mock proposal fixtures, typed-command normalization, ownership gates, pending approvals, action history, freeze/reclaim, and diagnostics are verified. A live LLM/provider-backed planner remains a release hardening gap. |
-| Visual runtime | Phase 8 minimal path verified | `scrysynth-visual` exists as an in-repo minimal sidecar. The app adapter launches it, handshakes, loads compiled scenes, sends parameter batches, stops, panics, and restarts after panic. Rich Bevy rendering and packaged sidecar bundling remain future hardening. |
-| Hardware bindings | Phase 9 app-runtime path verified | MIDI/OSC listener settings, live learn, post-learn routing, scene recall, transport play/stop, and panic were verified with a CoreMIDI virtual source, local OSC sender, and local SuperCollider. GUI click-through hardware UAT remains a future polish pass. |
-| Testing | Broad but environment-dependent | Rust and frontend tests exist, but require local `cargo` and installed npm dependencies. |
-| Documentation | In progress | README and planning docs now reflect foundation-vs-runtime status. |
+**Requirement outcome:** 36/37 v1 requirements verified. `AGNT-01R` (live provider-backed agent) deferred beyond v1.
 
-## Next Milestone: v1 Runtime Hardening
+</details>
 
-### Phase 6: Local Developer Readiness
+## Progress
 
-**Goal:** A developer can clone, install, verify, and launch the app with clear diagnostics.
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 1. Session Core & Recall | v1.0 | 6/6 | Complete | 2026-04-11 |
+| 2. Playable Audio Graph Foundation | v1.0 | 3/3 | Complete | 2026-04-11 |
+| 3. Performance Workspace | v1.0 | 3/3 | Complete | 2026-04-11 |
+| 4. Agent Collaboration Scaffold | v1.0 | 3/3 | Complete | 2026-04-11 |
+| 5. Visual Sync & Cross-Modal Scaffold | v1.0 | 3/3 | Complete | 2026-04-11 |
+| 6. Local Developer Readiness | v1.0 | — (folded into 11) | Complete | 2026-06-26 |
+| 7. Real SuperCollider Execution | v1.0 | 1/1 | Complete | 2026-06-13 |
+| 8. Real Visual Runtime Path | v1.0 | 1/1 | Complete | 2026-06-16 |
+| 9. Hardware Input Runtime Wiring | v1.0 | 1/1 | Complete | 2026-06-19 |
+| 10. Session-Aware Agent Orchestration | v1.0 | 1/1 | Complete | 2026-06-21 |
+| 11. Release Readiness | v1.0 | 2/2 | Complete | 2026-06-26 |
 
-Success criteria:
+## Backlog
 
-1. README accurately lists required local toolchains and optional runtime binaries.
-2. `npm install`, `npm test`, `npm run build`, and `cargo test --manifest-path src-tauri/Cargo.toml` are the documented verification path.
-3. Missing `cargo`, missing `node_modules`, missing `scsynth`, or missing visual sidecar produce clear setup guidance.
-4. Planning docs agree on current phase, completed work, and remaining runtime gaps.
+Carry-over candidates from v1 deferrals (to be promoted into the next milestone via `/gsd-new-milestone`):
 
-### Phase 7: Real SuperCollider Execution
-
-**Goal:** The canonical audio graph produces actual sound through SuperCollider.
-
-Status: Complete for the default source-to-output graph UAT.
-
-Design note: `.planning/phases/07-real-supercollider-execution/07-real-supercollider-execution-01-SC-RESOURCE-PLAN.md` defines the v1 `CompiledTopology` to SuperCollider resource mapping for task `td-64eb52`.
-
-Success criteria:
-
-1. Compile graph topology into SC synthdefs/resources, groups, buses, and node launch order.
-2. Send OSC bundles to `scsynth` for boot, resource creation, routing, parameter updates, and teardown.
-3. Apply live parameter edits and reroutes without pretending topology load succeeded.
-4. Add runtime feedback, `/sync` handling, degraded states, and failure diagnostics.
-5. Verify audible playback and panic recovery on a real local SuperCollider install.
-
-Current Phase 7.7 evidence: `.planning/phases/07-real-supercollider-execution/07-real-supercollider-execution-07-UAT.md`. Resumed real-`scsynth` UAT verified audible output, live parameter control, stop, panic, and restart-after-panic. A Stop-button projection defect found during UAT was fixed and retested successfully.
-
-### Phase 8: Real Visual Runtime Path
-
-**Goal:** Visuals run through a separate process that consumes canonical scene/control projections.
-
-Status: Complete for the minimal `scrysynth-visual` sidecar path. Evidence is recorded in `.planning/phases/08-real-visual-runtime-path/08-real-visual-runtime-path-05-UAT.md`.
-
-Success criteria:
-
-1. Provide or document the `scrysynth-visual` sidecar executable. **Done for local development.**
-2. Replace visual scene-load and parameter-update stubs with a typed local protocol. **Done for JSON-lines stdio.**
-3. Drive visual scene state from session nodes, scenes, macros, and runtime events. **Done for compiled scene snapshots and live parameter batches.**
-4. Surface visual runtime errors and reconnect/restart behavior in the health panel. **Done for missing sidecar, booting, ready, degraded, disconnected, stopped, panicked, and restartable states.**
-
-Remaining Phase 8 follow-on work belongs in release hardening, not in the now-verified minimal path:
-
-- Bundle the sidecar through Tauri packaging instead of relying on `SCRYSYNTH_BEVY_PATH` or `PATH`.
-- Replace the minimal GPU-free renderer with richer Bevy-rendered scene output.
-- Emit and consume live visual telemetry such as FPS from the sidecar.
-
-### Phase 9: Hardware Input Runtime Wiring
-
-**Goal:** MIDI/OSC learn works against live devices and senders in the desktop app.
-
-Status: Complete for the app-owned runtime path. Evidence is recorded in `.planning/phases/09-hardware-input-runtime-wiring/09-hardware-input-runtime-wiring-06-UAT.md`.
-
-Success criteria:
-
-1. Add app commands/settings for MIDI port selection and OSC listen port configuration. **Done.**
-2. Start/stop MIDI and OSC listeners as part of runtime state, not only in tests. **Done.**
-3. Wire listener receivers into `SessionStore`/router lifecycle. **Done.**
-4. Verify macro, scene, transport, and panic targets from real or virtual hardware. **Done with CoreMIDI virtual MIDI and local OSC sender.**
-
-Remaining Phase 9 follow-on work belongs in release polish:
-
-- Run a physical-controller click-through pass when hardware is available.
-
-### Phase 10: Session-Aware Agent Orchestration
-
-**Goal:** Agent collaboration becomes meaningfully intelligent while preserving human override.
-
-Status: Complete for deterministic/mock planner UAT. Evidence is recorded in `.planning/phases/10-session-aware-agent-orchestration/10-session-aware-agent-orchestration-06-UAT.md`.
-
-Design note: Phase 10 keeps the existing typed-command, ownership, risk, approval, freeze, reclaim, and action-history pipeline as the safety boundary. The new work belongs above that boundary: a bounded session context packet, provider-agnostic planner, structured proposals, validation diagnostics, and review UI.
-
-Success criteria:
-
-1. Replace or augment the deterministic parser with a session-aware agent planning layer. **Done for deterministic/mock and local parser providers.**
-2. Keep all agent changes flowing through typed commands, ownership gates, risk tiers, and approvals. **Done and verified.**
-3. Show structured proposed changes before high-risk mutation. **Done for pending action/proposal review UI coverage.**
-4. Preserve action history and readable diffs for both user and agent actions. **Done through the existing command path.**
-5. Surface provider unavailable, invalid response, unsafe target, validation failure, freeze, and rejection states in agent runtime status and conversation UI. **Verified for deterministic/mock diagnostics; stale-context handling remains contract-level only.**
-6. Verify realistic graph, parameter/macro, scene/variation, approval/rejection, freeze, and reclaim flows through deterministic/mock planner UAT before claiming Phase 10 complete. **Verified for graph mutation, parameter change, scene recall, approval/rejection, freeze, and reclaim. Variation command behavior is covered by performance tests but not by a planner-authored Phase 10 fixture.**
-
-Task breakdown:
-
-- `td-cebec0`: Phase 10 epic.
-- `td-665cc6`: Define agent orchestration contract.
-- `td-0e888f`: Build session context packet and planner interface.
-- `td-84b783`: Validate proposals through command and ownership gates.
-- `td-a842b4`: Add proposal review UI and agent runtime status.
-- `td-4a9cfe`: Add deterministic/mock planner tests and realistic proposal fixtures.
-- `td-ab3c29`: Verify agent orchestration UAT and update docs.
-
-Remaining Phase 10 follow-on work belongs in release hardening:
-
-- Connect the provider-agnostic planner interface to a live configured provider.
-- Add UAT for live provider setup, unavailable/degraded provider modes, and fallback behavior.
-- Add a planner-authored variation proposal fixture before claiming variation planning coverage.
-
-### Phase 11: Release Readiness
-
-**Goal:** The project can be packaged and evaluated as a v1 desktop instrument.
-
-**Status: Complete.** Evidence: build + ad-hoc sign + first-run smoke in `.planning/phases/11-release-readiness/11-release-readiness-02-BUILD-EVIDENCE.md`; consolidated nine-scenario packaged-app UAT in `.planning/phases/11-release-readiness/11-release-readiness-03-UAT.md`. REL-01, REL-02, and REL-03 are verified; REQUIREMENTS.md marks them complete.
-
-Success criteria:
-
-1. Tauri packaging works for the target OS. **Verified (REL-01)** — `aarch64-apple-darwin` `.app` + `.dmg`, ad-hoc signed, bundled sidecar.
-2. Runtime dependency discovery and error messages are polished. **Verified (DEV-02)** — missing-`scsynth` / missing-sidecar actionable diagnostics.
-3. Manual UAT covers save/open, graph edit, audio playback, scene/variation recall, macro control, hardware learn, agent approval, and panic recovery. **Verified (REL-02)** — all nine scenario areas passed against the packaged app.
-4. README, planning docs, and release notes describe actual supported behavior without overstating stubs. **Verified (REL-03)** — `README.md` + `RELEASE_NOTES.md` carry Supported/Not-supported matrices; ROADMAP/STATE/REQUIREMENTS reconciled.
-
-**Plans:** 2/2 plans executed
-
-Plans:
-
-- [x] 11-release-readiness-01-PLAN.md — Release packaging build & visual sidecar wiring (bundle config, externalBin + tauri-plugin-shell, BevySidecarAdapter refactor, missing-binary message polish)
-- [x] 11-release-readiness-02-PLAN.md — Release build smoke, consolidated manual UAT & documentation (REL-01 build verify, REL-02 nine-scenario UAT, REL-03 README/release-notes/planning-doc honesty)
+- Live provider-backed agent orchestration (AGNT-01R) — connect the verified planner boundary to a live LLM provider.
+- Richer Bevy-rendered visuals + a visible render window (replace the minimal GPU-free sidecar).
+- Physical-controller GUI click-through UAT when hardware is available.
+- Windows / Linux / Intel / universal macOS build targets.
+- Full Developer ID signing + notarization + an auto-updater.
+- Multiplayer collaboration (v2 scope).
 
 ## Deferred Beyond v1
 
@@ -163,11 +67,6 @@ Plans:
 - Fine-grained ownership policies beyond v1 freeze/reclaim/approval.
 - Advanced visual graph editing and sophisticated transition/morph authoring.
 
-## Recent Audit Notes
+---
 
-Audit date: 2026-06-12.
-
-- `td` is available for task tracking, but the GSD slash-command workflow is not callable from the shell environment.
-- The local checkout initially lacked `node_modules`, so `npm test` and `npm run build` could not run until dependencies are installed.
-- `cargo` was not on `PATH` in the audit shell, so Rust tests could not be executed there.
-- Worktree status during audit: branch `main`, tracking `origin/main`; `AGENTS.md` was untracked.
+_For the full v1.0 milestone record, see `.planning/milestones/v1.0-ROADMAP.md` and `.planning/milestones/v1.0-REQUIREMENTS.md`. For shipped-state summary, see `.planning/MILESTONES.md`._

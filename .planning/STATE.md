@@ -2,9 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: v1 runtime hardening
-status: v1-released
-stopped_at: "v1 milestone complete — Phase 11 (both plans) closed 2026-06-26; packaged .app UAT-verified on Apple Silicon"
-last_updated: "2026-06-26T12:00:00-05:00"
+current_phase: 0
+status: v1 shipped — awaiting next milestone
+stopped_at: "v1.0 milestone archived 2026-06-26; packaged .app UAT-verified on Apple Silicon"
+last_updated: "2026-06-26T18:33:26-05:00"
+last_activity: 2026-06-26
+last_activity_desc: Milestone v1.0 (v1 Runtime Hardening) completed and archived
 progress:
   total_phases: 6
   completed_phases: 6
@@ -21,20 +24,18 @@ See `.planning/PROJECT.md` and `.planning/ROADMAP.md`.
 
 **Core value:** The instrument must let a human and agent shape a live audiovisual session together through conversation, graph structure, and direct performance control without losing legibility or human override.
 
-**Current focus:** v1 released (1.0.0) — packaged and UAT-verified on Apple Silicon
+**Current focus:** v1.0 shipped — planning next milestone (run `/gsd-new-milestone`)
 
 ## Current Position
 
-Scrysynth is **packaged and evaluated as v1 (1.0.0)** on macOS Apple Silicon. The v1 runtime-hardening milestone (Phases 7–11) is complete. The canonical app-owned session model, React workspace, Tauri command layer, persistence, graph editing, scene/variation controls, agent safety scaffolding, visual-runtime scaffolding, macro controls, and MIDI/OSC binding models are all implemented and have been re-verified end-to-end against the packaged `scrysynth.app`.
+Scrysynth **v1.0 (1.0.0) shipped** on macOS Apple Silicon — ad-hoc-signed `scrysynth.app` + `.dmg`. The v1 Runtime Hardening milestone (Phases 7–11, with Phase 6 dev-readiness folded into Phase 11) is complete and archived to `.planning/milestones/v1.0-ROADMAP.md`. All milestone work was re-verified end-to-end against the packaged app in the consolidated Phase 11 UAT (9/9 scenario areas passed).
 
-What v1 delivers, each verified against the packaged app in the consolidated Phase 11 UAT:
+Phase: — (milestone complete)
+Plan: —
+Status: v1 shipped — awaiting next milestone
+Last activity: 2026-06-26 — Milestone v1.0 archived
 
-- Audio launches a bundled ad-hoc-signed app; the default source-to-output graph produces audible output from real local `scsynth`, applies live parameter updates, stops, panics, and restarts after panic.
-- Visual runtime management launches the bundled minimal `scrysynth-visual` sidecar, handshakes over JSON lines, loads compiled scene snapshots, applies live parameter batches, stops, panics, and restarts after panic. The renderer remains minimal and GPU-free.
-- MIDI/OSC listener startup/configuration, learn, and post-learn routing are verified through the app-owned runtime path with a CoreMIDI virtual source and local OSC sender.
-- Agent collaboration has a verified production-GUI-reachable planner path: bounded context packets, provider-agnostic planner requests, typed proposal normalization, safety gates, approval/rejection, freeze/reclaim, and diagnostics. The planner is wired into the production GUI via `plan_and_apply_agent_request` (fix `415e8d8`).
-
-Deferred beyond v1 (tracked, not shipped): richer Bevy-rendered visuals / visible render window, live provider-backed agent orchestration (AGNT-01R), physical-controller GUI click-through UAT, Windows/Linux/Intel/universal builds, full Developer ID notarization + auto-update, and multiplayer.
+Deferred beyond v1 (tracked for a future milestone, not active v1 work): richer Bevy-rendered visuals / visible render window, live provider-backed agent orchestration (AGNT-01R), physical-controller GUI click-through UAT, Windows/Linux/Intel/universal builds, full Developer ID notarization + auto-update, and multiplayer. See PROJECT.md "Active — Next Milestone Candidates" and the v1.0 archive for the full deferred list.
 
 ## Completed Foundation
 
@@ -174,3 +175,22 @@ Next: Phase 11 (Release Readiness) planning, or the Phase 10 live-provider follo
 | Phase | Plan | Duration | Notes |
 |-------|------|----------|-------|
 | Phase 11 P01 | 54min | 3 tasks | 11 files |
+
+## Deferred Items
+
+Items acknowledged and deferred at v1.0 milestone close on 2026-06-26. The pre-close artifact audit surfaced 6 historical UAT files with non-`passed` metadata statuses; all have **0 pending scenarios** and were superseded by the consolidated Phase 11 packaged-app UAT (9/9 scenario areas passed). Recorded here for traceability, not as open work:
+
+| Category | Item | Status |
+|----------|------|--------|
+| uat | Phase 01 `01-UAT.md` | `[diagnosed]` metadata — 0 pending scenarios; superseded by Phase 11 release UAT |
+| uat | Phase 07 `07-real-supercollider-execution-07-UAT.md` | `[unknown]` metadata — 0 pending scenarios; audio re-verified in Phase 11 UAT scenario 3 |
+| uat | Phase 08 `08-real-visual-runtime-path-05-UAT.md` | `[passed]` — 0 pending scenarios |
+| uat | Phase 09 `09-hardware-input-runtime-wiring-06-UAT.md` | `[passed]` — 0 pending scenarios |
+| uat | Phase 10 `10-session-aware-agent-orchestration-06-UAT.md` | `[unknown]` metadata — 0 pending scenarios; agent path re-verified in Phase 11 UAT scenario 7 |
+| uat | Phase 11 `11-release-readiness-03-UAT.md` | `[pass]` — 0 pending scenarios; the consolidated release UAT |
+
+**Known requirement gap at close:** `AGNT-01R` (live provider-backed agent planner) is the only unchecked v1 requirement. The deterministic/mock planner + production-GUI wiring is verified; a live LLM provider remains future hardening. See `.planning/milestones/v1.0-REQUIREMENTS.md`.
+
+## Operator Next Steps
+
+- Start the next milestone with `/gsd-new-milestone` (will define fresh requirements + roadmap)
