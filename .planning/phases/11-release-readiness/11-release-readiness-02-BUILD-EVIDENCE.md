@@ -7,14 +7,29 @@ target: aarch64-apple-darwin
 version: 1.0.0
 signing: adhoc
 created: 2026-06-24
+rebuilt: 2026-06-26-after-415e8d8
 requirements_covered_by_this_doc: [REL-01 (pending step 6), D-02 (verified), D-03 (pending step 6)]
 # NOT a complete REL-01 record yet — Task 1 step 6 (GUI smoke) is pending user.
 # Task 2 (consolidated UAT) and Task 3 (docs rewrite) remain after step 6.
+# 2026-06-26: artifacts refreshed by a clean rebuild after the planner-wiring
+# fix `415e8d8` changed Rust sources. Step 6 + Task 2 must target THIS rebuild.
 ---
 
 # Phase 11 Plan 02: Release Build Evidence
 
 **Ad-hoc-signed Apple Silicon release build of `scrysynth.app` + `scrysynth_1.0.0_aarch64.dmg` produced from Plan 01's packaging substrate; the bundled visual sidecar is signed inside the app, no `APPLE_`/`TAURA_SIGNING_PRIVATE_KEY` secrets leaked into the packaged main binary. First-run right-click→Open GUI smoke is PENDING USER.**
+
+> **2026-06-26 REBUILD NOTICE.** The original 2026-06-24 artifacts were built
+> from Rust sources that predated the planner-wiring fix `415e8d8`
+> (`send_agent_message` now routes through `plan_and_apply_agent_request`, and
+> the approve/reject IPC param rename makes pending actions reachable from the
+> GUI — unblocking REL-02 scenario 7). That fix changed
+> `src-tauri/src/lib.rs` + `src-tauri/src/application/agent_command.rs`, so the
+> prior `.app` was stale. A clean `npm run tauri build` was re-run on
+> 2026-06-26 from HEAD (`415e8d8`) with no uncommitted Rust changes; steps
+> 2/4/5 were re-verified against the refreshed artifacts (see the
+> "Rebuild 2026-06-26" section below). **Operator step 6 and Task 2 UAT must
+> target this rebuilt `.app`, not the 2026-06-24 one.**
 
 This document records the **shell-verifiable portion of Task 1 (steps 1-5)** of
 `11-release-readiness-02-PLAN.md`. It was produced by a sequential executor that
@@ -253,6 +268,68 @@ SIDECAR RESULT: ZERO MATCHES (PASS)
 `TAURA_SIGNING_PRIVATE_KEY` strings are baked into either packaged binary
 (T-11-03 mitigated). This is consistent with Plan 01's finding that no
 `APPLE_*`/`TAURA_*` env vars were written into `tauri.conf.json`.
+
+---
+
+## Rebuild 2026-06-26 — refresh artifacts after planner-wiring fix `415e8d8`
+
+**Why rebuilt:** commit `415e8d8` ("fix(11-02): route send_agent_message through
+planner + fix approve/reject IPC binding") changed
+`src-tauri/src/lib.rs` (`send_agent_message` → `handle_agent_message` →
+`plan_and_apply_agent_request`) and `src-tauri/src/application/agent_command.rs`
+(additive `remove … agent …` high-risk fallback). The 2026-06-24 packaged
+binaries predated that fix and were therefore stale — REL-02 scenario 7 (agent
+approval) is unreachable from the GUI on the old build. The pause-handoff at
+`.planning/phases/11-release-readiness/.pause-handoff.md` documented this gap;
+the fix landed on 2026-06-25, prompting this rebuild.
+
+**Build source:** `npm run tauri build` run on 2026-06-26 from repo HEAD
+(`415e8d8`) with a clean tree (no uncommitted Rust sources; only
+`.planning/config.json` trailing-newline unrelated). `beforeBuildCommand` ran
+`npm run build && ./scripts/prepare-sidecar.sh`, which rebuilt the release
+sidecar (`Finished release profile in 2m 35s`), then `cargo build --release`
+rebuilt the main binary (`Finished release profile in 2m 34s`), then the Tauri
+bundler assembled + ad-hoc-signed the `.app` and produced the `.dmg`. Both
+`Finished 2 bundles at:` paths were emitted.
+
+**Commands run + observed results:**
+
+```
+# Step 2 (sidecar): file + size
+file .../scrysynth.app/Contents/MacOS/scrysynth-visual
+  -> Mach-O 64-bit executable arm64
+stat -f %z .../scrysynth.app/Contents/MacOS/scrysynth-visual
+  -> 91072656  (~87 MB; consistent with the 2026-06-24 figure)
+
+# Bundle sizes
+du -sh .../scrysynth.app   -> 139 MB
+du -sh .../scrysynth_1.0.0_aarch64.dmg  -> 42 MB
+
+# Step 4 (ad-hoc signing) — .app / sidecar / main all show:
+Signature=adhoc
+flags=0x10002(adhoc,runtime)
+Format=... Mach-O ... (arm64)
+
+# Step 5 (secret leakage)
+strings .../scrysynth        | rg -c 'APPLE_|TAURA_SIGNING_PRIVATE_KEY'  -> 0
+strings .../scrysynth-visual | rg -c 'APPLE_|TAURA_SIGNING_PRIVATE_KEY'  -> 0
+```
+
+**Result: PASS — refreshed artifacts are ad-hoc-signed, arm64-only, secret-free,
+and were compiled from the fixed sources.** The planner-wiring fix is present by
+construction (build compiled HEAD `415e8d8` with no uncommitted Rust changes);
+function-name strings like `plan_and_apply_agent_request` do not appear in
+`strings` output because release Rust strips symbol names — this is expected and
+not a regression.
+
+**What this rebuild does NOT change:**
+
+- **Step 6 (first-run right-click → Open GUI smoke) is still PENDING USER.** It
+  must be re-run against this rebuilt `.app`.
+- **Task 2 (consolidated nine-scenario UAT) is still PENDING USER** and must
+  target this rebuilt `.app` (scenario 7 is now reachable).
+- **REL-01 / REL-02 / REL-03 remain NOT complete** until step 6 + Task 2 + the
+  Task 3 docs reconciliation all land.
 
 ---
 
