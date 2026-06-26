@@ -79,16 +79,17 @@ function createSession(overrides: Partial<SessionDocument> = {}): SessionDocumen
     nodes: [
       {
         id: "source-1",
-        nodeType: "source",
+        nodeTypeId: "oscillator",
         ports: [{ id: "source-1-out", name: "main_out", direction: "output", signalType: "audio" }],
         parameters: [
           { id: "source-1-level", name: "level", value: 0.8, defaultValue: 0.8, minValue: 0, maxValue: 1, unit: "linear" },
         ],
-        runtimeTarget: "audio/source/default",
+        runtimeTarget: "oscillator",
         sceneMembership: ["scene-1"],
         ownership: { controller: "shared", isLocked: false },
         enabled: true,
-        audioPrimitive: { kind: "source", config: { sourceType: "oscillator", channelMode: "mono", busTargetId: null } },
+        busTargetId: null,
+        channelMode: "mono",
       },
     ],
     routes: [],

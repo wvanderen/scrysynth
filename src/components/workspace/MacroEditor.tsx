@@ -262,7 +262,7 @@ function AudioTargetSelector({ nodes, macroId, onSelect }: AudioTargetSelectorPr
                   cursor: "pointer",
                 }}
               >
-                {node.nodeType}: {param.name}
+                {node.nodeTypeId}: {param.name}
               </button>
             )),
           )}

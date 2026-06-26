@@ -9,6 +9,7 @@ import type {
   MacroCommand,
   MidiInputPort,
   Node,
+  NodeCatalogEntry,
   PendingAction,
   PerformanceCommand,
   SessionDocument,
@@ -196,6 +197,8 @@ export async function invokeBrowserPreview(command: string, args?: PreviewArgs):
         learn: { lifecycle: "idle", target: null, source: null },
       };
       return clone(previewHardwareStatus);
+    case "get_node_catalog":
+      return clone(PREVIEW_CATALOG);
     default:
       throw new Error(`Preview mode does not implement Tauri command '${command}'.`);
   }
@@ -212,7 +215,7 @@ function buildPreviewSession(title = "Default Scrysynth Session"): SessionDocume
   const macroId = "preview-macro-energy";
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     sessionId: "preview-session",
     title,
     createdAt: "2026-04-11T00:00:00Z",
@@ -230,8 +233,17 @@ function buildPreviewSession(title = "Default Scrysynth Session"): SessionDocume
     nodes: [
       {
         id: sourceId,
-        nodeType: "source",
-        ports: [{ id: `${sourceId}-out`, name: "main_out", direction: "output", signalType: "audio" }],
+        nodeTypeId: "oscillator",
+        ports: [
+          { id: `${sourceId}-main_out`, name: "Main Out", direction: "output", signalType: "audio" },
+          {
+            id: `${sourceId}-frequency_cv`,
+            name: "Frequency FM",
+            direction: "input",
+            signalType: "audio",
+          },
+          { id: `${sourceId}-level_cv`, name: "Level CV", direction: "input", signalType: "control" },
+        ],
         parameters: [
           {
             id: sourceLevelId,
@@ -243,21 +255,19 @@ function buildPreviewSession(title = "Default Scrysynth Session"): SessionDocume
             unit: "linear",
           },
         ],
-        runtimeTarget: "audio/source/default",
+        runtimeTarget: "oscillator",
         sceneMembership: [sceneId],
         ownership: { controller: "shared", isLocked: false },
         enabled: true,
-        audioPrimitive: {
-          kind: "source",
-          config: { sourceType: "oscillator", channelMode: "mono", busTargetId: busId },
-        },
+        busTargetId: busId,
+        channelMode: "mono",
       },
       {
         id: effectId,
-        nodeType: "effect",
+        nodeTypeId: "delay",
         ports: [
-          { id: `${effectId}-in`, name: "signal_in", direction: "input", signalType: "audio" },
-          { id: `${effectId}-out`, name: "signal_out", direction: "output", signalType: "audio" },
+          { id: `${effectId}-audio_in`, name: "Audio In", direction: "input", signalType: "audio" },
+          { id: `${effectId}-audio_out`, name: "Audio Out", direction: "output", signalType: "audio" },
         ],
         parameters: [
           {
@@ -270,45 +280,42 @@ function buildPreviewSession(title = "Default Scrysynth Session"): SessionDocume
             unit: "ratio",
           },
         ],
-        runtimeTarget: "audio/effect/delay",
+        runtimeTarget: "delay",
         sceneMembership: [sceneId],
         ownership: { controller: "shared", isLocked: false },
         enabled: true,
-        audioPrimitive: {
-          kind: "effect",
-          config: { effectType: "delay", bypassed: false, busTargetId: busId },
-        },
+        busTargetId: busId,
+        bypassed: false,
       },
       {
         id: outputId,
-        nodeType: "output",
-        ports: [{ id: `${outputId}-in`, name: "master_in", direction: "input", signalType: "audio" }],
+        nodeTypeId: "output",
+        ports: [{ id: `${outputId}-audio_in`, name: "Audio In", direction: "input", signalType: "audio" }],
         parameters: [],
-        runtimeTarget: "audio/output/master",
+        runtimeTarget: "output",
         sceneMembership: [sceneId],
         ownership: { controller: "user", isLocked: false },
         enabled: true,
-        audioPrimitive: {
-          kind: "output",
-          config: { outputType: "master", channels: 2, busTargetId: busId },
-        },
+        busTargetId: busId,
+        outputKind: "master",
+        channelCount: 2,
       },
     ],
     routes: [
       {
         id: "preview-route-source-delay",
         sourceNodeId: sourceId,
-        sourcePortId: `${sourceId}-out`,
+        sourcePortId: `${sourceId}-main_out`,
         targetNodeId: effectId,
-        targetPortId: `${effectId}-in`,
+        targetPortId: `${effectId}-audio_in`,
         busId,
       },
       {
         id: "preview-route-delay-output",
         sourceNodeId: effectId,
-        sourcePortId: `${effectId}-out`,
+        sourcePortId: `${effectId}-audio_out`,
         targetNodeId: outputId,
-        targetPortId: `${outputId}-in`,
+        targetPortId: `${outputId}-audio_in`,
         busId,
       },
     ],
@@ -365,6 +372,77 @@ function buildPreviewSession(title = "Default Scrysynth Session"): SessionDocume
     hardwareBindings: [],
   };
 }
+
+/**
+ * Minimal catalog projection for browser-preview mode. The real app reads the
+ * compiled-in Rust `CATALOG` via `get_node_catalog`; in preview/dev without a
+ * Tauri bridge we ship a curated subset so the palette renders at least one
+ * button per family. Sufficient for UI smoke tests, not authoritative.
+ */
+const PREVIEW_CATALOG: NodeCatalogEntry[] = [
+  {
+    id: "oscillator",
+    displayName: "Oscillator",
+    category: "source",
+    synthdefName: "scrysynth_v2_oscillator",
+    synthdefResource: "resources/synthdefs/v2/scrysynth_v2_oscillator.scsyndef",
+    ports: [
+      { id: "main_out", name: "Main Out", direction: "output", signalType: "audio" },
+      { id: "frequency_cv", name: "Frequency FM", direction: "input", signalType: "audio" },
+      { id: "level_cv", name: "Level CV", direction: "input", signalType: "control" },
+    ],
+    parameters: [
+      { id: "frequency", scArg: "frequency", aliases: ["freq"], defaultValue: 220, minValue: 20, maxValue: 20000, unit: "hz", exposesCvPort: true, cvPortId: "frequency_cv" },
+      { id: "wave_shape", scArg: "wave_shape", aliases: [], defaultValue: 0, minValue: 0, maxValue: 3, unit: "selector", exposesCvPort: false, cvPortId: null },
+      { id: "level", scArg: "level", aliases: ["gain"], defaultValue: 1, minValue: 0, maxValue: 1, unit: "linear", exposesCvPort: true, cvPortId: "level_cv" },
+    ],
+    visualShape: "sphere",
+  },
+  {
+    id: "filter",
+    displayName: "Filter",
+    category: "effect",
+    synthdefName: "scrysynth_v2_filter",
+    synthdefResource: "resources/synthdefs/v2/scrysynth_v2_filter.scsyndef",
+    ports: [
+      { id: "audio_in", name: "Audio In", direction: "input", signalType: "audio" },
+      { id: "audio_out", name: "Audio Out", direction: "output", signalType: "audio" },
+      { id: "cutoff_cv", name: "Cutoff CV", direction: "input", signalType: "control" },
+    ],
+    parameters: [
+      { id: "cutoff", scArg: "cutoff_hz", aliases: ["cutoff"], defaultValue: 1200, minValue: 20, maxValue: 20000, unit: "hz", exposesCvPort: true, cvPortId: "cutoff_cv" },
+    ],
+    visualShape: "box",
+  },
+  {
+    id: "step_sequencer",
+    displayName: "Step Sequencer",
+    category: "sequencer",
+    synthdefName: "",
+    synthdefResource: "",
+    ports: [
+      { id: "gate_out", name: "Gate Out", direction: "output", signalType: "control" },
+      { id: "cv_out", name: "CV Out", direction: "output", signalType: "control" },
+    ],
+    parameters: [],
+    visualShape: "ring",
+  },
+  {
+    id: "output",
+    displayName: "Output",
+    category: "output",
+    synthdefName: "scrysynth_v2_output",
+    synthdefResource: "resources/synthdefs/v2/scrysynth_v2_output.scsyndef",
+    ports: [
+      { id: "audio_in", name: "Audio In", direction: "input", signalType: "audio" },
+      { id: "level_cv", name: "Level CV", direction: "input", signalType: "control" },
+    ],
+    parameters: [
+      { id: "level", scArg: "level", aliases: ["gain"], defaultValue: 1, minValue: 0, maxValue: 1, unit: "linear", exposesCvPort: true, cvPortId: "level_cv" },
+    ],
+    visualShape: "plane",
+  },
+];
 
 function buildHardwareStatus(): HardwareRuntimeStatus {
   return {
@@ -544,7 +622,7 @@ function parsePreviewIntent(message: string): AgentIntent {
       payload: { type: "addNode", payload: { node: buildAgentSourceNode(lower.includes("noise") ? "noise" : "oscillator") } },
     });
   } else if (lower.includes("remove") || lower.includes("delete")) {
-    const node = findMentionedNode(lower) ?? previewSession.nodes.find((candidate) => candidate.nodeType !== "output");
+    const node = findMentionedNode(lower) ?? previewSession.nodes.find((candidate) => candidate.nodeTypeId !== "output");
     if (node) {
       parsedCommands.push({ type: "graphEdit", payload: { type: "removeNode", payload: { node_id: node.id } } });
     }
@@ -598,8 +676,8 @@ function buildAgentSourceNode(sourceType: "oscillator" | "noise"): Node {
   const id = nextId(`preview-${sourceType}`);
   return {
     id,
-    nodeType: "source",
-    ports: [{ id: `${id}-out`, name: "main_out", direction: "output", signalType: "audio" }],
+    nodeTypeId: sourceType,
+    ports: [{ id: `${id}-main_out`, name: "Main Out", direction: "output", signalType: "audio" }],
     parameters: [
       {
         id: `${id}-level`,
@@ -611,14 +689,12 @@ function buildAgentSourceNode(sourceType: "oscillator" | "noise"): Node {
         unit: "linear",
       },
     ],
-    runtimeTarget: `audio/source/${id}`,
+    runtimeTarget: sourceType,
     sceneMembership: previewSession.scenes[0] ? [previewSession.scenes[0].id] : [],
     ownership: { controller: "agent", isLocked: false },
     enabled: true,
-    audioPrimitive: {
-      kind: "source",
-      config: { sourceType, channelMode: "mono", busTargetId: previewSession.buses[0]?.id ?? null },
-    },
+    busTargetId: previewSession.buses[0]?.id ?? null,
+    channelMode: "mono",
   };
 }
 
@@ -721,9 +797,7 @@ function updateParameterById(parameterId: string, value: number): void {
 
 function setNodeBus(nodeId: string, busId: string | null): void {
   updateNode(nodeId, (node) => {
-    if (node.audioPrimitive) {
-      node.audioPrimitive.config.busTargetId = busId;
-    }
+    node.busTargetId = busId;
   });
 }
 

@@ -12,8 +12,10 @@ import type {
   HardwareRuntimeStatus,
   MacroCommand,
   MidiInputPort,
+  NodeCatalogEntry,
   PerformanceCommand,
   PendingAction,
+  SequencerPattern,
   SessionDocument,
   TypedCommand,
 } from "../generated/session-types";
@@ -67,50 +69,35 @@ const ownershipAssignmentSchema = z.object({
   isLocked: z.boolean(),
 });
 
+// D-07/D-08: fixed 16-step mono gate+cv pattern. The tuple length is enforced
+// at runtime (`.length(16)`) so a malformed payload is rejected at the
+// boundary (Pitfall #5 guard). Zod v4 does not refine `.length(N)` to a
+// fixed-length tuple at the type level, so the schema is cast through
+// `unknown` to the generated 16-tuple `SequencerPattern` shape.
+const sequencerPatternSchema = z.object({
+  gate: z.array(z.boolean()).length(16),
+  cv: z.array(z.number()).length(16),
+}) as unknown as z.ZodType<SequencerPattern>;
+
+// Pitfall #5 fix: the v1 closed-enum `nodeType` + `audioPrimitive` union is
+// gone. Node identity is the catalog `nodeTypeId` (validated as a free string
+// — the catalog is the authority, not the Zod schema). Per-node config flows
+// as flat optional fields; the catalog is the single source of truth.
 const nodeSchema = z.object({
   id: z.string(),
-  nodeType: z.enum(["source", "effect", "mixer", "output"]),
+  nodeTypeId: z.string(),
   ports: z.array(portSchema),
   parameters: z.array(parameterValueSchema),
   runtimeTarget: z.string().nullable(),
   sceneMembership: z.array(z.string()),
   ownership: ownershipAssignmentSchema,
   enabled: z.boolean(),
-  audioPrimitive: z
-    .discriminatedUnion("kind", [
-      z.object({
-        kind: z.literal("source"),
-        config: z.object({
-          sourceType: z.enum(["oscillator", "noise"]),
-          channelMode: z.enum(["mono", "stereo"]),
-          busTargetId: z.string().nullable(),
-        }),
-      }),
-      z.object({
-        kind: z.literal("effect"),
-        config: z.object({
-          effectType: z.enum(["low_pass_filter", "delay"]),
-          bypassed: z.boolean(),
-          busTargetId: z.string().nullable(),
-        }),
-      }),
-      z.object({
-        kind: z.literal("mixer"),
-        config: z.object({
-          channelMode: z.enum(["mono", "stereo"]),
-          busTargetId: z.string().nullable(),
-        }),
-      }),
-      z.object({
-        kind: z.literal("output"),
-        config: z.object({
-          outputType: z.enum(["master", "cue"]),
-          channels: z.number(),
-          busTargetId: z.string().nullable(),
-        }),
-      }),
-    ])
-    .nullable(),
+  busTargetId: z.string().nullable().optional(),
+  outputKind: z.enum(["master", "cue"]).nullable().optional(),
+  channelCount: z.number().nullable().optional(),
+  bypassed: z.boolean().nullable().optional(),
+  channelMode: z.enum(["mono", "stereo"]).nullable().optional(),
+  sequencerPattern: sequencerPatternSchema.nullable().optional(),
 });
 
 const routeSchema = z.object({
@@ -245,6 +232,15 @@ const graphEditCommandSchema: z.ZodType<GraphEditCommand> = z.discriminatedUnion
   z.object({ type: z.literal("removeRoute"), payload: z.object({ route_id: z.string() }) }),
   z.object({ type: z.literal("assignNodeToBus"), payload: z.object({ node_id: z.string(), bus_id: z.string() }) }),
   z.object({ type: z.literal("clearNodeBusAssignment"), payload: z.object({ node_id: z.string() }) }),
+  z.object({
+    type: z.literal("setStepValue"),
+    payload: z.object({
+      node_id: z.string(),
+      step_index: z.number(),
+      gate: z.boolean().nullable(),
+      cv: z.number().nullable(),
+    }),
+  }),
 ]);
 
 const performanceCommandSchema: z.ZodType<PerformanceCommand> = z.discriminatedUnion("type", [
@@ -410,6 +406,38 @@ const sessionDocumentSchema: z.ZodType<SessionDocument> = z.object({
   hardwareBindings: z.array(hardwareBindingSchema).default([]),
 });
 
+// Catalog — the compiled-in single source of truth (NODES-01 #4). Validated
+// at the boundary so a malformed catalog payload never reaches the palette.
+const catalogPortSpecSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  direction: z.enum(["input", "output"]),
+  signalType: z.enum(["audio", "control"]),
+});
+
+const catalogParamSpecSchema = z.object({
+  id: z.string(),
+  scArg: z.string(),
+  aliases: z.array(z.string()),
+  defaultValue: z.number(),
+  minValue: z.number(),
+  maxValue: z.number(),
+  unit: z.string(),
+  exposesCvPort: z.boolean(),
+  cvPortId: z.string().nullable(),
+});
+
+const nodeCatalogEntrySchema: z.ZodType<NodeCatalogEntry> = z.object({
+  id: z.string(),
+  displayName: z.string(),
+  category: z.enum(["source", "modulator", "effect", "utility", "sequencer", "mixer", "output"]),
+  synthdefName: z.string(),
+  synthdefResource: z.string(),
+  ports: z.array(catalogPortSpecSchema),
+  parameters: z.array(catalogParamSpecSchema),
+  visualShape: z.string(),
+});
+
 async function invokeSession(command: string, args?: Record<string, unknown>) {
   const payload = await invokeCommand(command, args);
   return sessionDocumentSchema.parse(payload);
@@ -564,3 +592,19 @@ export async function stopHardwareListeners(): Promise<HardwareRuntimeStatus> {
 export async function drainHardwareEvents(maxEvents?: number): Promise<SessionDocument> {
   return invokeSession("drain_hardware_events", { maxEvents: maxEvents ?? null });
 }
+
+/**
+ * Fetch the compiled-in node catalog (NODES-01 success criterion #4). The
+ * palette/inspector read this single source of truth instead of a hand-
+ * maintained mirror. Falls through to the browser-preview catalog when no
+ * Tauri bridge is present (dev/preview mode).
+ */
+export async function getNodeCatalog(): Promise<NodeCatalogEntry[]> {
+  const payload = await invokeCommand("get_node_catalog");
+  return z.array(nodeCatalogEntrySchema).parse(payload);
+}
+
+// Test-only schema exports (used by session-client.test.ts round-trip tests).
+export const __testNodeCatalogEntrySchema = nodeCatalogEntrySchema;
+export const __testNodeSchema = nodeSchema;
+export const __testSequencerPatternSchema = sequencerPatternSchema;

@@ -1,4 +1,8 @@
-import type { Bus, ControllerKind, Node } from "../../generated/session-types";
+import type {
+  Bus,
+  ControllerKind,
+  Node,
+} from "../../generated/session-types";
 
 type NodeInspectorProps = {
   selectedNode: Node | null;
@@ -10,6 +14,13 @@ type NodeInspectorProps = {
   onClearNodeBus: (nodeId: string) => void;
   onReclaimOwnership: (nodeIds: string[]) => void;
   onSetNodeOwnership: (nodeIds: string[], controller: ControllerKind) => void;
+  /** D-06/D-07/D-08: edit one step of a sequencer node's 16-step pattern. */
+  onUpdateStep?: (
+    nodeId: string,
+    stepIndex: number,
+    gate?: boolean,
+    cv?: number,
+  ) => void;
 };
 
 export function NodeInspector({
@@ -22,6 +33,7 @@ export function NodeInspector({
   onClearNodeBus,
   onReclaimOwnership: _onReclaimOwnership,
   onSetNodeOwnership,
+  onUpdateStep,
 }: NodeInspectorProps) {
   if (!selectedNode) {
     return (
@@ -34,19 +46,20 @@ export function NodeInspector({
     );
   }
 
-  const assignedBusId = getAssignedBusId(selectedNode);
+  const assignedBusId = selectedNode.busTargetId ?? null;
+  const displayName = displayNameFor(selectedNode);
 
   return (
     <aside className="inspector-panel">
       <div className="panel-heading">
         <p className="eyebrow">Node inspector</p>
-        <span>{selectedNode.nodeType}</span>
+        <span>{displayName}</span>
       </div>
 
       <div className="inspector-group">
         <h2>Identity</h2>
         <p><strong>id</strong> {selectedNode.id}</p>
-        <p><strong>node type</strong> {selectedNode.nodeType}</p>
+        <p><strong>node type</strong> {selectedNode.nodeTypeId}</p>
         <label className="toggle-row">
           <span>Enabled</span>
           <input
@@ -91,7 +104,12 @@ export function NodeInspector({
         <h2>Ports</h2>
         {selectedNode.ports.map((port) => (
           <div key={port.id} className="list-card">
-            <p>{port.name}</p>
+            <p>
+              {port.name}
+              {port.signalType === "control" ? (
+                <span className="port-badge port-badge-cv">CV</span>
+              ) : null}
+            </p>
             <span>{port.direction} / {port.signalType}</span>
           </div>
         ))}
@@ -125,6 +143,15 @@ export function NodeInspector({
           <p className="empty-copy">No parameters on this node.</p>
         )}
       </div>
+
+      {selectedNode.sequencerPattern ? (
+        <SequencerStepEditor
+          nodeId={selectedNode.id}
+          pattern={selectedNode.sequencerPattern}
+          isLoading={isLoading}
+          onUpdateStep={onUpdateStep}
+        />
+      ) : null}
 
       <div className="inspector-group">
         <h2>Bus path</h2>
@@ -160,10 +187,73 @@ export function NodeInspector({
   );
 }
 
-function getAssignedBusId(node: Node): string | null {
-  if (!node.audioPrimitive) {
-    return null;
-  }
+/**
+ * 16-step gate+cv editor for sequencer nodes (NODES-04; D-07 mono gate+CV,
+ * D-08 fixed 16 steps). Each step renders a gate toggle and a CV slider;
+ * edits dispatch `GraphEditCommand::SetStepValue` via the parent.
+ */
+function SequencerStepEditor({
+  nodeId,
+  pattern,
+  isLoading,
+  onUpdateStep,
+}: {
+  nodeId: string;
+  pattern: NonNullable<Node["sequencerPattern"]>;
+  isLoading: boolean;
+  onUpdateStep?: NodeInspectorProps["onUpdateStep"];
+}) {
+  return (
+    <div className="inspector-group">
+      <h2>Sequencer — 16 steps</h2>
+      <div className="sequencer-grid">
+        {pattern.gate.map((gate, index) => (
+          <div key={index} className="sequencer-step">
+            <label className="sequencer-step-index">#{index + 1}</label>
+            <label className="toggle-row">
+              <span>gate</span>
+              <input
+                type="checkbox"
+                checked={gate}
+                disabled={isLoading || !onUpdateStep}
+                onChange={(event) =>
+                  onUpdateStep?.(nodeId, index, event.target.checked, undefined)
+                }
+              />
+            </label>
+            <label className="sequencer-step-cv">
+              <span>cv</span>
+              <input
+                type="range"
+                min={-1}
+                max={1}
+                step={0.01}
+                value={pattern.cv[index]}
+                disabled={isLoading || !onUpdateStep}
+                onChange={(event) =>
+                  onUpdateStep?.(nodeId, index, undefined, Number(event.target.value))
+                }
+              />
+              <span className="sequencer-step-cv-value">{pattern.cv[index].toFixed(2)}</span>
+            </label>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-  return node.audioPrimitive.config.busTargetId;
+/** Derive a human-readable display name for the selected node. */
+function displayNameFor(node: Node): string {
+  // Catalog identity is the source — prettify the snake_case id into Title Case
+  // (e.g. "step_sequencer" → "Step Sequencer"). The catalog's displayName is
+  // already the canonical pretty name; if we ever expose it on the Node we can
+  // short-circuit here. For now derive from nodeTypeId.
+  if (!node.nodeTypeId) {
+    return "Node";
+  }
+  return node.nodeTypeId
+    .split("_")
+    .map((part) => (part.length > 0 ? part[0].toUpperCase() + part.slice(1) : part))
+    .join(" ");
 }

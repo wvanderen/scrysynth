@@ -76,7 +76,7 @@ function createSession(overrides: Partial<SessionDocument> = {}): SessionDocumen
     nodes: [
       {
         id: "source-1",
-        nodeType: "source",
+        nodeTypeId: "oscillator",
         ports: [
           { id: "source-1-out", name: "main_out", direction: "output", signalType: "audio" },
         ],
@@ -91,24 +91,27 @@ function createSession(overrides: Partial<SessionDocument> = {}): SessionDocumen
             unit: "linear",
           },
         ],
-        runtimeTarget: "audio/source/default",
+        runtimeTarget: "oscillator",
         sceneMembership: ["scene-1"],
         ownership: { controller: "shared", isLocked: false },
         enabled: true,
-        audioPrimitive: { kind: "source", config: { sourceType: "oscillator", channelMode: "mono", busTargetId: "bus-main" } },
+        busTargetId: "bus-main",
+        channelMode: "mono",
       },
       {
         id: "output-1",
-        nodeType: "output",
+        nodeTypeId: "output",
         ports: [
           { id: "output-1-in", name: "master_in", direction: "input", signalType: "audio" },
         ],
         parameters: [],
-        runtimeTarget: "audio/output/master",
+        runtimeTarget: "output",
         sceneMembership: ["scene-1"],
         ownership: { controller: "user", isLocked: false },
         enabled: true,
-        audioPrimitive: { kind: "output", config: { outputType: "master", channels: 2, busTargetId: "bus-main" } },
+        busTargetId: "bus-main",
+        outputKind: "master",
+        channelCount: 2,
       },
     ],
     routes: [
@@ -226,7 +229,7 @@ describe("session projections", () => {
         ...initial.nodes,
         {
           id: "fx-1",
-          nodeType: "effect",
+          nodeTypeId: "delay",
           ports: [
             { id: "fx-1-in", name: "signal_in", direction: "input", signalType: "audio" },
             { id: "fx-1-out", name: "signal_out", direction: "output", signalType: "audio" },
@@ -242,11 +245,12 @@ describe("session projections", () => {
               unit: "ratio",
             },
           ],
-          runtimeTarget: "audio/effect/delay",
+          runtimeTarget: "delay",
           sceneMembership: ["scene-1"],
           ownership: { controller: "shared", isLocked: false },
           enabled: true,
-          audioPrimitive: { kind: "effect", config: { effectType: "delay", bypassed: false, busTargetId: null } },
+          busTargetId: null,
+          bypassed: false,
         },
       ],
       routes: [

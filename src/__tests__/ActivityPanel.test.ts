@@ -60,7 +60,7 @@ describe("activity panel data structure", () => {
   it("action history entries have correct actor identification", () => {
     const cmd: TypedCommand = {
       type: "graphEdit",
-      payload: { type: "addNode", payload: { node: { id: "node-1", nodeType: "source", ports: [], parameters: [], runtimeTarget: null, sceneMembership: [], ownership: { controller: "user", isLocked: false }, enabled: true, audioPrimitive: null } } },
+      payload: { type: "addNode", payload: { node: { id: "node-1", nodeTypeId: "oscillator", ports: [], parameters: [], runtimeTarget: "oscillator", sceneMembership: [], ownership: { controller: "user", isLocked: false }, enabled: true } } },
     };
 
     const userEntry = createActionHistoryEntry("user", cmd, "Added source node");
@@ -73,7 +73,7 @@ describe("activity panel data structure", () => {
   it("session with mixed action history can be filtered by actor", () => {
     const cmd: TypedCommand = {
       type: "graphEdit",
-      payload: { type: "addNode", payload: { node: { id: "node-1", nodeType: "source", ports: [], parameters: [], runtimeTarget: null, sceneMembership: [], ownership: { controller: "user", isLocked: false }, enabled: true, audioPrimitive: null } } },
+      payload: { type: "addNode", payload: { node: { id: "node-1", nodeTypeId: "oscillator", ports: [], parameters: [], runtimeTarget: "oscillator", sceneMembership: [], ownership: { controller: "user", isLocked: false }, enabled: true } } },
     };
 
     const history = [

@@ -27,6 +27,7 @@ function commandObjectIds(cmd: TypedCommand): string[] {
     case "setParameterValue":
     case "assignNodeToBus":
     case "clearNodeBusAssignment":
+    case "setStepValue":
       return [cmd.payload.payload.node_id];
     case "addRoute":
       return [
@@ -47,7 +48,7 @@ function findObjectSnippet(session: SessionDocument | null, objectId: string): s
     const params = node.parameters
       .map((parameter) => `${parameter.name}=${parameter.value}${parameter.unit === "linear" ? "" : parameter.unit}`)
       .join(", ");
-    return `${node.id} ${node.nodeType} ${node.enabled ? "enabled" : "muted"} ${node.ownership.controller}${params ? ` / ${params}` : ""}`;
+    return `${node.id} ${node.nodeTypeId} ${node.enabled ? "enabled" : "muted"} ${node.ownership.controller}${params ? ` / ${params}` : ""}`;
   }
 
   const route = session.routes.find((candidate) => candidate.id === objectId);
@@ -82,7 +83,7 @@ function afterSnippet(cmd: TypedCommand): string {
 
   switch (cmd.payload.type) {
     case "addNode":
-      return `${cmd.payload.payload.node.id} ${cmd.payload.payload.node.nodeType} added`;
+      return `${cmd.payload.payload.node.id} ${cmd.payload.payload.node.nodeTypeId} added`;
     case "removeNode":
       return `${cmd.payload.payload.node_id} removed`;
     case "setNodeEnabled":
@@ -97,6 +98,8 @@ function afterSnippet(cmd: TypedCommand): string {
       return `${cmd.payload.payload.node_id} assigned to ${cmd.payload.payload.bus_id}`;
     case "clearNodeBusAssignment":
       return `${cmd.payload.payload.node_id} bus assignment cleared`;
+    case "setStepValue":
+      return `${cmd.payload.payload.node_id} step ${cmd.payload.payload.step_index} updated`;
   }
 }
 

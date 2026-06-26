@@ -15,6 +15,7 @@ use application::graph_edit;
 use application::macro_command;
 use application::performance_command;
 use application::session_store::SessionStore;
+use catalog::{CATALOG, NodeCatalogEntry};
 use domain::session::{
     write_generated_typescript_contract, AgentRuntimeState, BindingTarget, ControllerKind,
     GraphEditCommand, HardwareRuntimeSettings, HardwareRuntimeStatus, MacroCommand, MidiInputPort,
@@ -299,6 +300,14 @@ fn drain_hardware_events(
     Ok(store.drain_hardware_events(max_events))
 }
 
+/// Expose the compiled-in node catalog to the frontend palette/inspector so
+/// the UI always reads the compiled-in truth (single source of truth, NODES-01
+/// success criterion #4). No args; returns the static catalog slice.
+#[tauri::command]
+fn get_node_catalog() -> Vec<NodeCatalogEntry> {
+    CATALOG.iter().copied().collect()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     if let Err(err) = write_generated_typescript_contract() {
@@ -354,7 +363,8 @@ pub fn run() {
             get_hardware_runtime_status,
             start_hardware_listeners,
             stop_hardware_listeners,
-            drain_hardware_events
+            drain_hardware_events,
+            get_node_catalog
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

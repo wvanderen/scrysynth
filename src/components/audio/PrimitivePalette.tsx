@@ -1,4 +1,12 @@
-import type { Node, SessionDocument } from "../../generated/session-types";
+import { useEffect, useState } from "react";
+
+import type {
+  Node,
+  NodeCatalogEntry,
+  SessionDocument,
+  SequencerPattern,
+} from "../../generated/session-types";
+import { getNodeCatalog } from "../../lib/session-client";
 
 type PrimitivePaletteProps = {
   session: SessionDocument | null;
@@ -8,8 +16,16 @@ type PrimitivePaletteProps = {
   onRemoveNode: (nodeId: string) => void;
 };
 
-type PrimitiveKind = "source" | "effect" | "mixer";
-
+/**
+ * Catalog-driven node palette (NODES-01 success criterion #4).
+ *
+ * Iterates the compiled-in `NodeCatalogEntry[]` (fetched once via the
+ * `get_node_catalog` Tauri command and cached) and renders one button per
+ * entry. Clicking builds a `Node` directly from the entry's ports/parameters/
+ * defaults — replacing v1's hardcoded `buildPrimitiveNode` factory and fixing
+ * the v1 `runtimeTarget: audio/source/${id}` quirk (T-12-09: runtimeTarget is
+ * now the catalog entry id, never a node-id-templated string).
+ */
 export function PrimitivePalette({
   session,
   selectedNode,
@@ -17,8 +33,26 @@ export function PrimitivePalette({
   onAddNode,
   onRemoveNode,
 }: PrimitivePaletteProps) {
-  const addPrimitive = (kind: PrimitiveKind) => {
-    onAddNode(buildPrimitiveNode(kind, session));
+  const [catalog, setCatalog] = useState<NodeCatalogEntry[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getNodeCatalog()
+      .then((entries) => {
+        if (!cancelled) setCatalog(entries);
+      })
+      .catch(() => {
+        // Schema/transport failure leaves the palette empty rather than
+        // crashing the workspace; the inspector still works against the
+        // current session.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const addCatalogNode = (entry: NodeCatalogEntry) => {
+    onAddNode(buildNodeFromCatalogEntry(entry, session));
   };
 
   return (
@@ -32,15 +66,21 @@ export function PrimitivePalette({
       </div>
 
       <div className="palette-actions">
-        <button type="button" onClick={() => addPrimitive("source")} disabled={isLoading}>
-          Add Source
-        </button>
-        <button type="button" onClick={() => addPrimitive("effect")} disabled={isLoading}>
-          Add Effect
-        </button>
-        <button type="button" onClick={() => addPrimitive("mixer")} disabled={isLoading}>
-          Add Mixer
-        </button>
+        {catalog.length === 0 ? (
+          <p className="palette-caption">Loading catalog…</p>
+        ) : (
+          catalog.map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              onClick={() => addCatalogNode(entry)}
+              disabled={isLoading}
+              title={entry.id}
+            >
+              Add {entry.displayName}
+            </button>
+          ))
+        )}
       </div>
 
       <p className="palette-caption">
@@ -59,94 +99,82 @@ export function PrimitivePalette({
   );
 }
 
-function buildPrimitiveNode(kind: PrimitiveKind, session: SessionDocument | null): Node {
-  const suffix = globalThis.crypto.randomUUID().slice(0, 8);
-  const id = `${kind}-${suffix}`;
-  const busId = session?.buses[0]?.id ?? null;
+/**
+ * Build a canonical `Node` from a catalog entry. Identity is the catalog
+ * `node_type_id`; ports come straight from the entry; parameters carry the
+ * entry's default/min/max/unit; `runtimeTarget` is the entry id (NOT a
+ * node-id-templated string — fixes the v1 quirk).
+ *
+ * `step_sequencer` nodes additionally seed a default 16-step pattern so the
+ * controller has something to tick through (D-07/D-08).
+ */
+export function buildNodeFromCatalogEntry(
+  entry: NodeCatalogEntry,
+  session: SessionDocument | null,
+): Node {
+  const suffix = (globalThis.crypto?.randomUUID?.() ?? String(Math.random())).slice(0, 8);
+  const id = `${entry.id}-${suffix}`;
   const sceneId = session?.scenes[0]?.id;
+  const firstBusId = session?.buses[0]?.id ?? null;
 
-  if (kind === "source") {
-    return {
-      id,
-      nodeType: "source",
-      ports: [{ id: `${id}-out`, name: "main_out", direction: "output", signalType: "audio" }],
-      parameters: [
-        {
-          id: `${id}-level`,
-          name: "level",
-          value: 0.75,
-          defaultValue: 0.75,
-          minValue: 0,
-          maxValue: 1,
-          unit: "linear",
-        },
-      ],
-      runtimeTarget: `audio/source/${id}`,
-      sceneMembership: sceneId ? [sceneId] : [],
-      ownership: { controller: "shared", isLocked: false },
-      enabled: true,
-      audioPrimitive: {
-        kind: "source",
-        config: { sourceType: "oscillator", channelMode: "mono", busTargetId: busId },
-      },
-    };
-  }
+  // Map CatalogPortSpec → Port (same shape, but the runtime Node carries its
+  // own port copies so live port edits don't mutate the static catalog).
+  const ports = entry.ports.map((port) => ({
+    id: `${id}-${port.id}`,
+    name: port.name,
+    direction: port.direction,
+    signalType: port.signalType,
+  }));
 
-  if (kind === "effect") {
-    return {
-      id,
-      nodeType: "effect",
-      ports: [
-        { id: `${id}-in`, name: "signal_in", direction: "input", signalType: "audio" },
-        { id: `${id}-out`, name: "signal_out", direction: "output", signalType: "audio" },
-      ],
-      parameters: [
-        {
-          id: `${id}-mix`,
-          name: "mix",
-          value: 0.4,
-          defaultValue: 0.4,
-          minValue: 0,
-          maxValue: 1,
-          unit: "ratio",
-        },
-      ],
-      runtimeTarget: `audio/effect/${id}`,
-      sceneMembership: sceneId ? [sceneId] : [],
-      ownership: { controller: "shared", isLocked: false },
-      enabled: true,
-      audioPrimitive: {
-        kind: "effect",
-        config: { effectType: "delay", bypassed: false, busTargetId: busId },
-      },
-    };
-  }
+  // Catalog params carry defaults; the node snapshots them at creation time.
+  const parameters = entry.parameters.map((param) => ({
+    id: `${id}-${param.id}`,
+    name: param.id,
+    value: param.defaultValue,
+    defaultValue: param.defaultValue,
+    minValue: param.minValue,
+    maxValue: param.maxValue,
+    unit: param.unit,
+  }));
 
-  return {
+  // Per-node config: sources/effects/mixers/output default onto the first
+  // session bus so they produce sound immediately; the user can re-route
+  // later. Modulators/sequencer/utility (control-rate or app-driven) skip
+  // the bus assignment.
+  const needsBusTarget =
+    entry.category === "source" ||
+    entry.category === "effect" ||
+    entry.category === "mixer" ||
+    entry.category === "output";
+
+  const node: Node = {
     id,
-    nodeType: "mixer",
-    ports: [
-      { id: `${id}-in`, name: "mix_in", direction: "input", signalType: "audio" },
-      { id: `${id}-out`, name: "mix_out", direction: "output", signalType: "audio" },
-    ],
-    parameters: [
-      {
-        id: `${id}-level`,
-        name: "level",
-        value: 0.85,
-        defaultValue: 0.85,
-        minValue: 0,
-        maxValue: 1,
-        unit: "linear",
-      },
-    ],
-    runtimeTarget: `audio/mixer/${id}`,
+    nodeTypeId: entry.id,
+    ports,
+    parameters,
+    // T-12-09: runtimeTarget is the catalog entry id, NOT `audio/<kind>/<id>`.
+    runtimeTarget: entry.id,
     sceneMembership: sceneId ? [sceneId] : [],
     ownership: { controller: "shared", isLocked: false },
     enabled: true,
-    audioPrimitive: {
-      kind: "mixer",
-      config: { channelMode: "stereo", busTargetId: busId },
-    },
+    busTargetId: needsBusTarget ? firstBusId : null,
+    // Output-kind/channel config only meaningful for `output` nodes.
+    outputKind: entry.category === "output" ? "master" : null,
+    channelCount: entry.category === "output" ? 2 : null,
+    bypassed: entry.category === "effect" ? false : null,
+    channelMode:
+      entry.category === "source" || entry.category === "mixer" ? "mono" : null,
+    // D-07/D-08: seed the sequencer pattern with a silent default so the
+    // app-driven tick loop has something to play; the inspector editor
+    // mutates it via SetStepValue.
+    sequencerPattern:
+      entry.id === "step_sequencer"
+        ? {
+            gate: Array(16).fill(false) as SequencerPattern["gate"],
+            cv: Array(16).fill(0) as SequencerPattern["cv"],
+          }
+        : null,
   };
+
+  return node;
 }

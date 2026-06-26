@@ -109,7 +109,7 @@ function projectGraphNodes(session: SessionDocument, selectedNodeId: string | nu
     data: {
       label: labelForNode(node),
       title: labelForNode(node),
-      subtitle: `${node.nodeType} / ${node.ownership.controller}`,
+      subtitle: `${node.nodeTypeId} / ${node.ownership.controller}`,
       isSelected: selectedNodeId === node.id,
       isEnabled: node.enabled,
     },
@@ -157,7 +157,7 @@ function projectGraphEdges(session: SessionDocument): GraphEdge[] {
 
 function labelForNode(node: Node) {
   const primaryPort = node.ports[0]?.name ?? "portless";
-  return `${node.nodeType}:${primaryPort}`;
+  return `${node.nodeTypeId}:${primaryPort}`;
 }
 
 function deriveSelectedNode(session: SessionDocument, selectedNodeId: string | null): Node | null {
@@ -172,12 +172,12 @@ function buildTopologySignature(session: SessionDocument): string {
   const nodeSignature = session.nodes
     .map((node) => ({
       id: node.id,
-      nodeType: node.nodeType,
+      nodeTypeId: node.nodeTypeId,
       enabled: node.enabled,
       ownership: node.ownership.controller,
       ports: node.ports.map((port) => `${port.id}:${port.direction}:${port.signalType}`).join(","),
     }))
-    .map((node) => `${node.id}:${node.nodeType}:${node.enabled}:${node.ownership}:${node.ports}`)
+    .map((node) => `${node.id}:${node.nodeTypeId}:${node.enabled}:${node.ownership}:${node.ports}`)
     .join("|");
 
   const routeSignature = session.routes
