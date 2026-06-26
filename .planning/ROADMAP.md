@@ -41,7 +41,7 @@
 
 ### Phase Checklist
 
-- [ ] **Phase 12: Node Catalog Foundation** — Single-source-of-truth node catalog replacing v1 hardcoded allowlists; full synthesis chain (osc/filter/env/LFO/FX/sequencer/utility).
+- [x] **Phase 12: Node Catalog Foundation** — Single-source-of-truth node catalog replacing v1 hardcoded allowlists; full synthesis chain (osc/filter/env/LFO/FX/sequencer/utility).
 - [ ] **Phase 13: Graph UX Rebuild** — Fluent patching: drag, edge connect/reconnect, multi-select, ownership-aware — all through typed commands; positions canonical.
 - [ ] **Phase 14: Visuals Compositing Spike** — One-day macOS PoC validating the behind-webview compositing strategy (DECISION GATE before Phase 15).
 - [ ] **Phase 15: Visuals Behind the Grid** — Richer Bevy runtime as ambient layer behind the graph surface, behind a separate adapter boundary.
@@ -64,7 +64,7 @@
 
 Plans:
 - [x] 12-01-PLAN.md — Catalog module + domain reshape + v2 SynthDef authoring + replace 5 hardcoded spots + control-bus allocation + v1 rejection (Wave 1) — **complete (a293cef, 55e1097)**
-- [ ] 12-02-PLAN.md — App-driven step sequencer controller + frontend catalog consumption + conformance test that boots real scsynth per entry (Wave 2, depends on 12-01)
+- [x] 12-02-PLAN.md — App-driven step sequencer controller + frontend catalog consumption + conformance test that boots real scsynth per entry (Wave 2, depends on 12-01) — **complete (80349db, 2c673f8, 80b3be0)**
 
 **UI hint**: yes
 
@@ -156,7 +156,7 @@ Plans:
 | 9. Hardware Input Runtime Wiring | v1.0 | 1/1 | Complete | 2026-06-19 |
 | 10. Session-Aware Agent Orchestration | v1.0 | 1/1 | Complete | 2026-06-21 |
 | 11. Release Readiness | v1.0 | 2/2 | Complete | 2026-06-26 |
-| 12. Node Catalog Foundation | v2.0 | 1/2 | Executing (Plan 01 done) | - |
+| 12. Node Catalog Foundation | v2.0 | 2/2 | Complete | 2026-06-26 |
 | 13. Graph UX Rebuild | v2.0 | 0/TBD | Not started | - |
 | 14. Visuals Compositing Spike | v2.0 | 0/TBD | Not started | - |
 | 15. Visuals Behind the Grid | v2.0 | 0/TBD | Not started | - |
