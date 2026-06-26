@@ -1,8 +1,8 @@
 use thiserror::Error;
 
 use crate::application::agent_planner::{
-    plan_agent_request, PlannerProposal, PlannerProvider, PlannerProviderError,
-    SessionContextBounds,
+    plan_agent_request, ParserPlannerProvider, PlannerProposal, PlannerProvider,
+    PlannerProviderError, SessionContextBounds,
 };
 use crate::application::graph_edit::{self, GraphEditError};
 use crate::application::performance_command::{self, PerformanceCommandError};
@@ -151,10 +151,23 @@ pub fn classify_risk(command: &TypedCommand) -> RiskTier {
 }
 
 fn parse_remove_command(lower: &str, session: &SessionDocument) -> Option<TypedCommand> {
-    let node_id = extract_node_reference(lower, session)?;
-    Some(TypedCommand::GraphEdit(GraphEditCommand::RemoveNode {
-        node_id,
-    }))
+    if let Some(node_id) = extract_node_reference(lower, session) {
+        return Some(TypedCommand::GraphEdit(GraphEditCommand::RemoveNode {
+            node_id,
+        }));
+    }
+    if lower.contains("agent") {
+        if let Some(node) = session
+            .nodes
+            .iter()
+            .find(|n| n.ownership.controller == ControllerKind::Agent && !n.ownership.is_locked)
+        {
+            return Some(TypedCommand::GraphEdit(GraphEditCommand::RemoveNode {
+                node_id: node.id.clone(),
+            }));
+        }
+    }
+    None
 }
 
 fn parse_set_parameter_command(lower: &str, session: &SessionDocument) -> Option<TypedCommand> {
@@ -372,6 +385,18 @@ pub fn plan_and_apply_agent_request(
         SessionContextBounds::default(),
     )?;
     apply_planner_proposal(store, actor, proposal)
+}
+
+pub fn handle_agent_message(
+    store: &mut SessionStore,
+    message: &str,
+) -> Result<AgentCommandResult, AgentCommandError> {
+    let actor = ActorRef {
+        actor_id: "agent".to_string(),
+        correlation_id: new_id(),
+    };
+    let provider = ParserPlannerProvider::default();
+    plan_and_apply_agent_request(store, actor, message, &provider)
 }
 
 pub fn apply_planner_proposal(

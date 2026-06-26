@@ -15,9 +15,9 @@ use application::macro_command;
 use application::performance_command;
 use application::session_store::SessionStore;
 use domain::session::{
-    write_generated_typescript_contract, ActorRef, AgentRuntimeState, BindingTarget,
-    ControllerKind, GraphEditCommand, HardwareRuntimeSettings, HardwareRuntimeStatus, MacroCommand,
-    MidiInputPort, PerformanceCommand, SessionDocument,
+    write_generated_typescript_contract, AgentRuntimeState, BindingTarget, ControllerKind,
+    GraphEditCommand, HardwareRuntimeSettings, HardwareRuntimeStatus, MacroCommand, MidiInputPort,
+    PerformanceCommand, SessionDocument,
 };
 use persistence::session_file;
 use tauri::Manager;
@@ -115,19 +115,13 @@ fn send_agent_message(
     state: tauri::State<'_, Mutex<SessionStore>>,
 ) -> Result<serde_json::Value, String> {
     let mut store = state.lock().map_err(|err| err.to_string())?;
-    let session = store.current();
-    let intent = agent_command::parse_agent_intent(&message, &session);
-    let actor = ActorRef {
-        actor_id: "agent".to_string(),
-        correlation_id: domain::session::new_id(),
-    };
-    let _result = agent_command::apply_agent_command(&mut store, actor.clone(), intent.clone())
+    let result = agent_command::handle_agent_message(&mut store, &message)
         .map_err(|err| err.to_string())?;
 
     let session = store.current();
     serde_json::to_value(serde_json::json!({
         "session": session,
-        "intent": intent,
+        "intent": result.intent,
     }))
     .map_err(|err| err.to_string())
 }
@@ -152,21 +146,21 @@ fn reclaim_ownership(
 
 #[tauri::command]
 fn approve_pending_action(
-    pending_action_id: String,
+    action_id: String,
     state: tauri::State<'_, Mutex<SessionStore>>,
 ) -> Result<SessionDocument, String> {
     let mut store = state.lock().map_err(|err| err.to_string())?;
-    agent_command::approve_pending_action(&mut store, &pending_action_id)
+    agent_command::approve_pending_action(&mut store, &action_id)
         .map_err(|err| err.to_string())
 }
 
 #[tauri::command]
 fn reject_pending_action(
-    pending_action_id: String,
+    action_id: String,
     state: tauri::State<'_, Mutex<SessionStore>>,
 ) -> Result<SessionDocument, String> {
     let mut store = state.lock().map_err(|err| err.to_string())?;
-    agent_command::reject_pending_action(&mut store, &pending_action_id)
+    agent_command::reject_pending_action(&mut store, &action_id)
         .map_err(|err| err.to_string())
 }
 

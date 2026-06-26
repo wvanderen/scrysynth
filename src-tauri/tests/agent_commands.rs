@@ -498,6 +498,29 @@ fn mock_planner_high_risk_fixture_waits_for_approve_or_reject_flow() {
 }
 
 #[test]
+fn handle_agent_message_routes_through_local_parser_and_creates_pending_action() {
+    let mut store = SessionStore::new_default();
+    store.replace_current(test_session());
+
+    let result = agent_command::handle_agent_message(&mut store, "remove the agent layer").unwrap();
+
+    assert_eq!(result.planner_provider_id.as_deref(), Some("local-parser"));
+    assert_eq!(result.pending.len(), 1);
+    assert_eq!(result.pending[0].risk_tier, RiskTier::High);
+    assert_eq!(result.pending[0].status, PendingActionStatus::Pending);
+    assert!(store
+        .current()
+        .pending_actions
+        .iter()
+        .any(|pa| pa.status == PendingActionStatus::Pending));
+    assert!(store
+        .current()
+        .nodes
+        .iter()
+        .any(|node| node.id == "node-agent"));
+}
+
+#[test]
 fn mock_planner_fixture_is_rejected_when_agent_is_frozen() {
     let mut store = SessionStore::new_default();
     store.replace_current(test_session());
