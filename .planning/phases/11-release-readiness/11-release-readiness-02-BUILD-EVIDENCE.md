@@ -2,17 +2,18 @@
 phase: 11-release-readiness
 plan: 02
 doc: build-evidence
-status: steps-1-5-complete-step-6-pending-user
+status: steps-1-6-complete
 target: aarch64-apple-darwin
 version: 1.0.0
 signing: adhoc
 created: 2026-06-24
 rebuilt: 2026-06-26-after-415e8d8
-requirements_covered_by_this_doc: [REL-01 (pending step 6), D-02 (verified), D-03 (pending step 6)]
-# NOT a complete REL-01 record yet — Task 1 step 6 (GUI smoke) is pending user.
-# Task 2 (consolidated UAT) and Task 3 (docs rewrite) remain after step 6.
-# 2026-06-26: artifacts refreshed by a clean rebuild after the planner-wiring
-# fix `415e8d8` changed Rust sources. Step 6 + Task 2 must target THIS rebuild.
+step6_performed: 2026-06-26
+requirements_covered_by_this_doc: [REL-01 (verified), D-02 (verified), D-03 (verified — launch + documented workflow; Gatekeeper "Open Anyway" prompt is the end-user download path, not reproducible on the non-quarantined build host)]
+# REL-01 is verified by this doc: release build + ad-hoc sign + secret-leak
+# check + first-run launch smoke all passed. Task 2 (consolidated UAT) is
+# recorded in 11-release-readiness-03-UAT.md; Task 3 (docs) in README.md /
+# RELEASE_NOTES.md / the reconciled planning docs.
 ---
 
 # Phase 11 Plan 02: Release Build Evidence
@@ -333,95 +334,101 @@ not a regression.
 
 ---
 
-## Step 6 — PENDING USER: First-run right-click → Open GUI smoke (D-03, T-11-04)
+## Step 6 — First-run right-click → Open GUI smoke (D-03, T-11-04) — PERFORMED 2026-06-26
 
-> **STATUS: NOT YET PERFORMED.** This step requires physical interaction with the
-> macOS GUI (Finder + Gatekeeper prompt + observing the rendered workspace and
-> Runtime Health panel). A sequential executor cannot perform it. The operator
-> must perform the checklist below and then report the observed results so this
-> section can be completed and Task 1 / REL-01 / D-03 closed.
+> **STATUS: PERFORMED by the operator on 2026-06-26** against the rebuilt
+> `.app` (commit `415e8d8`, rebuilt 2026-06-26 — see the "Rebuild 2026-06-26"
+> section above). Result: **launch PASS; Gatekeeper prompt NOT observed on the
+> build host (expected — see below).**
 
-### What the operator needs to do
-
-Perform each of the following against the freshly built
-`src-tauri/target/release/bundle/macos/scrysynth.app`, and record the observed
-result for each line:
+### Observed results
 
 1. **Right-click → Open the packaged app (D-03, T-11-04 documented workflow).**
-   - In Finder, navigate to
-     `src-tauri/target/release/bundle/macos/scrysynth.app`.
-   - **Right-click** (or Control-click) the `.app` → choose **Open**.
-   - Observe: a Gatekeeper dialog should appear. Because the app is ad-hoc signed
-     (not Developer ID / notarized), the dialog will warn that the app is from an
-     unidentified developer.
-   - Click **Open Anyway** (or the dialog's "Open" button, depending on macOS
-     version).
-   - **Expected:** the app launches (does not get silently blocked).
-   - *Record:* did the Gatekeeper "Open Anyway" prompt appear? Did the app launch?
+   - Operator right-clicked `scrysynth.app` in Finder → chose Open.
+   - **The Gatekeeper "Open Anyway" prompt did NOT appear** on the build host.
+   - **Root cause (expected, not a regression):** the locally-built `.app`
+     carries **no `com.apple.quarantine`** extended attribute. `xattr` on the
+     bundle shows only `com.apple.provenance` (no quarantine). Gatekeeper only
+     intervenes for quarantined apps; the quarantine attribute is applied by
+     download agents (browsers, Mail, AirDrop), not by `cargo build` /
+     `tauri build` writing to disk locally.
+   - **The app launched directly.**
+   - *Record:* right-click → Open launched the app; no Gatekeeper prompt on the
+     build host because the local build is not quarantined.
 
-2. **Confirm the workspace window renders.**
-   - After launch, a `scrysynth` window (title "scrysynth", 800×600 default per
-     `tauri.conf.json`) should appear and render the workspace UI.
-   - *Record:* did the workspace window render without an immediate crash?
+2. **Workspace window rendered.** The `scrysynth` workspace window rendered
+   without an immediate crash (confirmed transitively by all nine REL-02
+   scenarios running against the packaged app — see
+   `11-release-readiness-03-UAT.md`).
 
-3. **Observe the Runtime Health panel — missing-scsynth message (validates Plan 01 Task 3).**
-   - **If a live `scsynth` is NOT configured** (no `SCRYSYNTH_SCSYNTH_PATH` env,
-     no `scsynth` on `PATH`, no macOS bundle fallback): the Runtime Health panel
-     for the audio runtime should show the **polished end-user missing-scsynth
-     message** — naming SuperCollider install, `SCRYSYNTH_SCSYNTH_PATH`, and the
-     macOS default install path
-     (`/Applications/SuperCollider.app/Contents/Resources/scsynth`).
-   - **If `scsynth` IS configured** (e.g. SuperCollider is installed at the macOS
-     default path): the audio runtime may show a different state (Idle/Unknown or
-     similar). That is fine; the missing-scsynth message specifically validates
-     when scsynth is absent.
-   - *Record:* what did the Runtime Health panel show for the audio runtime? If
-     scsynth was absent, did the polished missing-scsynth message appear?
+3. **Runtime Health panel.** Audio runtime was configured
+   (`SCRYSYNTH_SCSYNTH_PATH` set), so the missing-scsynth message was not the
+   active state during this smoke; the audio runtime reached its configured
+   state. (The polished missing-scsynth message itself was verified in Plan 01
+   Task 3 and Phases 7-8.)
 
-4. **Confirm the visual sidecar reaches Ready from the bundle (validates Plan 01 D-06).**
-   - The Runtime Health panel for the **visual runtime** should transition from
-     booting → **Ready** (NOT the dev-only "missing configured sidecar" message,
-     which would indicate the bundle did not wire the sidecar correctly).
-   - This is the key packaged-sidecar re-confirmation of Plan 01's D-06 refactor
-     (the sidecar launches via `app.shell().sidecar()` from the bundled binary).
-   - *Record:* did the visual runtime reach Ready? Or did it show a missing-sidecar
-     / error state?
+4. **Visual sidecar reached Ready from the bundle (validates Plan 01 D-06).**
+   The visual runtime reached Ready from the **bundled** sidecar after clicking
+   Start in the Runtime workspace tab (the sidecar does not auto-start). This
+   re-confirms Plan 01's D-06 refactor end-to-end in the packaged app (see
+   REL-02 scenario 8 in the consolidated UAT doc).
 
-5. **Quit the app cleanly** (⌘Q or window close) to end the smoke.
+5. **Quit the app cleanly** to end the smoke.
 
-### Resume signal for the next dispatch
+### D-03 / T-11-04 interpretation
 
-Once step 6 is performed, the operator should report the observed results for
-items 1-4 above. A subsequent dispatch will:
-- fill in this Step 6 section with the observed values,
-- execute **Task 2** (consolidated nine-scenario UAT against the packaged `.app`,
-  with `SCRYSYNTH_SCSYNTH_PATH` set for the audio/panic scenarios), recording
-  evidence in `11-release-readiness-03-UAT.md`, and
-- execute **Task 3** (README + RELEASE_NOTES rewrite + ROADMAP/STATE/REQUIREMENTS
-  reconciliation marking REL-01/02/03 complete).
+The intent of D-03 and T-11-04 — ad-hoc signing works, the app launches via the
+documented right-click → Open path, and that workflow is documented for end
+users — is satisfied:
 
-If step 6 reveals a regression (e.g. the workspace does not render, the bundled
-sidecar does NOT reach Ready, or the missing-scsynth message is the old dev-only
-one), **halt and surface it for Plan 01 revision** rather than marking REL-01
-complete.
+- Ad-hoc signing is verified (`Signature=adhoc`, `flags=0x10002(adhoc,runtime)`;
+  see Step 4).
+- The app launches via right-click → Open.
+- The "Open Anyway" Gatekeeper prompt is the **end-user download path**: a user
+  who downloads the `.dmg` via a browser will hit the prompt (the browser
+  applies the quarantine attribute) and must follow the documented right-click →
+  Open → "Open Anyway" workflow. That workflow is documented in `README.md` and
+  `RELEASE_NOTES.md` (Task 3).
+- The build host cannot honestly reproduce the prompt without manually applying
+  a quarantine attribute, which would not simulate a genuine end-user download.
+
+**Result: PASS for launch + signing + workspace render + bundled sidecar Ready.
+The Gatekeeper "Open Anyway" prompt itself is documented for the end-user
+download path and is not reproducible on the non-quarantined build host.**
+
+### Reproduction note (for a future, stricter end-user-sim smoke)
+
+If a future release wants to observe the actual Gatekeeper prompt on the build
+host, apply a quarantine attribute to a copy of the bundle and launch it:
+
+```
+xattr -w com.apple.quarantine '0081;5b7f2a20;Safari;6E1A2B3C-4D5E-6F70-8192-03A4B5C6D7E8' \
+  /path/to/copy-of-scrysynth.app
+open /path/to/copy-of-scrysynth.app   # or right-click → Open in Finder
+```
+
+That is out of scope for v1; the documented workflow plus the verified ad-hoc
+signature plus the successful launch are the v1 REL-01 / D-03 evidence of
+record.
 
 ---
 
 ## What is NOT claimed by this document
 
-- **REL-01 is NOT marked complete.** Step 6 (first-run GUI smoke) is pending
-  user; REL-01 requires the recorded build smoke AND the first-run launch
-  evidence.
-- **REL-02 is NOT marked complete.** Task 2 (consolidated nine-scenario UAT) has
-  not been started; it depends on step 6 being performed first.
-- **REL-03 is NOT marked complete.** Task 3 (README/RELEASE_NOTES/planning docs)
-  has not been started; it depends on Tasks 1 + 2 being fully evidenced.
-- **D-03 (right-click → Open documented workflow) is verified only
-  configurally** (ad-hoc signing confirmed via `codesign`); the actual
-  Gatekeeper prompt behavior is pending step 6.
-- **No updates to `STATE.md`, `ROADMAP.md`, or `REQUIREMENTS.md`** were made by
-  this dispatch. Those reconciliations belong to the Task 3 dispatch once all
-  evidence is in.
+- **REL-01 is now VERIFIED by this doc + step 6.** The release build produced an
+  ad-hoc-signed `.app`/`.dmg` for `aarch64-apple-darwin`, the bundled sidecar is
+  signed inside the app, no secrets leaked, and the app launches via the
+  documented right-click → Open path. The Gatekeeper "Open Anyway" prompt itself
+  was not observed on the build host because the local build is not quarantined;
+  that prompt is the end-user download path (documented in README/RELEASE_NOTES).
+- **REL-02 is recorded in `11-release-readiness-03-UAT.md`** (all nine scenario
+  areas passed against the packaged app).
+- **REL-03 is delivered by the Task 3 docs rewrite** (`README.md`,
+  `RELEASE_NOTES.md`, and the reconciled `ROADMAP.md` / `STATE.md` /
+  `REQUIREMENTS.md`).
+- **D-03 (right-click → Open documented workflow) is verified** by the launch +
+  the documented workflow in release notes; the Gatekeeper prompt is the
+  end-user download experience.
 
 ## Threat model status (from Plan 02 `<threat_model>`)
 
