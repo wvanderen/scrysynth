@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: v1 runtime hardening
-status: pending-operator-uat
-stopped_at: "Plan 11-02 unblocked: planner-wiring fix 415e8d8 landed and packaged .app rebuilt 2026-06-26; operator step 6 (Finder smoke) + Task 2 (9-scenario UAT) + Task 3 (docs) remain — see .planning/phases/11-release-readiness/11-release-readiness-02-BUILD-EVIDENCE.md"
-last_updated: "2026-06-26T00:00:00-05:00"
+status: v1-released
+stopped_at: "v1 milestone complete — Phase 11 (both plans) closed 2026-06-26; packaged .app UAT-verified on Apple Silicon"
+last_updated: "2026-06-26T12:00:00-05:00"
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 6
   total_plans: 6
-  completed_plans: 2
-  percent: 17
+  completed_plans: 6
+  percent: 100
 ---
 
 # Project State
@@ -21,18 +21,20 @@ See `.planning/PROJECT.md` and `.planning/ROADMAP.md`.
 
 **Core value:** The instrument must let a human and agent shape a live audiovisual session together through conversation, graph structure, and direct performance control without losing legibility or human override.
 
-**Current focus:** Phase 11 — release-readiness
+**Current focus:** v1 released (1.0.0) — packaged and UAT-verified on Apple Silicon
 
 ## Current Position
 
-Scrysynth is a late foundation prototype in v1 runtime hardening. The planned foundation phases have produced a canonical app-owned session model, React workspace, Tauri command layer, persistence, graph editing, scene/variation controls, agent safety scaffolding, visual-runtime scaffolding, macro controls, and MIDI/OSC binding models.
+Scrysynth is **packaged and evaluated as v1 (1.0.0)** on macOS Apple Silicon. The v1 runtime-hardening milestone (Phases 7–11) is complete. The canonical app-owned session model, React workspace, Tauri command layer, persistence, graph editing, scene/variation controls, agent safety scaffolding, visual-runtime scaffolding, macro controls, and MIDI/OSC binding models are all implemented and have been re-verified end-to-end against the packaged `scrysynth.app`.
 
-The project is not yet a complete local audiovisual instrument. Runtime execution still needs production UAT and additional hardening:
+What v1 delivers, each verified against the packaged app in the consolidated Phase 11 UAT:
 
-- Audio can launch `scsynth`, apply v1 SynthDef/topology commands over OSC, produce audible output from the default source-to-output graph, apply live parameter updates, stop, panic, and restart after panic on a real local SuperCollider install.
-- Visual runtime management now launches the in-repo minimal `scrysynth-visual` sidecar, handshakes over JSON lines, loads compiled scene snapshots, applies live parameter batches, stops, panics, and restarts after panic. The renderer remains minimal and GPU-free; richer Bevy output and packaged sidecar wiring are still future work.
-- MIDI/OSC listener startup/configuration, learn, and post-learn routing are verified through the app-owned runtime path with a CoreMIDI virtual source and local OSC sender. GUI click-through hardware UAT remains release polish.
-- Agent collaboration now has a verified deterministic/mock session-aware planner path: bounded context packets, provider-agnostic planner requests, typed proposal normalization, safety gates, approval/rejection, freeze/reclaim, and diagnostics. A live provider-backed LLM/orchestrator remains unverified.
+- Audio launches a bundled ad-hoc-signed app; the default source-to-output graph produces audible output from real local `scsynth`, applies live parameter updates, stops, panics, and restarts after panic.
+- Visual runtime management launches the bundled minimal `scrysynth-visual` sidecar, handshakes over JSON lines, loads compiled scene snapshots, applies live parameter batches, stops, panics, and restarts after panic. The renderer remains minimal and GPU-free.
+- MIDI/OSC listener startup/configuration, learn, and post-learn routing are verified through the app-owned runtime path with a CoreMIDI virtual source and local OSC sender.
+- Agent collaboration has a verified production-GUI-reachable planner path: bounded context packets, provider-agnostic planner requests, typed proposal normalization, safety gates, approval/rejection, freeze/reclaim, and diagnostics. The planner is wired into the production GUI via `plan_and_apply_agent_request` (fix `415e8d8`).
+
+Deferred beyond v1 (tracked, not shipped): richer Bevy-rendered visuals / visible render window, live provider-backed agent orchestration (AGNT-01R), physical-controller GUI click-through UAT, Windows/Linux/Intel/universal builds, full Developer ID notarization + auto-update, and multiplayer.
 
 ## Completed Foundation
 
@@ -46,9 +48,15 @@ The project is not yet a complete local audiovisual instrument. Runtime executio
 
 ## Active Hardening Work
 
-1. Local developer readiness and docs.
-2. Live provider-backed agent orchestration on top of the verified Phase 10 planner boundary.
-3. Packaging, UAT, and release readiness.
+None — the v1 runtime-hardening milestone is complete.
+
+Deferred beyond v1 (tracked for a future milestone, not active v1 work):
+
+1. Live provider-backed agent orchestration on top of the verified planner boundary (AGNT-01R).
+2. Richer Bevy-rendered visuals and a visible render window.
+3. Physical-controller GUI click-through UAT.
+4. Windows / Linux / Intel / universal builds.
+5. Full Developer ID notarization + auto-update.
 
 ## Completed Hardening Work
 
@@ -58,6 +66,7 @@ The project is not yet a complete local audiovisual instrument. Runtime executio
 | 8. Real Visual Runtime Path | Complete for minimal sidecar | `scrysynth-visual` starts as a separate process, acknowledges handshake and scene load, applies live parameter batches, stops, panics, and restarts after panic. Runtime Health now surfaces missing sidecar, booting, ready, degraded, disconnected, stopped, panicked, and restartable visual states. |
 | 9. Hardware Input Runtime Wiring | Complete for app-runtime path | CoreMIDI virtual MIDI and local OSC sender verified live learn plus post-learn routing for macro, scene recall, transport play, transport stop, and panic. Panic stopped an active SuperCollider patch and left audio `Idle/PanicRecovered`. |
 | 10. Session-Aware Agent Orchestration | Complete for deterministic/mock planner path | Bounded context packets, provider-agnostic planner requests, realistic mock proposal normalization, typed-command validation, approval/rejection, freeze/reclaim, provider-unavailable diagnostics, invalid-response diagnostics, and frontend proposal/diagnostic rendering are verified. Live provider-backed planning remains future hardening. |
+| 11. Release Readiness | Complete | Packaged ad-hoc-signed `scrysynth.app` + `.dmg` for `aarch64-apple-darwin`; consolidated nine-scenario packaged-app UAT passed (save/open, graph edit, audio playback, scene/variation recall, macro control, hardware learn, agent approval, visual runtime, panic recovery); README/RELEASE_NOTES/ROADMAP/STATE/REQUIREMENTS reconciled. REL-01/02/03 verified. Planner wired into production GUI (`415e8d8`). |
 
 ## Recent Audit Findings
 
@@ -77,13 +86,26 @@ The project is not yet a complete local audiovisual instrument. Runtime executio
 - Preserve the separate visual runtime boundary, but require an actual sidecar/protocol before claiming visual execution.
 - Keep human override, ownership, freeze/reclaim, and approval gates as non-negotiable product constraints.
 - [Phase ?]: Phase 11 Plan 01: v1 Tauri bundle config delivered (1.0.0, ad-hoc macOS signing, Apple Silicon only, targets [app,dmg], externalBin visual sidecar via tauri-plugin-shell). BevySidecarAdapter launches the bundled sidecar through app.shell().sidecar() in the packaged path and keeps the raw-Command dev/test override. scsynth stays external with a polished discovery message. REL-01 substrate delivered here; the actual release build + first-run smoke (REL-01 verification) is owned by Plan 02.
+- [Phase 11 Plan 02]: v1 released. Release build produced ad-hoc-signed `scrysynth.app` + `scrysynth_1.0.0_aarch64.dmg` for `aarch64-apple-darwin`. Planner wired into the production GUI (`415e8d8`: `send_agent_message` → `handle_agent_message` → `plan_and_apply_agent_request`; approve/reject IPC param fixed; additive `remove … agent …` high-risk fallback). Consolidated nine-scenario packaged-app UAT passed. REL-01/02/03 verified. D-03 honest caveat: no Gatekeeper "Open Anyway" prompt on the build host because local builds carry no `com.apple.quarantine`; the prompt is the end-user download path, documented in README/RELEASE_NOTES. Deferred beyond v1: live provider-backed agent (AGNT-01R), richer Bevy visuals, physical-controller click-through, Windows/Linux/Intel, full notarization + auto-update, multiplayer.
 
 ## Pending Todos
 
-- Connect the verified Phase 10 provider-agnostic planner boundary to a live provider-backed agent and run provider setup/fallback UAT.
+All v1 work is complete. Deferred beyond v1 (future milestone):
+
+- Connect the verified Phase 10 provider-agnostic planner boundary to a live provider-backed agent and run provider setup/fallback UAT (AGNT-01R).
 - Run a physical-controller GUI click-through pass when hardware is available.
+- Replace the minimal GPU-free visual sidecar with richer Bevy-rendered output and a visible render window.
+- Add Windows / Linux / Intel / universal macOS build targets.
+- Add full Developer ID signing + notarization + an auto-updater.
 
 ## Latest Verification
+
+2026-06-26 Phase 11 (Plan 02) — v1 release verified:
+
+- Consolidated packaged-app UAT recorded in `.planning/phases/11-release-readiness/11-release-readiness-03-UAT.md`: all nine REL-02 scenario areas passed against the rebuilt ad-hoc-signed `scrysynth.app` (commit `415e8d8`, rebuilt 2026-06-26) — save/open, graph edit, audio playback (real `scsynth`), scene/variation recall, macro control, hardware learn (CoreMIDI + local OSC), agent approval (scenario 7 reachable via the planner-wiring fix; trigger `remove agent layer`), visual runtime (bundled minimal sidecar), and panic recovery (audio + visual).
+- Release build + ad-hoc sign + secret-leak check + first-run smoke recorded in `.planning/phases/11-release-readiness/11-release-readiness-02-BUILD-EVIDENCE.md`: `.app` + `.dmg` for `aarch64-apple-darwin`, `Signature=adhoc`, zero `APPLE_`/`TAURA` leakage, bundled sidecar signed inside the app, app launches via right-click → Open. No Gatekeeper prompt on the build host because the local build carries no `com.apple.quarantine` (the "Open Anyway" prompt is the end-user download path, documented in README/RELEASE_NOTES).
+- REL-01, REL-02, REL-03 marked complete in `.planning/REQUIREMENTS.md`; runtime-ready rows AUD-01R..04R, VIS-01R..03R, DEV-01..02 reconciled; AGNT-01R (live provider) left open. README rewritten and `RELEASE_NOTES.md` added with Supported/Not-supported matrices.
+- Verification passed: `npm test`, `npm run build` (no code regression from Plan 02 doc edits).
 
 2026-06-21 task `td-ab3c29`:
 

@@ -57,21 +57,21 @@ This file separates foundation completion from release completion:
 
 ### Local Setup
 
-- [ ] **DEV-01**: A new developer can install dependencies and run documented verification commands successfully.
-- [ ] **DEV-02**: Missing Node/npm dependencies, missing Rust/cargo, missing `scsynth`, and missing visual sidecar produce actionable setup messages.
+- [x] **DEV-01**: A new developer can install dependencies and run documented verification commands successfully. Verified Phase 11: `README.md` documents the install + verification path (`npm install`, `npm test`, `npm run build`, `cargo test --manifest-path src-tauri/Cargo.toml`), and the release build ran these end-to-end on the build host.
+- [x] **DEV-02**: Missing Node/npm dependencies, missing Rust/cargo, missing `scsynth`, and missing visual sidecar produce actionable setup messages. Verified Phases 7–8 and polished in Plan 01 Task 3: the Runtime Health panel emits end-user-facing missing-`scsynth` and missing-sidecar messages naming `SCRYSYNTH_SCSYNTH_PATH` / `SCRYSYNTH_BEVY_PATH` and the macOS default install path.
 
 ### Real Audio Execution
 
-- [ ] **AUD-01R**: User can hear playable audio from supported source, effect, and routing primitives executed through SuperCollider.
-- [ ] **AUD-02R**: User can update supported audio parameters during playback and hear the change without rebuilding the whole session.
-- [ ] **AUD-03R**: User can route supported audio nodes through buses and grouped processing in `scsynth`.
-- [ ] **AUD-04R**: Panic control stops actual sound immediately and returns both app state and runtime process state to safety.
+- [x] **AUD-01R**: User can hear playable audio from supported source, effect, and routing primitives executed through SuperCollider. Verified Phase 11 UAT scenario 3 (packaged app, real local `scsynth`, audible output).
+- [x] **AUD-02R**: User can update supported audio parameters during playback and hear the change without rebuilding the whole session. Verified Phase 11 UAT scenario 3 (live parameter change heard).
+- [x] **AUD-03R**: User can route supported audio nodes through buses and grouped processing in `scsynth`. Verified Phase 7 (topology compiles to groups/buses) and re-confirmed Phase 11 via the default source→bus→output graph in the packaged app; a dedicated multi-bus/grouped-routing stress was not a separate release scenario.
+- [x] **AUD-04R**: Panic control stops actual sound immediately and returns both app state and runtime process state to safety. Verified Phase 11 UAT scenario 9 (audio panic + restart recovery).
 
 ### Real Visual Execution
 
-- [ ] **VIS-01R**: User can run a basic visual sidecar that receives compiled scene state from the app.
-- [ ] **VIS-02R**: Visual parameters targeted by macros are delivered to the visual runtime.
-- [ ] **VIS-03R**: Visual runtime failures and restarts are visible and recoverable from the workspace.
+- [x] **VIS-01R**: User can run a basic visual sidecar that receives compiled scene state from the app. Verified Phase 11 UAT scenario 8 (bundled `scrysynth-visual` loads a compiled scene).
+- [x] **VIS-02R**: Visual parameters targeted by macros are delivered to the visual runtime. Verified Phase 11 UAT scenarios 5 + 8 (macro drives visual target; sidecar applies parameter batch).
+- [x] **VIS-03R**: Visual runtime failures and restarts are visible and recoverable from the workspace. Verified Phase 11 UAT scenarios 8 + 9 (Stop/Panic/Start cycle + panic recovery for the sidecar).
 
 ### Hardware Runtime
 
@@ -80,15 +80,15 @@ This file separates foundation completion from release completion:
 
 ### Agent Runtime
 
-- [ ] **AGNT-01R**: User can collaborate with a session-aware agent beyond deterministic keyword parsing. Deterministic/mock planner orchestration is verified through bounded context packets and realistic proposal fixtures; live provider-backed planning remains needed before release completion.
-- [x] **AGNT-02R**: Agent proposals remain explainable, reviewable, and constrained to typed commands. Verified for deterministic/mock planner proposals normalized through app-owned typed command, validation, ownership, risk, approval, freeze, reclaim, and diagnostic paths.
-- [x] **AGNT-03R**: Approval/rejection flows are verified against realistic agent proposals. Verified with deterministic/mock multi-step proposal fixtures, including high-risk remove-node approval and rejection.
+- [ ] **AGNT-01R**: User can collaborate with a session-aware agent beyond deterministic keyword parsing. Deterministic/mock planner orchestration is verified through bounded context packets and realistic proposal fixtures, and the Phase 11 planner-wiring fix (`415e8d8`) routes the production GUI through `plan_and_apply_agent_request`; a **live provider-backed planner remains future hardening** and was not exercised in v1 UAT.
+- [x] **AGNT-02R**: Agent proposals remain explainable, reviewable, and constrained to typed commands. Verified Phase 10 (deterministic/mock planner proposals through typed-command, validation, ownership, risk, approval, freeze, reclaim, and diagnostic paths) and re-confirmed Phase 11 UAT scenario 7 against the packaged app.
+- [x] **AGNT-03R**: Approval/rejection flows are verified against realistic agent proposals. Verified Phase 10 (deterministic/mock multi-step proposal fixtures, high-risk remove-node approval + rejection) and re-confirmed Phase 11 UAT scenario 7 (trigger input `remove agent layer`, now reachable via the planner-wiring fix).
 
 ### Release Quality
 
-- [ ] **REL-01**: Tauri app packages successfully for the target desktop platform.
-- [ ] **REL-02**: Manual UAT covers save/open, graph edit, audio playback, scene/variation recall, macro control, hardware learn, agent approvals, visual runtime, and panic recovery.
-- [ ] **REL-03**: README, planning docs, and release notes describe supported behavior without overstating scaffolded paths.
+- [x] **REL-01**: Tauri app packages successfully for the target desktop platform. Verified Phase 11: `npm run tauri build` produced an ad-hoc-signed `scrysynth.app` + `scrysynth_1.0.0_aarch64.dmg` for `aarch64-apple-darwin`, bundled visual sidecar signed inside the app, no `APPLE_`/`TAURA` secret leakage, first-run launch verified. Evidence: `11-release-readiness-02-BUILD-EVIDENCE.md`.
+- [x] **REL-02**: Manual UAT covers save/open, graph edit, audio playback, scene/variation recall, macro control, hardware learn, agent approvals, visual runtime, and panic recovery. Verified Phase 11: all nine scenario areas passed against the packaged app. Evidence: `11-release-readiness-03-UAT.md`.
+- [x] **REL-03**: README, planning docs, and release notes describe supported behavior without overstating scaffolded paths. Verified Phase 11: `README.md` + `RELEASE_NOTES.md` carry Supported/Not-supported matrices with every supported row traced to the consolidated UAT; ROADMAP/STATE/REQUIREMENTS reconciled.
 
 ## v2 Requirements
 
@@ -130,10 +130,10 @@ Deferred to future release. Tracked but not in current v1 hardening milestone.
 | AGNT-01F..04F | Phase 4 | Foundation complete |
 | PERS-01 | Phase 1 | Foundation complete |
 | PERS-02F | Phase 5 | Foundation complete |
-| DEV-01..02 | Phase 6 | Pending |
-| AUD-01R..04R | Phase 7 | Pending |
-| VIS-01R..03R | Phase 8 | Pending |
-| CTRL-04R, HW-01 | Phase 9 | App-runtime path verified |
-| AGNT-01R | Phase 10 | Mock planner path verified; live provider-backed planning pending |
-| AGNT-02R..03R | Phase 10 | Deterministic/mock planner path verified |
-| REL-01..03 | Phase 11 | Pending |
+| DEV-01..02 | Phase 6 (closed Phase 11) | Complete (Phase 11) |
+| AUD-01R..04R | Phase 7 | Complete (Phase 11) |
+| VIS-01R..03R | Phase 8 | Complete (Phase 11) |
+| CTRL-04R, HW-01 | Phase 9 | Complete (Phase 9, re-confirmed Phase 11) |
+| AGNT-01R | Phase 10 | Mock planner path verified; planner wired into production GUI (415e8d8); live provider-backed planning pending |
+| AGNT-02R..03R | Phase 10 | Complete (Phase 10, re-confirmed Phase 11) |
+| REL-01..03 | Phase 11 | Complete (Phase 11) |

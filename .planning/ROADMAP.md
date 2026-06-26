@@ -2,14 +2,14 @@
 
 ## Current Picture
 
-Scrysynth has completed its foundation pass: the canonical session graph, desktop workspace, command handlers, persistence, performance surfaces, agent safety scaffolding, runtime health projections, cross-domain macros, and hardware-binding data paths are implemented.
+Scrysynth is **packaged and evaluated as v1 (1.0.0)** on macOS Apple Silicon. The canonical session graph, desktop workspace, command handlers, persistence, performance surfaces, agent safety scaffolding, runtime health projections, cross-domain macros, and hardware-binding data paths are implemented and have been verified end-to-end against the packaged `scrysynth.app`.
 
-The project is now in **v1 runtime hardening**, not feature-complete release. Real SuperCollider execution, the minimal visual sidecar path, the app-owned MIDI/OSC hardware runtime path, and deterministic/mock session-aware agent orchestration have been verified locally. The main remaining runtime gaps are richer Bevy visual output/packaging, live provider-backed agent orchestration, release packaging, and broader manual UAT.
+The v1 runtime-hardening milestone (Phases 7–11) is complete. Real SuperCollider execution, the minimal visual sidecar path (bundled via Tauri), the app-owned MIDI/OSC hardware runtime path, and session-aware agent orchestration (deterministic/local-parser planner wired into the production GUI) have each been re-verified against the packaged app in the consolidated Phase 11 UAT. The release is ad-hoc signed for Apple Silicon; full Developer ID notarization is deferred.
 
 Core distinction:
 
-- **Foundation complete:** canonical state, UI projections, command APIs, tests, and adapter boundaries exist.
-- **Runtime incomplete:** richer Bevy visual execution, packaged sidecar wiring, live provider-backed agent orchestration, and release packaging still need production implementation or verification. The default SuperCollider execution path, minimal visual sidecar process path, virtual MIDI/local OSC hardware runtime path, and deterministic/mock planner orchestration path are verified.
+- **v1 shipped & verified:** canonical state, UI projections, command APIs, tests, adapter boundaries, default SuperCollider execution, minimal bundled visual sidecar, virtual MIDI/local OSC hardware runtime path, deterministic/local-parser session-aware planner, and release packaging — all verified against the packaged app.
+- **Deferred beyond v1:** richer Bevy visual output, live provider-backed agent orchestration, physical-controller GUI click-through UAT, Windows/Linux/Intel builds, full notarization + auto-update, and multiplayer.
 
 ## Completed Foundation Phases
 
@@ -138,19 +138,21 @@ Remaining Phase 10 follow-on work belongs in release hardening:
 
 **Goal:** The project can be packaged and evaluated as a v1 desktop instrument.
 
+**Status: Complete.** Evidence: build + ad-hoc sign + first-run smoke in `.planning/phases/11-release-readiness/11-release-readiness-02-BUILD-EVIDENCE.md`; consolidated nine-scenario packaged-app UAT in `.planning/phases/11-release-readiness/11-release-readiness-03-UAT.md`. REL-01, REL-02, and REL-03 are verified; REQUIREMENTS.md marks them complete.
+
 Success criteria:
 
-1. Tauri packaging works for the target OS.
-2. Runtime dependency discovery and error messages are polished.
-3. Manual UAT covers save/open, graph edit, audio playback, scene/variation recall, macro control, hardware learn, agent approval, and panic recovery.
-4. README, planning docs, and release notes describe actual supported behavior without overstating stubs.
+1. Tauri packaging works for the target OS. **Verified (REL-01)** — `aarch64-apple-darwin` `.app` + `.dmg`, ad-hoc signed, bundled sidecar.
+2. Runtime dependency discovery and error messages are polished. **Verified (DEV-02)** — missing-`scsynth` / missing-sidecar actionable diagnostics.
+3. Manual UAT covers save/open, graph edit, audio playback, scene/variation recall, macro control, hardware learn, agent approval, and panic recovery. **Verified (REL-02)** — all nine scenario areas passed against the packaged app.
+4. README, planning docs, and release notes describe actual supported behavior without overstating stubs. **Verified (REL-03)** — `README.md` + `RELEASE_NOTES.md` carry Supported/Not-supported matrices; ROADMAP/STATE/REQUIREMENTS reconciled.
 
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans executed
 
 Plans:
 
 - [x] 11-release-readiness-01-PLAN.md — Release packaging build & visual sidecar wiring (bundle config, externalBin + tauri-plugin-shell, BevySidecarAdapter refactor, missing-binary message polish)
-- [ ] 11-release-readiness-02-PLAN.md — Release build smoke, consolidated manual UAT & documentation (REL-01 build verify, REL-02 nine-scenario UAT, REL-03 README/release-notes/planning-doc honesty)
+- [x] 11-release-readiness-02-PLAN.md — Release build smoke, consolidated manual UAT & documentation (REL-01 build verify, REL-02 nine-scenario UAT, REL-03 README/release-notes/planning-doc honesty)
 
 ## Deferred Beyond v1
 
