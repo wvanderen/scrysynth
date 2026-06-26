@@ -8,6 +8,19 @@ Scrysynth is a graph-native desktop audiovisual instrument for live co-creation 
 
 The instrument must let a human and agent shape a live audiovisual session together through conversation, graph structure, and direct performance control without losing legibility or human override.
 
+## Current Milestone: v2.0 Studio-Grade Instrument
+
+**Goal:** Transform Scrysynth from a verified v1 foundation into a studio-grade, fluently-playable audiovisual instrument — deep modular nodes, a rebuilt graph surface, visuals behind the grid, and a focused pro shell — while landing the v1 carry-overs.
+
+**Target features:**
+- Pro-grade focused shell (graph as hero, chat sidebar, progressive-disclosure menus/panels, iconography)
+- Graph UX rebuild (draggable nodes; intuitive & flexible edge connect/reconnect)
+- Curated modular node library (~12–16 node types: oscillators, filters, envelopes, LFOs, FX, sequencing) with rich per-node parameters
+- Visuals behind the grid (richer Bevy runtime as ambient layer behind the graph surface)
+- Live provider-backed agent orchestration (AGNT-01R)
+- Cross-platform builds (Windows / Linux / Intel / universal macOS)
+- Full Developer ID notarization + auto-updater
+
 ## Current Stage
 
 Scrysynth **v1.0 (1.0.0) shipped** on macOS Apple Silicon — an ad-hoc-signed `scrysynth.app` + `.dmg`, verified end-to-end against the packaged app.
@@ -15,6 +28,8 @@ Scrysynth **v1.0 (1.0.0) shipped** on macOS Apple Silicon — an ad-hoc-signed `
 The foundation (Phases 1–5) and the v1 runtime-hardening milestone (Phases 7–11, with Phase 6 dev-readiness folded into Phase 11) are both complete. The canonical Rust session graph, generated TypeScript contracts, JSON persistence, graph/conversation/performance UI surfaces, command handlers, ownership and approval scaffolding, runtime health state, macro controls, visual adapter, and MIDI/OSC binding models are implemented. Real SuperCollider audio execution, a minimal bundled visual sidecar, the app-owned MIDI/OSC hardware runtime path, session-aware agent orchestration, and release packaging have each been verified against the packaged app in the consolidated Phase 11 UAT (9/9 scenario areas passed).
 
 The next milestone has not been started. Candidate work (tracked, not committed): richer Bevy-rendered visuals + visible render window, live provider-backed agent orchestration (AGNT-01R), physical-controller GUI click-through UAT, Windows/Linux/Intel/universal builds, and full Developer ID notarization + auto-update.
+
+**v2.0 (Studio-Grade Instrument) milestone is now active** — see "Current Milestone" above. The v1 carry-overs (live provider agent, richer Bevy visuals, cross-platform builds, full notarization + auto-update) are folded into v2.0 alongside the new instrument-depth and shell-overhaul work.
 
 ## Requirements
 
@@ -30,14 +45,14 @@ The next milestone has not been started. Candidate work (tracked, not committed)
 - ✓ Agent collaboration is session-aware, explainable, and constrained by human override — deterministic/mock planner path + production-GUI wiring verified (AGNT-02R..03R) — v1.0
 - ✓ Tauri app packages for the target platform (REL-01), manual UAT covers the v1 scenario matrix (REL-02), and docs describe supported behavior without overstating stubs (REL-03) — v1.0
 
-### Active — Next Milestone Candidates
+### Active — v2.0 Studio-Grade Instrument
 
-(None yet — next milestone is defined by `/gsd-new-milestone`. Tracked candidates from v1 deferrals:)
-
-- [ ] Live provider-backed agent orchestration beyond the verified deterministic/mock planner boundary (AGNT-01R carry-over).
-- [ ] Richer Bevy-rendered visuals + a visible render window (replace the minimal GPU-free sidecar).
-- [ ] Physical-controller GUI click-through UAT when hardware is available.
-- [ ] Windows / Linux / Intel / universal macOS build targets.
+- [ ] Pro-grade focused shell: graph as hero, chat sidebar, progressive-disclosure menus/panels, iconography, intelligent screenspace — retire the "card webui" feel (design philosophy = focused instrument, not dense/maximalist).
+- [ ] Graph UX rebuild: draggable nodes; intuitive & flexible edge connect/reconnect.
+- [ ] Curated modular node library: ~12–16 well-designed node types (oscillators, filters, envelopes, LFOs, FX, sequencing) with rich per-node parameters, mapped to SuperCollider. Quality over quantity.
+- [ ] Visuals behind the grid: richer Bevy visual runtime rendered as an ambient layer behind the graph surface (Bespoke-Synth-style); unifies the v1 "richer Bevy" carry-over.
+- [ ] Live provider-backed agent orchestration (AGNT-01R carry-over): connect the verified planner boundary to a live LLM provider.
+- [ ] Cross-platform builds: Windows / Linux / Intel / universal macOS targets.
 - [ ] Full Developer ID signing + notarization + an auto-updater.
 
 ### Out of Scope
@@ -87,7 +102,18 @@ The app owns canonical session truth. Audio and visual engines are runtime targe
 
 This document evolves at phase transitions and milestone boundaries.
 
-**Next milestone review:** after `/gsd-new-milestone` defines the next scope (candidate carry-overs: live provider agent, richer Bevy visuals, cross-platform builds, full notarization + auto-update).
+**After each phase transition** (via `/gsd-transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd-complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
 
 ---
-*Last updated: 2026-06-26 after v1.0 milestone*
+*Last updated: 2026-06-26 after v2.0 milestone start*

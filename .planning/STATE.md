@@ -1,19 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: v1 runtime hardening
-current_phase: 0
-status: v1 shipped — awaiting next milestone
-stopped_at: "v1.0 milestone archived 2026-06-26; packaged .app UAT-verified on Apple Silicon"
-last_updated: "2026-06-26T18:33:26-05:00"
+milestone: v2.0
+milestone_name: Studio-Grade Instrument
+status: planning
+last_updated: "2026-06-26T19:04:43.871Z"
 last_activity: 2026-06-26
-last_activity_desc: Milestone v1.0 (v1 Runtime Hardening) completed and archived
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 6
-  completed_plans: 6
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -28,14 +25,10 @@ See `.planning/PROJECT.md` and `.planning/ROADMAP.md`.
 
 ## Current Position
 
-Scrysynth **v1.0 (1.0.0) shipped** on macOS Apple Silicon — ad-hoc-signed `scrysynth.app` + `.dmg`. The v1 Runtime Hardening milestone (Phases 7–11, with Phase 6 dev-readiness folded into Phase 11) is complete and archived to `.planning/milestones/v1.0-ROADMAP.md`. All milestone work was re-verified end-to-end against the packaged app in the consolidated Phase 11 UAT (9/9 scenario areas passed).
-
-Phase: — (milestone complete)
+Phase: Not started (defining requirements)
 Plan: —
-Status: v1 shipped — awaiting next milestone
-Last activity: 2026-06-26 — Milestone v1.0 archived
-
-Deferred beyond v1 (tracked for a future milestone, not active v1 work): richer Bevy-rendered visuals / visible render window, live provider-backed agent orchestration (AGNT-01R), physical-controller GUI click-through UAT, Windows/Linux/Intel/universal builds, full Developer ID notarization + auto-update, and multiplayer. See PROJECT.md "Active — Next Milestone Candidates" and the v1.0 archive for the full deferred list.
+Status: Defining requirements
+Last activity: 2026-06-26 — Milestone v2.0 started
 
 ## Completed Foundation
 
