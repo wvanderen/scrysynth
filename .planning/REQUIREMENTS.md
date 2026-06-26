@@ -9,9 +9,9 @@ Requirements for the v2.0 milestone. Each maps to a roadmap phase (numbering con
 
 ### Curated Modular Node Library
 
-- [ ] **NODES-01**: A data-driven node catalog (single source of truth) lets new node types be added without touching hardcoded compiler allowlists
-- [ ] **NODES-02**: User can add oscillator, filter, envelope, LFO, and utility (VCA/mixer/noise/quantizer) nodes covering the full synthesis chain, each with rich bounded parameters mapped to SuperCollider UGens
-- [ ] **NODES-03**: User can add effect nodes (delay, reverb, distortion, chorus/flanger) with characteristic + wet/dry parameters mapped to SC
+- [x] **NODES-01**: A data-driven node catalog (single source of truth) lets new node types be added without touching hardcoded compiler allowlists
+- [x] **NODES-02**: User can add oscillator, filter, envelope, LFO, and utility (VCA/mixer/noise/quantizer) nodes covering the full synthesis chain, each with rich bounded parameters mapped to SuperCollider UGens
+- [x] **NODES-03**: User can add effect nodes (delay, reverb, distortion, chorus/flanger) with characteristic + wet/dry parameters mapped to SC
 - [ ] **NODES-04**: User can add a step-sequencer node with per-step gate/CV and clock transport
 - [ ] **NODES-05**: Every audio node exposes CV/modulation inputs (audio-rate + control-rate ports), making patches modular, not preset-based
 
@@ -88,9 +88,9 @@ Which phases cover which requirements. v2.0 phases continue numbering from v1.0 
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| NODES-01 | Phase 12 (Node Catalog Foundation) | Pending |
-| NODES-02 | Phase 12 (Node Catalog Foundation) | Pending |
-| NODES-03 | Phase 12 (Node Catalog Foundation) | Pending |
+| NODES-01 | Phase 12 (Node Catalog Foundation) | Complete (Plan 01) |
+| NODES-02 | Phase 12 (Node Catalog Foundation) | Complete (Plan 01) |
+| NODES-03 | Phase 12 (Node Catalog Foundation) | Complete (Plan 01) |
 | NODES-04 | Phase 12 (Node Catalog Foundation) | Pending |
 | NODES-05 | Phase 12 (Node Catalog Foundation) | Pending |
 | GRAPH-01 | Phase 13 (Graph UX Rebuild) | Pending |

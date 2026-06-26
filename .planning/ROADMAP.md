@@ -63,7 +63,7 @@
 **Plans**: 2 plans (coarse granularity — catalog foundation + compiler refactor in P01; sequencer runtime + frontend consumption + real-scsynth conformance test in P02, Wave 2)
 
 Plans:
-- [ ] 12-01-PLAN.md — Catalog module + domain reshape + v2 SynthDef authoring + replace 5 hardcoded spots + control-bus allocation + v1 rejection (Wave 1)
+- [x] 12-01-PLAN.md — Catalog module + domain reshape + v2 SynthDef authoring + replace 5 hardcoded spots + control-bus allocation + v1 rejection (Wave 1) — **complete (a293cef, 55e1097)**
 - [ ] 12-02-PLAN.md — App-driven step sequencer controller + frontend catalog consumption + conformance test that boots real scsynth per entry (Wave 2, depends on 12-01)
 
 **UI hint**: yes
@@ -156,7 +156,7 @@ Plans:
 | 9. Hardware Input Runtime Wiring | v1.0 | 1/1 | Complete | 2026-06-19 |
 | 10. Session-Aware Agent Orchestration | v1.0 | 1/1 | Complete | 2026-06-21 |
 | 11. Release Readiness | v1.0 | 2/2 | Complete | 2026-06-26 |
-| 12. Node Catalog Foundation | v2.0 | 0/2 | Not started | - |
+| 12. Node Catalog Foundation | v2.0 | 1/2 | Executing (Plan 01 done) | - |
 | 13. Graph UX Rebuild | v2.0 | 0/TBD | Not started | - |
 | 14. Visuals Compositing Spike | v2.0 | 0/TBD | Not started | - |
 | 15. Visuals Behind the Grid | v2.0 | 0/TBD | Not started | - |
