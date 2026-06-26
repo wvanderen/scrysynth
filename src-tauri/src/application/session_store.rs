@@ -4,6 +4,7 @@ use crate::application::midi_learn::{
 };
 use crate::application::performance_command;
 use crate::audio::runtime_manager::{AudioRuntimeManager, AudioRuntimeManagerError};
+use crate::audio::sequencer::{SequencerController, UdpCSetSink};
 use crate::domain::session::{
     new_id, ActionHistoryEntry, ActorRef, AgentRuntimeState, AudioBusType, AudioRuntimeHealth,
     AudioRuntimeLifecycle, AudioRuntimeState, BindingTarget, Bus, ChannelMode, ControllerKind,
@@ -62,6 +63,10 @@ pub struct SessionStore {
     /// `app.shell().sidecar()` API in a packaged build. `None` in unit tests
     /// and dev runs without a registered runtime.
     app_handle: Option<tauri::AppHandle>,
+    /// App-driven step sequencer tick threads (NODES-04; D-06/D-07/D-08).
+    /// One per sequencer node; spawned when audio reaches Ready, killed on
+    /// stop/panic so no orphan tick threads survive (T-12-06 control safety).
+    sequencer_controllers: Vec<SequencerController>,
 }
 
 impl SessionStore {
@@ -80,6 +85,7 @@ impl SessionStore {
             hardware_settings: HardwareRuntimeSettings::default(),
             hardware_status: HardwareRuntimeStatus::default(),
             app_handle: None,
+            sequencer_controllers: Vec::new(),
         }
     }
 
@@ -97,9 +103,104 @@ impl SessionStore {
         self.app_handle = Some(handle);
     }
 
+    /// Spawn one app-driven tick thread per sequencer node in the current
+    /// session (NODES-04). Looks up each sequencer's `gate_out` / `cv_out`
+    /// control-bus indices from the adapter's CV-bus assignments; if either is
+    /// missing the sequencer has no target yet and is skipped (best-effort —
+    /// the audio runtime itself is unaffected).
+    fn spawn_sequencer_controllers(&mut self, manager: &AudioRuntimeManager) {
+        let cv_assignments = manager.cv_bus_assignments();
+        if cv_assignments.is_empty() {
+            return;
+        }
+
+        let tempo_bpm = self.current.transport.tempo_bpm;
+        for node in &self.current.nodes {
+            if node.node_type_id != "step_sequencer" {
+                continue;
+            }
+            let pattern = node.sequencer_pattern.clone().unwrap_or_default();
+            let gate_bus = cv_assignments
+                .iter()
+                .find(|a| a.node_id == node.id && a.port_id == "gate_out")
+                .map(|a| a.bus_index);
+            let cv_bus = cv_assignments
+                .iter()
+                .find(|a| a.node_id == node.id && a.port_id == "cv_out")
+                .map(|a| a.bus_index);
+            let (Some(gate_bus), Some(cv_bus)) = (gate_bus, cv_bus) else {
+                // Sequencer has no CV routes yet — nothing to tick. The
+                // controller is still useful for future routing; skip spawning
+                // until at least one route exists.
+                continue;
+            };
+            let sink = match UdpCSetSink::connect_default() {
+                Ok(sink) => sink,
+                // Best-effort: a missing OSC socket does not break audio; the
+                // next start attempt will retry.
+                Err(_) => continue,
+            };
+            let controller = SequencerController::start(
+                node.id.clone(),
+                sink,
+                gate_bus,
+                cv_bus,
+                tempo_bpm,
+                pattern,
+            );
+            self.sequencer_controllers.push(controller);
+        }
+    }
+
+    /// Stop every live sequencer controller, joining each thread (T-12-06).
+    fn stop_sequencer_controllers(&mut self) {
+        for controller in self.sequencer_controllers.drain(..) {
+            controller.stop();
+        }
+    }
+
+    /// Push a `SetStepValue` mutation to the matching controller's shared
+    /// pattern so the next tick reflects the edit (T-12-07). The canonical
+    /// mutation already landed in `SessionDocument` via the typed-command gate;
+    /// this only propagates the post-mutation pattern snapshot to the live
+    /// tick loop.
+    fn propagate_step_edit(
+        &mut self,
+        node_id: &str,
+        _step_index: u8,
+        _gate: Option<bool>,
+        _cv: Option<f64>,
+    ) {
+        // The canonical pattern for this node is the source of truth after the
+        // typed-command gate applied the mutation — push it verbatim.
+        let pattern = self
+            .current
+            .nodes
+            .iter()
+            .find(|n| n.id == node_id)
+            .and_then(|n| n.sequencer_pattern.clone());
+        let Some(pattern) = pattern else {
+            return;
+        };
+        for controller in &self.sequencer_controllers {
+            if controller.node_id() == node_id {
+                controller.update_pattern(pattern.clone());
+            }
+        }
+    }
+
     pub fn start_audio_runtime(&mut self) -> Result<SessionDocument, AudioRuntimeManagerError> {
         let mut manager = std::mem::take(&mut self.audio_runtime_manager);
         let result = manager.start(self);
+        // D-06/D-07/D-08: spawn one app-driven tick thread per sequencer node
+        // when the runtime reached Ready. SC stays dumb — these threads write
+        // per-step gate/CV to the allocated control buses via /c_set. Killed
+        // on stop/panic (T-12-06) so no orphan threads survive.
+        if let Ok(session) = &result {
+            if session.audio_runtime.lifecycle == AudioRuntimeLifecycle::Ready {
+                self.spawn_sequencer_controllers(&manager);
+            }
+        }
         self.audio_runtime_manager = manager;
         result
     }
@@ -108,6 +209,7 @@ impl SessionStore {
         let mut manager = std::mem::take(&mut self.audio_runtime_manager);
         let result = manager.stop(self);
         self.audio_runtime_manager = manager;
+        self.stop_sequencer_controllers();
         result
     }
 
@@ -115,6 +217,7 @@ impl SessionStore {
         let mut manager = std::mem::take(&mut self.audio_runtime_manager);
         let result = manager.panic(self);
         self.audio_runtime_manager = manager;
+        self.stop_sequencer_controllers();
         result
     }
 
@@ -125,6 +228,18 @@ impl SessionStore {
         let mut manager = std::mem::take(&mut self.audio_runtime_manager);
         let result = manager.reconcile_graph_edit(self, command);
         self.audio_runtime_manager = manager;
+        // Propagate sequencer step edits to the live tick thread (T-12-07).
+        // Mutations flow through the typed-command gate before reaching here;
+        // this only pushes the new step value to the controller's shared pattern.
+        if let GraphEditCommand::SetStepValue {
+            node_id,
+            step_index,
+            gate,
+            cv,
+        } = command
+        {
+            self.propagate_step_edit(node_id, *step_index, *gate, *cv);
+        }
         result
     }
 
@@ -142,6 +257,14 @@ impl SessionStore {
     pub fn reload_audio_topology(&mut self) -> Result<SessionDocument, AudioRuntimeManagerError> {
         let mut manager = std::mem::take(&mut self.audio_runtime_manager);
         let result = manager.reload_topology_if_ready(self);
+        // A live topology reload re-allocates control buses, so the sequencer
+        // controllers must be respawned against the fresh bus assignments.
+        if let Ok(session) = &result {
+            if session.audio_runtime.lifecycle == AudioRuntimeLifecycle::Ready {
+                self.stop_sequencer_controllers();
+                self.spawn_sequencer_controllers(&manager);
+            }
+        }
         self.audio_runtime_manager = manager;
         result
     }

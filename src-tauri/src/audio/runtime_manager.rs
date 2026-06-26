@@ -8,6 +8,16 @@ use crate::domain::session::{
     RuntimeConnectionState, RuntimeKind, SessionDocument,
 };
 
+/// A `(node_id, port_id) → control-bus index` assignment exposed to the
+/// app-driven sequencer controller (the controller writes per-step gate/CV to
+/// these buses via `/c_set`). See [`AudioRuntimeAdapter::cv_bus_assignments`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CvBusAssignment {
+    pub node_id: String,
+    pub port_id: String,
+    pub bus_index: i32,
+}
+
 pub trait AudioRuntimeAdapter {
     fn start(&mut self) -> Result<RuntimeAdapterStatus, String>;
     fn load_topology(
@@ -20,6 +30,12 @@ pub trait AudioRuntimeAdapter {
         parameter_id: &str,
         value: f64,
     ) -> Result<RuntimeAdapterStatus, String>;
+    /// Expose the active patch's CV-bus allocations so the app-driven sequencer
+    /// controller can find its `gate_out` / `cv_out` control-bus indices.
+    /// Default returns empty (test fakes that don't model CV wiring).
+    fn cv_bus_assignments(&self) -> Vec<CvBusAssignment> {
+        Vec::new()
+    }
     fn stop(&mut self) -> Result<RuntimeAdapterStatus, String>;
     fn panic(&mut self) -> Result<RuntimeAdapterStatus, String>;
 }
@@ -246,6 +262,13 @@ where
         }
 
         self.reapply_live_topology(store)
+    }
+
+    /// Expose the active patch's CV-bus assignments so the caller (SessionStore)
+    /// can spawn the app-driven sequencer controllers after `start` succeeds.
+    /// Empty when no patch is active or the adapter models no CV wiring.
+    pub fn cv_bus_assignments(&self) -> Vec<CvBusAssignment> {
+        self.adapter.cv_bus_assignments()
     }
 
     fn set_live_parameter(

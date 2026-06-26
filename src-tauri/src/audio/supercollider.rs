@@ -163,6 +163,24 @@ impl AudioRuntimeAdapter for SuperColliderAdapter<UdpOscTransport> {
         self.active_patch = None;
         Ok(RuntimeAdapterStatus::Panicked)
     }
+
+    fn cv_bus_assignments(&self) -> Vec<crate::audio::runtime_manager::CvBusAssignment> {
+        self.active_patch
+            .as_ref()
+            .map(|plan| {
+                plan.cv_bus_map
+                    .iter()
+                    .map(|((node_id, port_id), bus)| {
+                        crate::audio::runtime_manager::CvBusAssignment {
+                            node_id: node_id.clone(),
+                            port_id: port_id.clone(),
+                            bus_index: *bus as i32,
+                        }
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
 }
 
 impl Default for SuperColliderAdapter<UdpOscTransport> {
@@ -1025,6 +1043,7 @@ mod tests {
                 },
             ],
             controls: Vec::new(),
+            cv_bus_map: std::collections::BTreeMap::new(),
         }
     }
 

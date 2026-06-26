@@ -27,6 +27,12 @@ pub struct ScResourcePlan {
     pub groups: Vec<ScGroupPlan>,
     pub synths: Vec<ScSynthPlan>,
     pub controls: Vec<ScControlPlan>,
+    /// Map from `(source_node_id, source_port_id)` → allocated control-bus
+    /// index for every CV-source output port. Exposed so the app-driven
+    /// sequencer controller can find its `gate_out` / `cv_out` bus indices
+    /// (the sequencer has no SuperCollider synth, so its bus args are not
+    /// attached to any `ScSynthPlan` — the controller writes via `/c_set`).
+    pub cv_bus_map: BTreeMap<(String, String), u32>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -291,7 +297,33 @@ pub fn plan_sc_resources(
             .collect(),
         synths,
         controls,
+        cv_bus_map: build_cv_bus_map(&topology),
     })
+}
+
+/// Build the public `(node_id, port_id) → control-bus` projection of every CV
+/// allocation made by [`plan_cv_buses`]. Used by the app-driven sequencer
+/// controller to find its `gate_out`/`cv_out` bus indices without parsing
+/// `ScSynthPlan.args`.
+fn build_cv_bus_map(topology: &CompiledTopology) -> BTreeMap<(String, String), u32> {
+    let mut map = BTreeMap::new();
+    let mut next_control_bus = FIRST_CONTROL_BUS_OFFSET;
+    for route in &topology.cv_routes {
+        // Mirror plan_cv_buses' allocation order exactly so the indices agree.
+        // (Audio-rate CV reuses the source's existing audio out bus and is
+        // already captured on the target synth's `<cv_port>_bus` arg; we do
+        // not duplicate it here — the sequencer writes control-rate only.)
+        if route.signal_type != SignalType::Control {
+            continue;
+        }
+        let key = (route.source_node_id.clone(), route.source_port_id.clone());
+        map.entry(key).or_insert_with(|| {
+            let allocated = next_control_bus;
+            next_control_bus += 1;
+            allocated
+        });
+    }
+    map
 }
 
 fn plan_buses(topology: &CompiledTopology) -> Result<BTreeMap<String, f32>, ScResourcePlanError> {
