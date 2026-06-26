@@ -60,7 +60,12 @@
   2. Every catalog node exposes CV/modulation inputs (audio-rate + control-rate ports) alongside its primary parameters, so patches are modular (signal flows between nodes) rather than preset-based.
   3. Adding a new node type requires editing only the catalog — no changes to v1's hardcoded `synthdef_resource` / `normalize_parameter_name` / `validate_runtime_target` allowlists (and the v1 `unreachable!()` panic path is replaced with a real `Err`).
   4. The catalog drives compiler dispatch, route validation, palette, inspector, and `ts-rs` schema export from one Rust table, verified by a conformance test that boots real `scsynth` for every entry.
-**Plans**: TBD
+**Plans**: 2 plans (coarse granularity — catalog foundation + compiler refactor in P01; sequencer runtime + frontend consumption + real-scsynth conformance test in P02, Wave 2)
+
+Plans:
+- [ ] 12-01-PLAN.md — Catalog module + domain reshape + v2 SynthDef authoring + replace 5 hardcoded spots + control-bus allocation + v1 rejection (Wave 1)
+- [ ] 12-02-PLAN.md — App-driven step sequencer controller + frontend catalog consumption + conformance test that boots real scsynth per entry (Wave 2, depends on 12-01)
+
 **UI hint**: yes
 
 ### Phase 13: Graph UX Rebuild
@@ -151,7 +156,7 @@
 | 9. Hardware Input Runtime Wiring | v1.0 | 1/1 | Complete | 2026-06-19 |
 | 10. Session-Aware Agent Orchestration | v1.0 | 1/1 | Complete | 2026-06-21 |
 | 11. Release Readiness | v1.0 | 2/2 | Complete | 2026-06-26 |
-| 12. Node Catalog Foundation | v2.0 | 0/TBD | Not started | - |
+| 12. Node Catalog Foundation | v2.0 | 0/2 | Not started | - |
 | 13. Graph UX Rebuild | v2.0 | 0/TBD | Not started | - |
 | 14. Visuals Compositing Spike | v2.0 | 0/TBD | Not started | - |
 | 15. Visuals Behind the Grid | v2.0 | 0/TBD | Not started | - |
