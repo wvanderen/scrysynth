@@ -84,17 +84,46 @@ Explicitly excluded. Documented to prevent scope creep.
 
 ## Traceability
 
-Which phases cover which requirements. Updated during roadmap creation.
+Which phases cover which requirements. v2.0 phases continue numbering from v1.0 (Phase 11) and start at Phase 12.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| _(filled by roadmapper)_ | | |
+| NODES-01 | Phase 12 (Node Catalog Foundation) | Pending |
+| NODES-02 | Phase 12 (Node Catalog Foundation) | Pending |
+| NODES-03 | Phase 12 (Node Catalog Foundation) | Pending |
+| NODES-04 | Phase 12 (Node Catalog Foundation) | Pending |
+| NODES-05 | Phase 12 (Node Catalog Foundation) | Pending |
+| GRAPH-01 | Phase 13 (Graph UX Rebuild) | Pending |
+| GRAPH-02 | Phase 13 (Graph UX Rebuild) | Pending |
+| GRAPH-03 | Phase 13 (Graph UX Rebuild) | Pending |
+| GRAPH-04 | Phase 13 (Graph UX Rebuild) | Pending |
+| GRAPH-05 | Phase 13 (Graph UX Rebuild) | Pending |
+| VISUAL-01 | Phase 14 (Visuals Compositing Spike) | Pending |
+| VISUAL-02 | Phase 15 (Visuals Behind the Grid) | Pending |
+| VISUAL-03 | Phase 15 (Visuals Behind the Grid) | Pending |
+| VISUAL-04 | Phase 15 (Visuals Behind the Grid) | Pending |
+| SHELL-01 | Phase 16 (Focused Shell & Live Agent) | Pending |
+| SHELL-02 | Phase 16 (Focused Shell & Live Agent) | Pending |
+| SHELL-03 | Phase 16 (Focused Shell & Live Agent) | Pending |
+| SHELL-04 | Phase 16 (Focused Shell & Live Agent) | Pending |
+| AGENT-01 | Phase 16 (Focused Shell & Live Agent) | Pending |
+| AGENT-02 | Phase 16 (Focused Shell & Live Agent) | Pending |
+| AGENT-03 | Phase 16 (Focused Shell & Live Agent) | Pending |
+| AGENT-04 | Phase 16 (Focused Shell & Live Agent) | Pending |
+| PLATFORM-01 | Phase 17 (Cross-Platform Builds) | Pending |
+| PLATFORM-02 | Phase 17 (Cross-Platform Builds) | Pending |
+| PLATFORM-03 | Phase 17 (Cross-Platform Builds) | Pending |
+| PLATFORM-04 | Phase 17 (Cross-Platform Builds) | Pending |
+| RELEASE-01 | Phase 18 (Notarization & Auto-Updater) | Pending |
+| RELEASE-02 | Phase 18 (Notarization & Auto-Updater) | Pending |
+| RELEASE-03 | Phase 18 (Notarization & Auto-Updater) | Pending |
 
 **Coverage:**
 - v2.0 requirements: 29 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 29 ⚠️ (until roadmap creation)
+- Mapped to phases: 29/29 ✓ (100%)
+- Unmapped: 0
+- Phase distribution: P12=5, P13=5, P14=1, P15=3, P16=8, P17=4, P18=3
 
 ---
 *Requirements defined: 2026-06-26*
-*Last updated: 2026-06-26 after v2.0 milestone requirements definition*
+*Last updated: 2026-06-26 after v2.0 roadmap creation (traceability filled)*

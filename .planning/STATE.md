@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Studio-Grade Instrument
 status: planning
-last_updated: "2026-06-26T19:04:43.871Z"
+last_updated: "2026-06-26T19:30:00.000Z"
 last_activity: 2026-06-26
 progress:
-  total_phases: 0
+  total_phases: 7
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,169 +21,88 @@ See `.planning/PROJECT.md` and `.planning/ROADMAP.md`.
 
 **Core value:** The instrument must let a human and agent shape a live audiovisual session together through conversation, graph structure, and direct performance control without losing legibility or human override.
 
-**Current focus:** v1.0 shipped — planning next milestone (run `/gsd-new-milestone`)
+**Current focus:** v2.0 Studio-Grade Instrument — Phase 12 (Node Catalog Foundation) ready to plan.
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-06-26 — Milestone v2.0 started
+Phase: 12 of 18 — Node Catalog Foundation (first v2.0 phase)
+Plan: — (not yet planned)
+Status: Ready to plan
+Last activity: 2026-06-26 — v2.0 roadmap created (7 phases: 12–18), 29/29 requirements mapped
 
-## Completed Foundation
+Progress: [░░░░░░░░░░] 0% (0/7 v2.0 phases complete)
 
-| Phase | Status | Result |
-|-------|--------|--------|
-| 1. Session Core & Recall | Complete | Canonical session schema, generated TS contracts, JSON persistence, graph/inspector workspace. |
-| 2. Playable Audio Graph Foundation | Complete | Graph edit commands, audio primitive model, topology compiler, runtime lifecycle shell, transport/panic controls. |
-| 3. Performance Workspace | Complete | Conversation/graph/performance view switching, scene recall, variation save/restore. |
-| 4. Agent Collaboration Scaffold | Complete | Deterministic intent parser, ownership gates, approvals, action history, conversation UI. |
-| 5. Visual Sync & Cross-Modal Control Scaffold | Complete | Visual adapter shell, runtime health panel, cross-domain macros, MIDI/OSC binding models. |
+## v2.0 Milestone
 
-## Active Hardening Work
+**Goal:** Transform Scrysynth from a verified v1 foundation into a studio-grade, fluently-playable audiovisual instrument.
 
-None — the v1 runtime-hardening milestone is complete.
+| Phase | Goal (one-liner) | Requirements | Status |
+|-------|------------------|--------------|--------|
+| 12. Node Catalog Foundation | Data-driven node catalog as single source of truth; full synthesis chain | NODES-01..05 | Not started |
+| 13. Graph UX Rebuild | Fluent patching through typed commands; canonical positions | GRAPH-01..05 | Not started |
+| 14. Visuals Compositing Spike | One-day macOS PoC; decision gate for Phase 15 | VISUAL-01 | Not started |
+| 15. Visuals Behind the Grid | Richer Bevy ambient layer behind graph, separate adapter | VISUAL-02..04 | Not started |
+| 16. Focused Shell & Live Agent | Graph-hero shell + live LLM agent with safety inheritance (parallel tracks) | SHELL-01..04, AGENT-01..04 | Not started |
+| 17. Cross-Platform Builds | Windows / Linux / Intel / universal macOS | PLATFORM-01..04 | Not started |
+| 18. Notarization & Auto-Updater | Signed + notarized + Ed25519 auto-update via CI | RELEASE-01..03 | Not started |
 
-Deferred beyond v1 (tracked for a future milestone, not active v1 work):
+**Coverage:** 29/29 v2.0 requirements mapped. No orphans, no duplicates.
 
-1. Live provider-backed agent orchestration on top of the verified planner boundary (AGNT-01R).
-2. Richer Bevy-rendered visuals and a visible render window.
-3. Physical-controller GUI click-through UAT.
-4. Windows / Linux / Intel / universal builds.
-5. Full Developer ID notarization + auto-update.
+## Completed Foundation (v1.0 — shipped 2026-06-26)
 
-## Completed Hardening Work
+v1.0 (1.0.0) shipped as ad-hoc-signed macOS Apple Silicon `scrysynth.app` + `.dmg`. 36/37 v1 requirements verified. 11 phases complete (foundation 1–5 + hardening 7–11; Phase 6 folded into 11). Consolidated Phase 11 packaged-app UAT passed 9/9 scenario areas. See `.planning/milestones/v1.0-ROADMAP.md` for the full v1 record.
 
-| Phase | Status | Result |
-|-------|--------|--------|
-| 7. Real SuperCollider Execution | Complete | Default source-to-output graph verified against local `scsynth` with audible playback, live parameter update, stop, panic, and restart-after-panic. |
-| 8. Real Visual Runtime Path | Complete for minimal sidecar | `scrysynth-visual` starts as a separate process, acknowledges handshake and scene load, applies live parameter batches, stops, panics, and restarts after panic. Runtime Health now surfaces missing sidecar, booting, ready, degraded, disconnected, stopped, panicked, and restartable visual states. |
-| 9. Hardware Input Runtime Wiring | Complete for app-runtime path | CoreMIDI virtual MIDI and local OSC sender verified live learn plus post-learn routing for macro, scene recall, transport play, transport stop, and panic. Panic stopped an active SuperCollider patch and left audio `Idle/PanicRecovered`. |
-| 10. Session-Aware Agent Orchestration | Complete for deterministic/mock planner path | Bounded context packets, provider-agnostic planner requests, realistic mock proposal normalization, typed-command validation, approval/rejection, freeze/reclaim, provider-unavailable diagnostics, invalid-response diagnostics, and frontend proposal/diagnostic rendering are verified. Live provider-backed planning remains future hardening. |
-| 11. Release Readiness | Complete | Packaged ad-hoc-signed `scrysynth.app` + `.dmg` for `aarch64-apple-darwin`; consolidated nine-scenario packaged-app UAT passed (save/open, graph edit, audio playback, scene/variation recall, macro control, hardware learn, agent approval, visual runtime, panic recovery); README/RELEASE_NOTES/ROADMAP/STATE/REQUIREMENTS reconciled. REL-01/02/03 verified. Planner wired into production GUI (`415e8d8`). |
-
-## Recent Audit Findings
-
-- `README.md` was still the default Tauri template before this consolidation.
-- `ROADMAP.md`, `STATE.md`, and `REQUIREMENTS.md` had drifted from one another.
-- `ROADMAP.md` showed all five phases complete in the progress table, while some plan checkboxes remained unchecked.
-- `STATE.md` still claimed Phase 01/02 execution even though later phase summaries and code exist.
-- `REQUIREMENTS.md` marked several Phase 4 agent/interface requirements pending despite implemented Phase 4 scaffold work.
-- Local verification in the audit shell was blocked by missing dependencies/tooling: no `node_modules`, no `cargo` on `PATH`.
+Implemented & verified in v1: canonical Rust `SessionDocument` + generated TS contracts, versioned JSON persistence, React Flow workspace, conversation/graph/performance views, command layer with ownership/approval/freeze/reclaim gates, real SuperCollider execution (audible playback + panic + restart), minimal `scrysynth-visual` sidecar (bundled via `tauri-plugin-shell`), CoreMIDI + local OSC hardware learn, provider-agnostic session-aware agent planner (deterministic/mock path, wired into production GUI), ad-hoc release packaging.
 
 ## Decisions
 
-- Treat Phases 1-5 as **foundation complete**, not as proof of release-ready runtime behavior.
-- Track the next milestone as **v1 runtime hardening**.
-- Keep the canonical app-owned session model as the source of truth.
-- Preserve SuperCollider as the v1 audio execution target, but require real OSC/resource application before claiming playable audio.
-- Preserve the separate visual runtime boundary, but require an actual sidecar/protocol before claiming visual execution.
-- Keep human override, ownership, freeze/reclaim, and approval gates as non-negotiable product constraints.
-- [Phase ?]: Phase 11 Plan 01: v1 Tauri bundle config delivered (1.0.0, ad-hoc macOS signing, Apple Silicon only, targets [app,dmg], externalBin visual sidecar via tauri-plugin-shell). BevySidecarAdapter launches the bundled sidecar through app.shell().sidecar() in the packaged path and keeps the raw-Command dev/test override. scsynth stays external with a polished discovery message. REL-01 substrate delivered here; the actual release build + first-run smoke (REL-01 verification) is owned by Plan 02.
-- [Phase 11 Plan 02]: v1 released. Release build produced ad-hoc-signed `scrysynth.app` + `scrysynth_1.0.0_aarch64.dmg` for `aarch64-apple-darwin`. Planner wired into the production GUI (`415e8d8`: `send_agent_message` → `handle_agent_message` → `plan_and_apply_agent_request`; approve/reject IPC param fixed; additive `remove … agent …` high-risk fallback). Consolidated nine-scenario packaged-app UAT passed. REL-01/02/03 verified. D-03 honest caveat: no Gatekeeper "Open Anyway" prompt on the build host because local builds carry no `com.apple.quarantine`; the prompt is the end-user download path, documented in README/RELEASE_NOTES. Deferred beyond v1: live provider-backed agent (AGNT-01R), richer Bevy visuals, physical-controller click-through, Windows/Linux/Intel, full notarization + auto-update, multiplayer.
+Recent decisions affecting v2.0 work (full log in PROJECT.md Key Decisions):
+
+- **[v2.0 Roadmap]** Honor the research's converged 8-phase dependency order with coarse-granularity compression: combine parallelizable Pro Shell + Live Agent into Phase 16; keep Visuals Compositing Spike (Phase 14) as a standalone decision gate per HIGH-RISK flag; keep Cross-Platform (Phase 17) and Notarization (Phase 18) separate because RELEASE needs final stable per-platform binaries.
+- **[v2.0 Catalog-as-data]** Refactor v1's three hardcoded allowlists (`synthdef_resource`, `normalize_parameter_name`, `validate_runtime_target`) into one Rust-owned `NodeCatalogEntry` table — single highest-leverage v2 decision, unblocks Phases 13, 15, and 16 simultaneously.
+- **[v2.0 Layout command]** Add a dedicated `SetNodeLayout`/`MoveNode` command variant that bypasses `AudioRuntimeManager.reconcile_graph_edit`, so drag does not recompile topology or re-trigger envelopes every frame (Pitfalls V2-2, V2-14).
+- **[v2.0 Agent safety]** Insert `validate_planner_proposal(&proposal, &session)` before typed-command gates; re-derive confidence → risk-tier → approval-threshold mapping for LLM continuous values; fuzz the validator (Pitfall V2-4).
+- **[v1 carry-overs]** Live provider-backed agent (AGNT-01R), richer Bevy visuals, cross-platform builds, and full notarization + auto-update fold into v2.0 as AGENT-01..04, VISUAL-02..04, PLATFORM-01..04, RELEASE-01..03.
 
 ## Pending Todos
 
-All v1 work is complete. Deferred beyond v1 (future milestone):
+None yet for v2.0. (v1 close items are recorded under Deferred Items below.)
 
-- Connect the verified Phase 10 provider-agnostic planner boundary to a live provider-backed agent and run provider setup/fallback UAT (AGNT-01R).
-- Run a physical-controller GUI click-through pass when hardware is available.
-- Replace the minimal GPU-free visual sidecar with richer Bevy-rendered output and a visible render window.
-- Add Windows / Linux / Intel / universal macOS build targets.
-- Add full Developer ID signing + notarization + an auto-updater.
+## Blockers/Concerns
 
-## Latest Verification
+- **Visuals compositing (Phase 14):** HIGHEST-RISK v2 item. Must be settled by the Phase 14 spike before Phase 15 is planned in detail. If Strategy A (borderless Bevy behind transparent webview) fails on macOS, default to Strategy B (headless render-to-texture frame stream) everywhere.
+- **Linux SuperCollider bundling (Phase 17):** No official prebuilt binary. Product decision (require system install + document vs. build-from-source in CI vs. distro package) to make at Phase 17 start, not discovered mid-build.
+- **macOS minimum version (Phase 15/17):** `tauri.conf.json` currently says `11.0`; Bevy 0.19 / wgpu 29 may require macOS 12+. Validate during Phase 15, lock during Phase 17.
+- **Windows Authenticode cert lead time (Phase 18):** EV/OV cert acquisition is its own lead-time item — start early in Phase 18 (or Phase 17) to avoid blocking release.
+- **Signing graph (Phase 18):** App + sidecar + bundled SC must all be signed; ad-hoc signing cannot ship an updater; notarization rejects any unsigned bundled binary.
 
-2026-06-26 Phase 11 (Plan 02) — v1 release verified:
+## Deferred Items
 
-- Consolidated packaged-app UAT recorded in `.planning/phases/11-release-readiness/11-release-readiness-03-UAT.md`: all nine REL-02 scenario areas passed against the rebuilt ad-hoc-signed `scrysynth.app` (commit `415e8d8`, rebuilt 2026-06-26) — save/open, graph edit, audio playback (real `scsynth`), scene/variation recall, macro control, hardware learn (CoreMIDI + local OSC), agent approval (scenario 7 reachable via the planner-wiring fix; trigger `remove agent layer`), visual runtime (bundled minimal sidecar), and panic recovery (audio + visual).
-- Release build + ad-hoc sign + secret-leak check + first-run smoke recorded in `.planning/phases/11-release-readiness/11-release-readiness-02-BUILD-EVIDENCE.md`: `.app` + `.dmg` for `aarch64-apple-darwin`, `Signature=adhoc`, zero `APPLE_`/`TAURA` leakage, bundled sidecar signed inside the app, app launches via right-click → Open. No Gatekeeper prompt on the build host because the local build carries no `com.apple.quarantine` (the "Open Anyway" prompt is the end-user download path, documented in README/RELEASE_NOTES).
-- REL-01, REL-02, REL-03 marked complete in `.planning/REQUIREMENTS.md`; runtime-ready rows AUD-01R..04R, VIS-01R..03R, DEV-01..02 reconciled; AGNT-01R (live provider) left open. README rewritten and `RELEASE_NOTES.md` added with Supported/Not-supported matrices.
-- Verification passed: `npm test`, `npm run build` (no code regression from Plan 02 doc edits).
+Items acknowledged and carried forward from v1.0 close. The pre-close artifact audit surfaced 6 historical UAT files with non-`passed` metadata statuses; all have 0 pending scenarios and were superseded by the consolidated Phase 11 packaged-app UAT (9/9 scenario areas passed). Recorded for traceability, not as open work:
 
-2026-06-21 task `td-ab3c29`:
-
-- Phase 10 UAT evidence recorded in `.planning/phases/10-session-aware-agent-orchestration/10-session-aware-agent-orchestration-06-UAT.md`.
-- Provider mode was deterministic/mock planner fixtures plus local parser provider; no live remote provider, credentials, or streaming provider UI were claimed.
-- UAT verified bounded context packet derivation, realistic multi-step planner-shaped proposal normalization, parameter validation rejection before mutation, scene recall, high-risk pending approval and rejection, frozen-agent rejection, reclaim ownership, provider-unavailable diagnostics, session-agent-unavailable diagnostics, invalid-provider-response diagnostics, and frontend proposal/diagnostic rendering.
-- Variation save/restore remains covered by performance command/store tests, but no planner-authored Phase 10 variation fixture was claimed.
-- Verification passed: targeted frontend/store tests (3 files, 36 tests), targeted Rust agent command tests (36 tests), `npm test` (5 files, 47 tests), `npm run build`, and full `cargo test --manifest-path src-tauri/Cargo.toml` after rerunning outside the sandbox for OSC UDP bind permission.
-
-2026-06-21 planning:
-
-- Phase 10 session-aware agent orchestration was planned in `.planning/phases/10-session-aware-agent-orchestration/10-session-aware-agent-orchestration-01-PLAN.md`.
-- `td-cebec0` was created as the Phase 10 epic with child tasks `td-665cc6`, `td-0e888f`, `td-84b783`, `td-a842b4`, `td-4a9cfe`, and `td-ab3c29`.
-- Phase 10 scope keeps all agent mutations behind typed commands, ownership gates, risk tiers, approvals, freeze/reclaim controls, and action history while adding a bounded session context packet and provider-agnostic planner above that safety boundary.
-
-2026-06-19 task `td-8062dd`:
-
-- Phase 9 UAT evidence recorded in `.planning/phases/09-hardware-input-runtime-wiring/09-hardware-input-runtime-wiring-06-UAT.md`.
-- Scratch UAT runner used CoreMIDI virtual source `Scrysynth Phase 9 UAT Virtual MIDI`, local OSC sender `127.0.0.1:55970`, and `/Applications/SuperCollider.app/Contents/Resources/scsynth`.
-- MIDI learn verified CC channel 0 controller 7 for macro `energy` and CC channel 0 controller 8 for transport stop.
-- OSC learn verified `/scrysynth/uat/energy` for macro `energy`, `/scrysynth/uat/scene` for scene recall, `/scrysynth/uat/play` for transport play, and `/scrysynth/uat/panic` for panic.
-- Post-learn routing verified macro values `0.252` from MIDI and `0.420` from OSC, scene recall with active visual scene and macro override `0.650`, transport play with audio `Ready/Healthy` and active patch `patch-v1-be42ba9bd41741b2`, transport stop to `Idle/Unknown`, and panic to `Idle/PanicRecovered` with panic recovery count `1`.
-- Frontend polling was updated so a newly captured binding clears backend learn mode automatically before live routing continues.
-- Verification passed: `npm test` (4 files, 38 tests), `npm run build`, and `cargo test --manifest-path src-tauri/Cargo.toml` outside the sandbox. The first sandboxed Rust run failed only because OSC tests could not bind localhost UDP sockets.
-- `npm run tauri dev` launched Vite and `target/debug/scrysynth`, but GUI click-through was not claimed because the dev-launched process exposed no reliable accessibility window in this environment.
-
-2026-06-17 planning:
-
-- Phase 9 hardware input runtime wiring was planned in `.planning/phases/09-hardware-input-runtime-wiring/09-hardware-input-runtime-wiring-01-PLAN.md`.
-- `td-dcaf9a` was created as the Phase 9 epic with child tasks `td-fca6b3`, `td-c18ac3`, `td-499618`, `td-eb6bc2`, `td-962e1b`, and `td-8062dd`.
-
-2026-06-16 task `td-11fe55`:
-
-- `npm test` passed: 3 files, 26 tests.
-- `npm run build` passed.
-- `cargo build --manifest-path src-tauri/Cargo.toml --bin scrysynth-visual` passed.
-- Missing configured sidecar diagnostics were verified with `visual::bevy_sidecar::tests::adapter_reports_missing_configured_sidecar_with_setup_guidance`.
-- Real visual sidecar lifecycle was verified with `cargo test --manifest-path src-tauri/Cargo.toml --test visual_sidecar_uat`.
-- Direct sidecar protocol UAT observed `ready`, `sceneLoaded`, `parameterBatchApplied`, graceful `shutdownComplete`, panic `shutdownComplete`, and successful restart after panic.
-- `cargo test --manifest-path src-tauri/Cargo.toml` passed.
-- Evidence is recorded in `.planning/phases/08-real-visual-runtime-path/08-real-visual-runtime-path-05-UAT.md`.
-
-2026-06-13 task `td-d38373`:
-
-- `npm test` passed: 3 files, 22 tests.
-- `npm run build` passed.
-- `cargo test --manifest-path src-tauri/Cargo.toml` passed.
-- `/Applications/SuperCollider.app/Contents/Resources/scsynth` exists.
-- `SCRYSYNTH_SCSYNTH_PATH=/Applications/SuperCollider.app/Contents/Resources/scsynth npm run tauri dev` launched the Tauri app after elevated localhost permission.
-- Resumed real-`scsynth` UAT verified audible output, live parameter update, panic, and restart-after-panic by human confirmation.
-- Resumed UAT found Stop disabled while runtime was `ready / healthy`; fixed frontend projection so active `ready` patches are stoppable and added a regression test.
-- Stop retest passed by human confirmation. Phase 7 completion evidence is in `.planning/phases/07-real-supercollider-execution/07-real-supercollider-execution-07-UAT.md`.
+| Category | Item | Status |
+|----------|------|--------|
+| uat | Phase 01/07/08/09/10/11 historical UAT metadata | All superseded by Phase 11 consolidated UAT (9/9 passed); 0 pending scenarios |
+| carry-over | Physical-controller GUI click-through UAT | Deferred — perform when hardware is available (beyond v2.0) |
+| carry-over | VST/AU/LV2 plugin hosting | Out of scope — preserve adapter seam only |
+| carry-over | Node library expansion beyond ~16 curated nodes | Deferred beyond v2.0 — quality over quantity in v2 |
 
 ## Session Continuity
 
-**Stopped at:** Completed 11-release-readiness-01-PLAN.md
+**Stopped at:** v2.0 roadmap created (Phases 12–18, 29/29 requirements mapped).
 **Resume file:** None
-
-Last session: 2026-06-24T03:30:08.671Z
-Phase 10 reconciled into GSD: implementation commits back-referenced via `10-session-aware-agent-orchestration-01-SUMMARY.md`, Phase 10.6 UAT + doc reconciliation committed, `td-ab3c29` review closed.
-Phase 10 epic: `td-cebec0` (closed).
-Next: Phase 11 (Release Readiness) planning, or the Phase 10 live-provider follow-on (connect the verified provider-agnostic planner boundary to a live provider + setup/fallback UAT).
+**Next action:** `/gsd-plan-phase 12` (Node Catalog Foundation) — or run the Visuals Compositing Spike (Phase 14) in parallel since it has no v2 dependencies.
 
 ## Performance Metrics
 
 | Phase | Plan | Duration | Notes |
 |-------|------|----------|-------|
-| Phase 11 P01 | 54min | 3 tasks | 11 files |
+| _(v2.0 execution not yet started)_ | | | |
 
-## Deferred Items
-
-Items acknowledged and deferred at v1.0 milestone close on 2026-06-26. The pre-close artifact audit surfaced 6 historical UAT files with non-`passed` metadata statuses; all have **0 pending scenarios** and were superseded by the consolidated Phase 11 packaged-app UAT (9/9 scenario areas passed). Recorded here for traceability, not as open work:
-
-| Category | Item | Status |
-|----------|------|--------|
-| uat | Phase 01 `01-UAT.md` | `[diagnosed]` metadata — 0 pending scenarios; superseded by Phase 11 release UAT |
-| uat | Phase 07 `07-real-supercollider-execution-07-UAT.md` | `[unknown]` metadata — 0 pending scenarios; audio re-verified in Phase 11 UAT scenario 3 |
-| uat | Phase 08 `08-real-visual-runtime-path-05-UAT.md` | `[passed]` — 0 pending scenarios |
-| uat | Phase 09 `09-hardware-input-runtime-wiring-06-UAT.md` | `[passed]` — 0 pending scenarios |
-| uat | Phase 10 `10-session-aware-agent-orchestration-06-UAT.md` | `[unknown]` metadata — 0 pending scenarios; agent path re-verified in Phase 11 UAT scenario 7 |
-| uat | Phase 11 `11-release-readiness-03-UAT.md` | `[pass]` — 0 pending scenarios; the consolidated release UAT |
-
-**Known requirement gap at close:** `AGNT-01R` (live provider-backed agent planner) is the only unchecked v1 requirement. The deterministic/mock planner + production-GUI wiring is verified; a live LLM provider remains future hardening. See `.planning/milestones/v1.0-REQUIREMENTS.md`.
+_Velocity baseline from v1.0: Phase 11 Plan 01 = 54min, 3 tasks, 11 files. Per-phase v1 plan counts: P1=6, P2=3, P3=3, P4=3, P5=3, P7=1, P8=1, P9=1, P10=1, P11=2._
 
 ## Operator Next Steps
 
-- Start the next milestone with `/gsd-new-milestone` (will define fresh requirements + roadmap)
+- `/gsd-plan-phase 12` to plan Node Catalog Foundation, OR
+- `/gsd-plan-phase 14` to run the Visuals Compositing Spike in parallel (no v2 dependencies), OR
+- `/gsd-progress` to see the unified situational view.
