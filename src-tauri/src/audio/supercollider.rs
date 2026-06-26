@@ -432,6 +432,46 @@ where
                 format!("Audio runtime app state error while inspecting scsynth process: {err}")
             })
     }
+
+    /// Conformance-test entry point (Plan 02 success criterion #4): for each
+    /// catalog entry with a non-empty `synthdef_resource`, read the checked-in
+    /// `.scsyndef` bytes, `/d_recv` them to the booted scsynth, and `/sync`.
+    ///
+    /// Assumes [`AudioRuntimeAdapter::start`] has already booted scsynth and
+    /// connected the OSC client. Returns `Ok(())` if every catalog entry's
+    /// synthdef loaded; otherwise `Err` carrying the first failing entry's
+    /// id + name so the test can report which UGen was rejected.
+    ///
+    /// This is the lynchpin test that proves the catalog drives the full chain
+    /// end-to-end on the real audio engine. Gated `#[ignore]` in tests so it
+    /// only runs when scsynth is explicitly requested.
+    pub fn recv_all_catalog_synthdefs_for_conformance(&mut self) -> Result<(), String> {
+        for entry in crate::catalog::CATALOG.iter() {
+            if entry.synthdef_resource.is_empty() {
+                continue;
+            }
+            let bytes = fs::read(resolve_resource_path(entry.synthdef_resource)).map_err(|err| {
+                format!(
+                    "conformance: failed to read SynthDef resource `{}` (entry `{}`): {err}",
+                    entry.synthdef_resource, entry.id
+                )
+            })?;
+
+            let osc = self.osc.as_mut().ok_or_else(|| {
+                "conformance: OSC client is not connected — call start() first".to_string()
+            })?;
+            osc.send_message("/d_recv", vec![rosc::OscType::Blob(bytes)])
+                .map_err(|err| {
+                    format!(
+                        "conformance: /d_recv failed for entry `{}` ({}): {err}",
+                        entry.id, entry.synthdef_name
+                    )
+                })?;
+            // /sync after each so a failure attributes to the right entry.
+            self.sync_scsynth(&format!("conformance /d_recv {}", entry.synthdef_name))?;
+        }
+        Ok(())
+    }
 }
 
 fn missing_scsynth_message() -> String {
