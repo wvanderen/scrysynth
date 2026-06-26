@@ -3,9 +3,7 @@ use std::collections::{HashMap, HashSet};
 use thiserror::Error;
 
 use crate::application::session_store::SessionStore;
-use crate::domain::session::{
-    AudioPrimitive, GraphEditCommand, Node, ParameterValue, PortDirection, Route, SessionDocument,
-};
+use crate::domain::session::{GraphEditCommand, Node, ParameterValue, PortDirection, Route, SessionDocument};
 
 #[derive(Debug, Error, PartialEq)]
 pub enum GraphEditError {
@@ -40,7 +38,7 @@ pub enum GraphEditError {
     #[error("bus '{bus_id}' was not found")]
     MissingBus { bus_id: String },
     #[error("node '{node_id}' does not support bus assignment")]
-    MissingAudioPrimitive { node_id: String },
+    MissingBusTarget { node_id: String },
     #[error("audio runtime reconciliation failed: {message}")]
     AudioRuntimeReconcile { message: String },
     #[error("visual runtime reconciliation failed: {message}")]
@@ -58,19 +56,25 @@ pub fn apply_graph_edit(
         GraphEditCommand::SetNodeEnabled { node_id, enabled } => {
             set_node_enabled(session, &node_id, enabled)
         }
-        GraphEditCommand::SetParameterValue {
-            node_id,
-            parameter_id,
-            value,
-        } => set_parameter_value(session, &node_id, &parameter_id, value),
-        GraphEditCommand::AddRoute { route } => add_route(session, route),
-        GraphEditCommand::RemoveRoute { route_id } => remove_route(session, &route_id),
-        GraphEditCommand::AssignNodeToBus { node_id, bus_id } => {
-            assign_node_to_bus(session, &node_id, &bus_id)
-        }
-        GraphEditCommand::ClearNodeBusAssignment { node_id } => {
-            clear_node_bus_assignment(session, &node_id)
-        }
+    GraphEditCommand::SetParameterValue {
+        node_id,
+        parameter_id,
+        value,
+    } => set_parameter_value(session, &node_id, &parameter_id, value),
+    GraphEditCommand::AddRoute { route } => add_route(session, route),
+    GraphEditCommand::RemoveRoute { route_id } => remove_route(session, &route_id),
+    GraphEditCommand::AssignNodeToBus { node_id, bus_id } => {
+        assign_node_to_bus(session, &node_id, &bus_id)
+    }
+    GraphEditCommand::ClearNodeBusAssignment { node_id } => {
+        clear_node_bus_assignment(session, &node_id)
+    }
+    GraphEditCommand::SetStepValue {
+        node_id,
+        step_index,
+        gate,
+        cv,
+    } => set_step_value(session, &node_id, step_index, gate, cv),
     })?;
 
     let _ = store
@@ -203,13 +207,14 @@ fn assign_node_to_bus(
         .ok_or_else(|| GraphEditError::MissingNode {
             node_id: node_id.to_string(),
         })?;
-    let primitive =
-        node.audio_primitive
-            .as_mut()
-            .ok_or_else(|| GraphEditError::MissingAudioPrimitive {
-                node_id: node_id.to_string(),
-            })?;
-    set_bus_target(primitive, Some(bus_id.to_string()));
+    // Catalog-driven nodes carry an optional `bus_target_id` (D-09 flat field).
+    if node.bus_target_id.is_none() && node.output_kind.is_none() {
+        // Node never declared a routable output (e.g. a modulator with only CV outs).
+        return Err(GraphEditError::MissingBusTarget {
+            node_id: node_id.to_string(),
+        });
+    }
+    node.bus_target_id = Some(bus_id.to_string());
     Ok(())
 }
 
@@ -224,13 +229,44 @@ fn clear_node_bus_assignment(
         .ok_or_else(|| GraphEditError::MissingNode {
             node_id: node_id.to_string(),
         })?;
-    let primitive =
-        node.audio_primitive
-            .as_mut()
-            .ok_or_else(|| GraphEditError::MissingAudioPrimitive {
-                node_id: node_id.to_string(),
-            })?;
-    set_bus_target(primitive, None);
+    if node.bus_target_id.is_none() && node.output_kind.is_none() {
+        return Err(GraphEditError::MissingBusTarget {
+            node_id: node_id.to_string(),
+        });
+    }
+    node.bus_target_id = None;
+    Ok(())
+}
+
+/// D-06/D-07/D-08: edit one step of a sequencer node's 16-step gate+cv pattern.
+fn set_step_value(
+    session: &mut SessionDocument,
+    node_id: &str,
+    step_index: u8,
+    gate: Option<bool>,
+    cv: Option<f64>,
+) -> Result<(), GraphEditError> {
+    let node = session
+        .nodes
+        .iter_mut()
+        .find(|node| node.id == node_id)
+        .ok_or_else(|| GraphEditError::MissingNode {
+            node_id: node_id.to_string(),
+        })?;
+    let pattern = node.sequencer_pattern.get_or_insert_with(Default::default);
+    let index = step_index as usize;
+    if index >= 16 {
+        return Err(GraphEditError::MissingParameter {
+            node_id: node_id.to_string(),
+            parameter_id: format!("step {step_index}"),
+        });
+    }
+    if let Some(gate) = gate {
+        pattern.gate[index] = gate;
+    }
+    if let Some(cv) = cv {
+        pattern.cv[index] = cv;
+    }
     Ok(())
 }
 
@@ -307,15 +343,6 @@ fn validate_parameter_range(
     }
 
     Ok(())
-}
-
-fn set_bus_target(primitive: &mut AudioPrimitive, bus_target_id: Option<String>) {
-    match primitive {
-        AudioPrimitive::Source(node) => node.bus_target_id = bus_target_id,
-        AudioPrimitive::Effect(node) => node.bus_target_id = bus_target_id,
-        AudioPrimitive::Mixer(node) => node.bus_target_id = bus_target_id,
-        AudioPrimitive::Output(node) => node.bus_target_id = bus_target_id,
-    }
 }
 
 fn path_exists(session: &SessionDocument, start_node_id: &str, target_node_id: &str) -> bool {

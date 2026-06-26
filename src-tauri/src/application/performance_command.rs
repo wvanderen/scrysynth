@@ -230,10 +230,9 @@ fn restore_variation(
 mod tests {
     use super::*;
     use crate::domain::session::{
-        AudioBusType, AudioOutputNode, AudioOutputType, AudioPrimitive, AudioSourceNode,
-        AudioSourceType, Bus, ChannelMode, ControllerKind, MacroDefinition, MacroOverride, Node,
-        NodeType, OwnershipAssignment, ParameterValue, Port, PortDirection, Route, SceneDefinition,
-        SignalType,
+        AudioBusType, Bus, ChannelMode, ControllerKind, MacroDefinition, MacroOverride, Node,
+        OutputKind, OwnershipAssignment, ParameterValue, Port, PortDirection, Route,
+        SceneDefinition, SignalType,
     };
 
     fn test_session() -> SessionDocument {
@@ -249,7 +248,7 @@ mod tests {
             nodes: vec![
                 Node {
                     id: source_id.to_string(),
-                    node_type: NodeType::Source,
+                    node_type_id: "oscillator".to_string(),
                     ports: vec![Port {
                         id: "port-source-out".to_string(),
                         name: "main_out".to_string(),
@@ -272,15 +271,16 @@ mod tests {
                         is_locked: false,
                     },
                     enabled: true,
-                    audio_primitive: Some(AudioPrimitive::Source(AudioSourceNode {
-                        source_type: AudioSourceType::Oscillator,
-                        channel_mode: ChannelMode::Mono,
-                        bus_target_id: Some("bus-main".to_string()),
-                    })),
+                    bus_target_id: Some("bus-main".to_string()),
+                    output_kind: None,
+                    channel_count: None,
+                    bypassed: None,
+                    channel_mode: Some(ChannelMode::Mono),
+                    sequencer_pattern: None,
                 },
                 Node {
                     id: output_id.to_string(),
-                    node_type: NodeType::Output,
+                    node_type_id: "output".to_string(),
                     ports: vec![Port {
                         id: "port-output-in".to_string(),
                         name: "master_in".to_string(),
@@ -295,11 +295,12 @@ mod tests {
                         is_locked: false,
                     },
                     enabled: true,
-                    audio_primitive: Some(AudioPrimitive::Output(AudioOutputNode {
-                        output_type: AudioOutputType::Master,
-                        channels: 2,
-                        bus_target_id: Some("bus-main".to_string()),
-                    })),
+                    bus_target_id: Some("bus-main".to_string()),
+                    output_kind: Some(OutputKind::Master),
+                    channel_count: Some(2),
+                    bypassed: None,
+                    channel_mode: None,
+                    sequencer_pattern: None,
                 },
             ],
             routes: vec![Route {

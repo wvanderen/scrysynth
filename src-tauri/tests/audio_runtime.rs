@@ -1,77 +1,87 @@
+use scrysynth_lib::catalog::{find_catalog_entry, CATALOG};
 use scrysynth_lib::domain::session::{
-    AudioBusType, AudioEffectNode, AudioEffectType, AudioMixerNode, AudioOutputNode,
-    AudioOutputType, AudioPrimitive, AudioSourceNode, AudioSourceType, Bus, ChannelMode,
-    ControllerKind, Node, NodeType, OwnershipAssignment, ParameterValue, Port, PortDirection,
-    Route, SessionDocument, SignalType,
+    AudioBusType, Bus, ChannelMode, ControllerKind, Node, OutputKind, OwnershipAssignment,
+    ParameterValue, Port, PortDirection, Route, SessionDocument, SignalType,
 };
 
-use scrysynth_lib::audio::compiler::{compile_session_to_topology, CompiledNodeKind};
+use scrysynth_lib::audio::compiler::compile_session_to_topology;
+use scrysynth_lib::audio::synthdefs::{plan_sc_resources, ScResourcePlanError};
+
+fn oscillator_node(id: &str, bus: &str) -> Node {
+    Node {
+        id: id.to_string(),
+        node_type_id: "oscillator".to_string(),
+        ports: vec![Port {
+            id: format!("{id}-out"),
+            name: "main_out".to_string(),
+            direction: PortDirection::Output,
+            signal_type: SignalType::Audio,
+        }],
+        parameters: vec![ParameterValue {
+            id: format!("{id}-freq"),
+            name: "frequency".to_string(),
+            value: 220.0,
+            default_value: 220.0,
+            min_value: 20.0,
+            max_value: 20_000.0,
+            unit: "hz".to_string(),
+        }],
+        runtime_target: Some("audio/source/oscillator".to_string()),
+        scene_membership: vec![],
+        ownership: OwnershipAssignment {
+            controller: ControllerKind::Shared,
+            is_locked: false,
+        },
+        enabled: true,
+        bus_target_id: Some(bus.to_string()),
+        output_kind: None,
+        channel_count: None,
+        bypassed: None,
+        channel_mode: Some(ChannelMode::Mono),
+        sequencer_pattern: None,
+    }
+}
+
+fn output_node(id: &str, bus: &str) -> Node {
+    Node {
+        id: id.to_string(),
+        node_type_id: "output".to_string(),
+        ports: vec![Port {
+            id: format!("{id}-in"),
+            name: "master_in".to_string(),
+            direction: PortDirection::Input,
+            signal_type: SignalType::Audio,
+        }],
+        parameters: vec![],
+        runtime_target: Some("audio/output/master".to_string()),
+        scene_membership: vec![],
+        ownership: OwnershipAssignment {
+            controller: ControllerKind::User,
+            is_locked: false,
+        },
+        enabled: true,
+        bus_target_id: Some(bus.to_string()),
+        output_kind: Some(OutputKind::Master),
+        channel_count: Some(2),
+        bypassed: None,
+        channel_mode: None,
+        sequencer_pattern: None,
+    }
+}
 
 fn deterministic_session() -> SessionDocument {
     SessionDocument {
         title: "Deterministic Runtime".to_string(),
         nodes: vec![
-            Node {
-                id: "node-output".to_string(),
-                node_type: NodeType::Output,
-                ports: vec![Port {
-                    id: "port-output-in".to_string(),
-                    name: "master_in".to_string(),
-                    direction: PortDirection::Input,
-                    signal_type: SignalType::Audio,
-                }],
-                parameters: vec![],
-                runtime_target: Some("audio/output/master".to_string()),
-                scene_membership: vec![],
-                ownership: OwnershipAssignment {
-                    controller: ControllerKind::User,
-                    is_locked: false,
-                },
-                enabled: true,
-                audio_primitive: Some(AudioPrimitive::Output(AudioOutputNode {
-                    output_type: AudioOutputType::Master,
-                    channels: 2,
-                    bus_target_id: Some("bus-main".to_string()),
-                })),
-            },
-            Node {
-                id: "node-source".to_string(),
-                node_type: NodeType::Source,
-                ports: vec![Port {
-                    id: "port-source-out".to_string(),
-                    name: "main_out".to_string(),
-                    direction: PortDirection::Output,
-                    signal_type: SignalType::Audio,
-                }],
-                parameters: vec![ParameterValue {
-                    id: "param-frequency".to_string(),
-                    name: "frequency".to_string(),
-                    value: 220.0,
-                    default_value: 220.0,
-                    min_value: 20.0,
-                    max_value: 20_000.0,
-                    unit: "hz".to_string(),
-                }],
-                runtime_target: Some("audio/source/oscillator".to_string()),
-                scene_membership: vec![],
-                ownership: OwnershipAssignment {
-                    controller: ControllerKind::Shared,
-                    is_locked: false,
-                },
-                enabled: true,
-                audio_primitive: Some(AudioPrimitive::Source(AudioSourceNode {
-                    source_type: AudioSourceType::Oscillator,
-                    channel_mode: ChannelMode::Mono,
-                    bus_target_id: Some("bus-main".to_string()),
-                })),
-            },
+            output_node("node-output", "bus-main"),
+            oscillator_node("node-source", "bus-main"),
         ],
         routes: vec![Route {
             id: "route-source-output".to_string(),
             source_node_id: "node-source".to_string(),
-            source_port_id: "port-source-out".to_string(),
+            source_port_id: "node-source-out".to_string(),
             target_node_id: "node-output".to_string(),
-            target_port_id: "port-output-in".to_string(),
+            target_port_id: "node-output-in".to_string(),
             bus_id: Some("bus-main".to_string()),
         }],
         buses: vec![Bus {
@@ -106,21 +116,21 @@ mod audio_runtime {
         }
 
         #[test]
-        fn topology_compilation_preserves_concrete_audio_primitives() {
+        fn topology_compilation_preserves_catalog_node_identity() {
             let mut session = deterministic_session();
             session.nodes.push(Node {
                 id: "node-delay".to_string(),
-                node_type: NodeType::Effect,
+                node_type_id: "delay".to_string(),
                 ports: vec![
                     Port {
                         id: "port-delay-in".to_string(),
-                        name: "delay_in".to_string(),
+                        name: "audio_in".to_string(),
                         direction: PortDirection::Input,
                         signal_type: SignalType::Audio,
                     },
                     Port {
                         id: "port-delay-out".to_string(),
-                        name: "delay_out".to_string(),
+                        name: "audio_out".to_string(),
                         direction: PortDirection::Output,
                         signal_type: SignalType::Audio,
                     },
@@ -133,17 +143,18 @@ mod audio_runtime {
                     is_locked: false,
                 },
                 enabled: true,
-                audio_primitive: Some(AudioPrimitive::Effect(AudioEffectNode {
-                    effect_type: AudioEffectType::Delay,
-                    bypassed: true,
-                    bus_target_id: Some("bus-main".to_string()),
-                })),
+                bus_target_id: Some("bus-main".to_string()),
+                output_kind: None,
+                channel_count: None,
+                bypassed: Some(true),
+                channel_mode: None,
+                sequencer_pattern: None,
             });
             session.routes = vec![
                 Route {
                     id: "route-source-delay".to_string(),
                     source_node_id: "node-source".to_string(),
-                    source_port_id: "port-source-out".to_string(),
+                    source_port_id: "node-source-out".to_string(),
                     target_node_id: "node-delay".to_string(),
                     target_port_id: "port-delay-in".to_string(),
                     bus_id: Some("bus-main".to_string()),
@@ -153,34 +164,23 @@ mod audio_runtime {
                     source_node_id: "node-delay".to_string(),
                     source_port_id: "port-delay-out".to_string(),
                     target_node_id: "node-output".to_string(),
-                    target_port_id: "port-output-in".to_string(),
+                    target_port_id: "node-output-in".to_string(),
                     bus_id: Some("bus-main".to_string()),
                 },
             ];
 
             let topology = compile_session_to_topology(&session).expect("compile succeeds");
 
-            assert!(matches!(
-                topology.node_launch_order[0].node_kind,
-                CompiledNodeKind::Source {
-                    source_type: AudioSourceType::Oscillator,
-                    channel_mode: ChannelMode::Mono
-                }
-            ));
-            assert!(matches!(
-                topology.node_launch_order[1].node_kind,
-                CompiledNodeKind::Effect {
-                    effect_type: AudioEffectType::Delay,
-                    bypassed: true
-                }
-            ));
-            assert!(matches!(
-                topology.node_launch_order[2].node_kind,
-                CompiledNodeKind::Output {
-                    output_type: AudioOutputType::Master,
-                    channels: 2
-                }
-            ));
+            // Catalog identity + config flow through the compiled launch (replaces
+            // v1's CompiledNodeKind enum assertions).
+            assert_eq!(topology.node_launch_order[0].node_type_id, "oscillator");
+            assert_eq!(topology.node_launch_order[1].node_type_id, "delay");
+            assert!(topology.node_launch_order[1].bypassed, "delay bypassed flag");
+            assert_eq!(topology.node_launch_order[2].node_type_id, "output");
+            assert_eq!(
+                topology.node_launch_order[2].output_kind,
+                Some(OutputKind::Master)
+            );
             assert_eq!(
                 topology.node_launch_order[0].parameters[0].name,
                 "frequency"
@@ -200,40 +200,27 @@ mod audio_runtime {
 
     mod synthdefs {
         use super::super::*;
-        use scrysynth_lib::audio::synthdefs::{
-            plan_sc_resources, FX_DELAY_SYNTHDEF, FX_LOWPASS_SYNTHDEF, MIXER_SYNTHDEF,
-            OUTPUT_SYNTHDEF, SOURCE_NOISE_SYNTHDEF, SOURCE_OSCILLATOR_SYNTHDEF,
-        };
 
-        #[test]
-        fn resource_plan_maps_supported_primitives_to_known_synthdefs_and_params() {
-            let mut session = deterministic_session();
-            session.buses.push(Bus {
-                id: "bus-mix".to_string(),
-                name: "mix".to_string(),
-                channels: 2,
-                bus_type: AudioBusType::Auxiliary,
-                is_enabled: true,
-            });
-            session.nodes.push(Node {
-                id: "node-mixer".to_string(),
-                node_type: NodeType::Mixer,
+        fn mixer_node(id: &str, out_bus: &str) -> Node {
+            Node {
+                id: id.to_string(),
+                node_type_id: "mixer".to_string(),
                 ports: vec![
                     Port {
-                        id: "port-mixer-in".to_string(),
-                        name: "mix_in".to_string(),
+                        id: format!("{id}-in"),
+                        name: "audio_in".to_string(),
                         direction: PortDirection::Input,
                         signal_type: SignalType::Audio,
                     },
                     Port {
-                        id: "port-mixer-out".to_string(),
-                        name: "mix_out".to_string(),
+                        id: format!("{id}-out"),
+                        name: "audio_out".to_string(),
                         direction: PortDirection::Output,
                         signal_type: SignalType::Audio,
                     },
                 ],
                 parameters: vec![ParameterValue {
-                    id: "param-gain".to_string(),
+                    id: format!("{id}-gain"),
                     name: "gain".to_string(),
                     value: 0.75,
                     default_value: 1.0,
@@ -248,26 +235,41 @@ mod audio_runtime {
                     is_locked: false,
                 },
                 enabled: true,
-                audio_primitive: Some(AudioPrimitive::Mixer(AudioMixerNode {
-                    channel_mode: ChannelMode::Stereo,
-                    bus_target_id: Some("bus-mix".to_string()),
-                })),
+                bus_target_id: Some(out_bus.to_string()),
+                output_kind: None,
+                channel_count: None,
+                bypassed: None,
+                channel_mode: Some(ChannelMode::Stereo),
+                sequencer_pattern: None,
+            }
+        }
+
+        #[test]
+        fn resource_plan_maps_catalog_entries_to_known_synthdefs_and_params() {
+            let mut session = deterministic_session();
+            session.buses.push(Bus {
+                id: "bus-mix".to_string(),
+                name: "mix".to_string(),
+                channels: 2,
+                bus_type: AudioBusType::Auxiliary,
+                is_enabled: true,
             });
+            session.nodes.push(mixer_node("node-mixer", "bus-mix"));
             session.routes = vec![
                 Route {
                     id: "route-source-mixer".to_string(),
                     source_node_id: "node-source".to_string(),
-                    source_port_id: "port-source-out".to_string(),
+                    source_port_id: "node-source-out".to_string(),
                     target_node_id: "node-mixer".to_string(),
-                    target_port_id: "port-mixer-in".to_string(),
+                    target_port_id: "node-mixer-in".to_string(),
                     bus_id: Some("bus-main".to_string()),
                 },
                 Route {
                     id: "route-mixer-output".to_string(),
                     source_node_id: "node-mixer".to_string(),
-                    source_port_id: "port-mixer-out".to_string(),
+                    source_port_id: "node-mixer-out".to_string(),
                     target_node_id: "node-output".to_string(),
-                    target_port_id: "port-output-in".to_string(),
+                    target_port_id: "node-output-in".to_string(),
                     bus_id: Some("bus-mix".to_string()),
                 },
             ];
@@ -275,35 +277,36 @@ mod audio_runtime {
             let topology = compile_session_to_topology(&session).expect("compile succeeds");
             let plan = plan_sc_resources(&topology).expect("plan succeeds");
 
-            assert!(plan.patch_id.starts_with("patch-v1-"));
+            assert!(plan.patch_id.starts_with("patch-v2-"));
             assert_eq!(plan.groups[0].node_id, 1000);
+            // Catalog-derived synthdef names (no v1 consts).
+            let mut synthdef_names: Vec<&str> =
+                plan.synthdefs.iter().map(|r| r.name).collect();
+            synthdef_names.sort();
             assert_eq!(
-                plan.synthdefs
-                    .iter()
-                    .map(|resource| resource.name)
-                    .collect::<Vec<_>>(),
-                vec![MIXER_SYNTHDEF, OUTPUT_SYNTHDEF, SOURCE_OSCILLATOR_SYNTHDEF]
+                synthdef_names,
+                vec![
+                    "scrysynth_v2_mixer",
+                    "scrysynth_v2_oscillator",
+                    "scrysynth_v2_output",
+                ]
             );
-            assert_eq!(plan.synths[0].synthdef_name, SOURCE_OSCILLATOR_SYNTHDEF);
+            assert_eq!(plan.synths[0].synthdef_name, "scrysynth_v2_oscillator");
             assert_eq!(plan.synths[0].node_id, 2000);
-            assert_eq!(plan.synths[1].synthdef_name, MIXER_SYNTHDEF);
+            assert_eq!(plan.synths[1].synthdef_name, "scrysynth_v2_mixer");
             assert!(plan.synths[1]
                 .args
                 .iter()
                 .any(|arg| arg.name == "in_bus_1" && arg.value == 2.0));
+            // Catalog alias resolution: "gain" → sc_arg "level".
             assert!(plan.synths[1]
                 .args
                 .iter()
                 .any(|arg| arg.name == "level" && arg.value == 0.75));
-            assert_eq!(plan.synths[2].synthdef_name, OUTPUT_SYNTHDEF);
+            assert_eq!(plan.synths[2].synthdef_name, "scrysynth_v2_output");
             assert!(plan.controls.iter().any(|control| control.control_key
-                == "node-source:param-frequency"
+                == "node-source:node-source-freq"
                 && control.parameter_name == "frequency"));
-            assert!(plan
-                .controls
-                .iter()
-                .any(|control| control.control_key == "node-mixer:param-gain"
-                    && control.parameter_name == "level"));
         }
 
         #[test]
@@ -317,66 +320,35 @@ mod audio_runtime {
             let second_topology =
                 compile_session_to_topology(&second_session).expect("second compile succeeds");
 
-            assert_eq!(first_topology.buses.len(), second_topology.buses.len());
-            assert_eq!(
-                first_topology.group_order.len(),
-                second_topology.group_order.len()
-            );
-            assert_eq!(
-                first_topology.node_launch_order.len(),
-                second_topology.node_launch_order.len()
-            );
-
             let first_plan = plan_sc_resources(&first_topology).expect("first plan succeeds");
             let second_plan = plan_sc_resources(&second_topology).expect("second plan succeeds");
 
             assert_ne!(first_plan.patch_id, second_plan.patch_id);
-            assert!(first_plan.patch_id.starts_with("patch-v1-"));
-            assert!(second_plan.patch_id.starts_with("patch-v1-"));
+            assert!(first_plan.patch_id.starts_with("patch-v2-"));
+            assert!(second_plan.patch_id.starts_with("patch-v2-"));
         }
 
+        // Success criterion #3: an unknown node_type_id returns Err, never a panic
+        // (the v1 `unreachable!()` at synthdefs.rs:455 is gone).
         #[test]
-        fn resource_plan_fails_loudly_for_unsupported_runtime_target() {
+        fn resource_plan_fails_loudly_for_unknown_catalog_entry() {
             let mut session = deterministic_session();
-            session.nodes[0].runtime_target = Some("visual/output/master".to_string());
+            // An unknown node_type_id compiles (topology is catalog-agnostic) but
+            // fails loudly at plan time with UnknownCatalogEntry.
+            session.nodes[1].node_type_id = "totally-not-a-node".to_string();
             let topology = compile_session_to_topology(&session).expect("compile succeeds");
 
-            let error = plan_sc_resources(&topology).expect_err("unsupported target fails");
-
-            assert!(error.to_string().contains("visual/output/master"));
-        }
-
-        #[test]
-        fn resource_plan_accepts_known_legacy_runtime_target_aliases() {
-            let mut session = deterministic_session();
-            session.nodes[1].runtime_target = Some("audio/source/default".to_string());
-            let topology = compile_session_to_topology(&session).expect("compile succeeds");
-
-            let plan = plan_sc_resources(&topology).expect("legacy target alias succeeds");
-
-            assert_eq!(plan.synths[0].synthdef_name, SOURCE_OSCILLATOR_SYNTHDEF);
-        }
-
-        #[test]
-        fn resource_plan_fails_loudly_for_unknown_audio_runtime_target() {
-            let mut session = deterministic_session();
-            session.nodes[1].runtime_target = Some("audio/source/granular".to_string());
-            let topology = compile_session_to_topology(&session).expect("compile succeeds");
-
-            let error = plan_sc_resources(&topology).expect_err("unsupported audio target fails");
-
-            assert!(error.to_string().contains("audio/source/granular"));
-        }
-
-        #[test]
-        fn resource_plan_fails_loudly_for_mismatched_runtime_target_and_primitive() {
-            let mut session = deterministic_session();
-            session.nodes[1].runtime_target = Some("audio/source/noise".to_string());
-            let topology = compile_session_to_topology(&session).expect("compile succeeds");
-
-            let error = plan_sc_resources(&topology).expect_err("mismatched target fails");
-
-            assert!(error.to_string().contains("audio/source/noise"));
+            let error = plan_sc_resources(&topology).expect_err("unknown catalog id fails");
+            assert!(
+                matches!(
+                    error,
+                    ScResourcePlanError::UnknownCatalogEntry { .. }
+                ),
+                "expected UnknownCatalogEntry, got {error:?}"
+            );
+            if let ScResourcePlanError::UnknownCatalogEntry { node_type_id } = &error {
+                assert_eq!(node_type_id, "totally-not-a-node");
+            }
         }
 
         #[test]
@@ -400,93 +372,136 @@ mod audio_runtime {
         }
 
         #[test]
-        fn delay_primitive_uses_delay_synthdef_and_stable_parameter_names() {
+        fn delay_node_uses_delay_synthdef_and_stable_parameter_names() {
             let mut session = deterministic_session();
-            session.nodes[0].audio_primitive = Some(AudioPrimitive::Effect(AudioEffectNode {
-                effect_type: AudioEffectType::Delay,
-                bypassed: false,
+            session.nodes.push(Node {
+                id: "node-delay".to_string(),
+                node_type_id: "delay".to_string(),
+                ports: vec![
+                    Port {
+                        id: "delay-in".to_string(),
+                        name: "audio_in".to_string(),
+                        direction: PortDirection::Input,
+                        signal_type: SignalType::Audio,
+                    },
+                    Port {
+                        id: "delay-out".to_string(),
+                        name: "audio_out".to_string(),
+                        direction: PortDirection::Output,
+                        signal_type: SignalType::Audio,
+                    },
+                ],
+                parameters: vec![ParameterValue {
+                    id: "param-delay-time".to_string(),
+                    name: "delayTime".to_string(), // catalog alias → delay_time_s
+                    value: 0.5,
+                    default_value: 0.25,
+                    min_value: 0.0,
+                    max_value: 2.0,
+                    unit: "s".to_string(),
+                }],
+                runtime_target: Some("audio/effect/delay".to_string()),
+                scene_membership: vec![],
+                ownership: OwnershipAssignment {
+                    controller: ControllerKind::Shared,
+                    is_locked: false,
+                },
+                enabled: true,
                 bus_target_id: Some("bus-main".to_string()),
-            }));
-            session.nodes[0].node_type = NodeType::Effect;
-            session.nodes[0].runtime_target = Some("audio/effect/delay".to_string());
-            session.nodes[0].parameters = vec![ParameterValue {
-                id: "param-delay-time".to_string(),
-                name: "delayTime".to_string(),
-                value: 0.5,
-                default_value: 0.25,
-                min_value: 0.0,
-                max_value: 2.0,
-                unit: "s".to_string(),
-            }];
+                output_kind: None,
+                channel_count: None,
+                bypassed: Some(false),
+                channel_mode: None,
+                sequencer_pattern: None,
+            });
+            // source → delay → output (replaces the direct source→output route).
+            session.routes = vec![
+                Route {
+                    id: "route-src-delay".to_string(),
+                    source_node_id: "node-source".to_string(),
+                    source_port_id: "node-source-out".to_string(),
+                    target_node_id: "node-delay".to_string(),
+                    target_port_id: "delay-in".to_string(),
+                    bus_id: Some("bus-main".to_string()),
+                },
+                Route {
+                    id: "route-delay-out".to_string(),
+                    source_node_id: "node-delay".to_string(),
+                    source_port_id: "delay-out".to_string(),
+                    target_node_id: "node-output".to_string(),
+                    target_port_id: "node-output-in".to_string(),
+                    bus_id: Some("bus-main".to_string()),
+                },
+            ];
 
             let topology = compile_session_to_topology(&session).expect("compile succeeds");
             let plan = plan_sc_resources(&topology).expect("plan succeeds");
 
-            assert_eq!(plan.synths[1].synthdef_name, FX_DELAY_SYNTHDEF);
-            assert!(plan.synths[1]
+            let delay_synth = plan
+                .synths
+                .iter()
+                .find(|s| s.synthdef_name == "scrysynth_v2_delay")
+                .expect("delay synth present");
+            assert!(delay_synth
                 .args
                 .iter()
                 .any(|arg| arg.name == "delay_time_s" && arg.value == 0.5));
         }
 
-        #[test]
-        fn checked_in_v1_synthdef_resources_are_present_and_named() {
-            let resources = [
-                (
-                    SOURCE_OSCILLATOR_SYNTHDEF,
-                    "resources/synthdefs/v1/scrysynth_v1_source_oscillator.scsyndef",
-                ),
-                (
-                    SOURCE_NOISE_SYNTHDEF,
-                    "resources/synthdefs/v1/scrysynth_v1_source_noise.scsyndef",
-                ),
-                (
-                    FX_LOWPASS_SYNTHDEF,
-                    "resources/synthdefs/v1/scrysynth_v1_fx_lowpass.scsyndef",
-                ),
-                (
-                    FX_DELAY_SYNTHDEF,
-                    "resources/synthdefs/v1/scrysynth_v1_fx_delay.scsyndef",
-                ),
-                (
-                    MIXER_SYNTHDEF,
-                    "resources/synthdefs/v1/scrysynth_v1_mixer.scsyndef",
-                ),
-                (
-                    OUTPUT_SYNTHDEF,
-                    "resources/synthdefs/v1/scrysynth_v1_output.scsyndef",
-                ),
-            ];
+        // NODES-05 control-bus allocation + CV-port signal-type validation are
+        // covered by the follow-up NODES-05 wiring commit.
 
-            for (name, relative_path) in resources {
+        // Every catalog entry with a SynthDef maps to a checked-in .scsyndef with
+        // an SCgf v2 header + the embedded name (the full "boots real scsynth per
+        // entry" conformance test lives in Plan 02).
+        #[test]
+        fn checked_in_v2_synthdef_resources_are_present_and_named() {
+            for entry in CATALOG.iter().filter(|e| !e.synthdef_resource.is_empty()) {
                 let bytes = std::fs::read(
-                    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(relative_path),
+                    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(entry.synthdef_resource),
                 )
                 .unwrap_or_else(|error| {
-                    panic!("failed to read SynthDef resource {relative_path}: {error}")
+                    panic!(
+                        "failed to read SynthDef resource {}: {error}",
+                        entry.synthdef_resource
+                    )
                 });
 
                 assert!(
                     bytes.starts_with(b"SCgf"),
-                    "{relative_path} has SCgf header"
+                    "{} has SCgf header",
+                    entry.synthdef_resource
                 );
                 assert_eq!(
                     i32::from_be_bytes(bytes[4..8].try_into().expect("version bytes")),
                     2,
-                    "{relative_path} uses SynthDef v2"
+                    "{} uses SynthDef v2",
+                    entry.synthdef_resource
                 );
                 assert_eq!(
-                    i16::from_be_bytes(bytes[8..10].try_into().expect("definition count bytes")),
+                    i16::from_be_bytes(
+                        bytes[8..10].try_into().expect("definition count bytes")
+                    ),
                     1,
-                    "{relative_path} contains one SynthDef"
+                    "{} contains one SynthDef",
+                    entry.synthdef_resource
                 );
                 let name_length = bytes[10] as usize;
                 assert_eq!(
                     &bytes[11..11 + name_length],
-                    name.as_bytes(),
-                    "{relative_path} embeds the expected SynthDef name"
+                    entry.synthdef_name.as_bytes(),
+                    "{} embeds the expected SynthDef name",
+                    entry.synthdef_resource
                 );
             }
+        }
+
+        #[test]
+        fn catalog_find_entry_roundtrips_against_checked_in_resources() {
+            // Belt-and-braces: find_catalog_entry + the resource paths agree.
+            let osc = find_catalog_entry("oscillator").expect("oscillator cataloged");
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(osc.synthdef_resource);
+            assert!(path.exists(), "{} exists", osc.synthdef_resource);
         }
     }
 

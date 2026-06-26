@@ -1,10 +1,9 @@
 use scrysynth_lib::application::macro_command::{apply_macro_command, MacroCommandError};
 use scrysynth_lib::application::session_store::SessionStore;
 use scrysynth_lib::domain::session::{
-    AudioBusType, AudioPrimitive, AudioSourceNode, AudioSourceType, Bus, ChannelMode,
-    ControllerKind, MacroCommand, MacroDefinition, MacroOverride, MacroTarget, Node, NodeType,
-    OwnershipAssignment, ParameterValue, Port, PortDirection, Route, SceneDefinition,
-    SessionDocument, SignalType,
+    AudioBusType, Bus, ChannelMode, ControllerKind, MacroCommand, MacroDefinition, MacroOverride,
+    MacroTarget, Node, OwnershipAssignment, ParameterValue, Port, PortDirection, Route,
+    SceneDefinition, SessionDocument, SignalType,
 };
 
 fn macro_test_session() -> SessionDocument {
@@ -13,7 +12,7 @@ fn macro_test_session() -> SessionDocument {
         nodes: vec![
             Node {
                 id: "node-src".to_string(),
-                node_type: NodeType::Source,
+                node_type_id: "oscillator".to_string(),
                 ports: vec![Port {
                     id: "port-src-out".to_string(),
                     name: "main_out".to_string(),
@@ -36,15 +35,16 @@ fn macro_test_session() -> SessionDocument {
                     is_locked: false,
                 },
                 enabled: true,
-                audio_primitive: Some(AudioPrimitive::Source(AudioSourceNode {
-                    source_type: AudioSourceType::Oscillator,
-                    channel_mode: ChannelMode::Mono,
-                    bus_target_id: None,
-                })),
+                bus_target_id: None,
+                output_kind: None,
+                channel_count: None,
+                bypassed: None,
+                channel_mode: Some(ChannelMode::Mono),
+                sequencer_pattern: None,
             },
             Node {
                 id: "node-fx".to_string(),
-                node_type: NodeType::Effect,
+                node_type_id: "filter".to_string(),
                 ports: vec![],
                 parameters: vec![ParameterValue {
                     id: "param-mix".to_string(),
@@ -62,7 +62,12 @@ fn macro_test_session() -> SessionDocument {
                     is_locked: false,
                 },
                 enabled: true,
-                audio_primitive: None,
+                bus_target_id: None,
+                output_kind: None,
+                channel_count: None,
+                bypassed: None,
+                channel_mode: None,
+                sequencer_pattern: None,
             },
         ],
         routes: vec![Route {

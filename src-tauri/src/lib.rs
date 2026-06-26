@@ -1,5 +1,6 @@
 pub mod application;
 pub mod audio;
+pub mod catalog;
 pub mod domain;
 pub mod hardware;
 pub mod persistence;

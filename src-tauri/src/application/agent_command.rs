@@ -8,10 +8,9 @@ use crate::application::graph_edit::{self, GraphEditError};
 use crate::application::performance_command::{self, PerformanceCommandError};
 use crate::application::session_store::SessionStore;
 use crate::domain::session::{
-    new_id, ActorRef, AgentIntent, AudioPrimitive, AudioSourceNode, AudioSourceType, ChannelMode,
-    ControllerKind, GraphEditCommand, Node, NodeType, OwnershipAssignment, PendingAction,
-    PendingActionStatus, PerformanceCommand, Port, PortDirection, RiskTier, Route, SessionDocument,
-    SignalType, TypedCommand,
+    new_id, ActorRef, AgentIntent, ChannelMode, ControllerKind, GraphEditCommand, Node,
+    OwnershipAssignment, PendingAction, PendingActionStatus, PerformanceCommand, Port,
+    PortDirection, RiskTier, Route, SessionDocument, SignalType, TypedCommand,
 };
 
 #[derive(Debug, Error, PartialEq)]
@@ -87,10 +86,11 @@ pub fn parse_agent_intent(input: &str, session: &SessionDocument) -> AgentIntent
 }
 
 fn parse_add_command(lower: &str, _session: &SessionDocument) -> Option<TypedCommand> {
-    let source_type = if lower.contains("oscillator") || lower.contains("osc") {
-        AudioSourceType::Oscillator
+    // Catalog-driven: natural-language add resolves to a known node_type_id.
+    let node_type_id = if lower.contains("oscillator") || lower.contains("osc") {
+        "oscillator"
     } else if lower.contains("noise") {
-        AudioSourceType::Noise
+        "noise"
     } else {
         return None;
     };
@@ -101,7 +101,7 @@ fn parse_add_command(lower: &str, _session: &SessionDocument) -> Option<TypedCom
 
     let node = Node {
         id: node_id,
-        node_type: NodeType::Source,
+        node_type_id: node_type_id.to_string(),
         ports: vec![Port {
             id: port_id,
             name: "main_out".to_string(),
@@ -117,18 +117,19 @@ fn parse_add_command(lower: &str, _session: &SessionDocument) -> Option<TypedCom
             max_value: 1.0,
             unit: "linear".to_string(),
         }],
-        runtime_target: Some("audio/source/default".to_string()),
+        runtime_target: Some(format!("audio/source/{node_type_id}")),
         scene_membership: vec![],
         ownership: OwnershipAssignment {
             controller: ControllerKind::Agent,
             is_locked: false,
         },
         enabled: true,
-        audio_primitive: Some(AudioPrimitive::Source(AudioSourceNode {
-            source_type,
-            channel_mode: ChannelMode::Mono,
-            bus_target_id: None,
-        })),
+        bus_target_id: None,
+        output_kind: None,
+        channel_count: None,
+        bypassed: None,
+        channel_mode: Some(ChannelMode::Mono),
+        sequencer_pattern: None,
     };
 
     Some(TypedCommand::GraphEdit(GraphEditCommand::AddNode { node }))
@@ -147,6 +148,7 @@ pub fn classify_risk(command: &TypedCommand) -> RiskTier {
         TypedCommand::GraphEdit(GraphEditCommand::RemoveRoute { .. }) => RiskTier::High,
         TypedCommand::GraphEdit(GraphEditCommand::ClearNodeBusAssignment { .. }) => RiskTier::High,
         TypedCommand::GraphEdit(GraphEditCommand::AssignNodeToBus { .. }) => RiskTier::Medium,
+        TypedCommand::GraphEdit(GraphEditCommand::SetStepValue { .. }) => RiskTier::Low,
     }
 }
 
@@ -579,7 +581,7 @@ fn validate_graph_proposal(
             .ok_or_else(|| format!("route '{}' was not found", route_id)),
         GraphEditCommand::AssignNodeToBus { node_id, bus_id } => {
             let node = require_node(session, node_id)?;
-            if node.audio_primitive.is_none() {
+            if node.bus_target_id.is_none() && node.output_kind.is_none() {
                 return Err(format!(
                     "node '{}' does not support bus assignment",
                     node_id
@@ -594,10 +596,29 @@ fn validate_graph_proposal(
         }
         GraphEditCommand::ClearNodeBusAssignment { node_id } => {
             let node = require_node(session, node_id)?;
-            if node.audio_primitive.is_none() {
+            if node.bus_target_id.is_none() && node.output_kind.is_none() {
                 return Err(format!(
                     "node '{}' does not support bus assignment",
                     node_id
+                ));
+            }
+            Ok(())
+        }
+        GraphEditCommand::SetStepValue {
+            node_id,
+            step_index,
+            ..
+        } => {
+            let node = require_node(session, node_id)?;
+            if node.node_type_id != "step_sequencer" {
+                return Err(format!(
+                    "node '{}' is not a step sequencer",
+                    node_id
+                ));
+            }
+            if *step_index >= 16 {
+                return Err(format!(
+                    "step index {step_index} out of range (0..16)"
                 ));
             }
             Ok(())
@@ -757,7 +778,7 @@ mod tests {
             nodes: vec![
                 Node {
                     id: "node-1".to_string(),
-                    node_type: NodeType::Source,
+                    node_type_id: "oscillator".to_string(),
                     ports: vec![Port {
                         id: "port-1-out".to_string(),
                         name: "out".to_string(),
@@ -780,11 +801,16 @@ mod tests {
                         is_locked: false,
                     },
                     enabled: true,
-                    audio_primitive: None,
+                    bus_target_id: None,
+                    output_kind: None,
+                    channel_count: None,
+                    bypassed: None,
+                    channel_mode: None,
+                    sequencer_pattern: None,
                 },
                 Node {
                     id: "node-2".to_string(),
-                    node_type: NodeType::Output,
+                    node_type_id: "output".to_string(),
                     ports: vec![],
                     parameters: vec![],
                     runtime_target: None,
@@ -794,11 +820,16 @@ mod tests {
                         is_locked: false,
                     },
                     enabled: true,
-                    audio_primitive: None,
+                    bus_target_id: None,
+                    output_kind: None,
+                    channel_count: None,
+                    bypassed: None,
+                    channel_mode: None,
+                    sequencer_pattern: None,
                 },
                 Node {
                     id: "node-3".to_string(),
-                    node_type: NodeType::Source,
+                    node_type_id: "oscillator".to_string(),
                     ports: vec![],
                     parameters: vec![ParameterValue {
                         id: "param-lvl".to_string(),
@@ -816,11 +847,16 @@ mod tests {
                         is_locked: false,
                     },
                     enabled: true,
-                    audio_primitive: None,
+                    bus_target_id: None,
+                    output_kind: None,
+                    channel_count: None,
+                    bypassed: None,
+                    channel_mode: None,
+                    sequencer_pattern: None,
                 },
                 Node {
                     id: "node-locked".to_string(),
-                    node_type: NodeType::Source,
+                    node_type_id: "oscillator".to_string(),
                     ports: vec![],
                     parameters: vec![],
                     runtime_target: None,
@@ -830,7 +866,12 @@ mod tests {
                         is_locked: true,
                     },
                     enabled: true,
-                    audio_primitive: None,
+                    bus_target_id: None,
+                    output_kind: None,
+                    channel_count: None,
+                    bypassed: None,
+                    channel_mode: None,
+                    sequencer_pattern: None,
                 },
             ],
             scenes: vec![SceneDefinition {
@@ -851,7 +892,7 @@ mod tests {
         assert!(intent.confidence > 0.0);
         match &intent.parsed_commands[0] {
             TypedCommand::GraphEdit(GraphEditCommand::AddNode { node }) => {
-                assert_eq!(node.node_type, NodeType::Source);
+                assert_eq!(node.node_type_id, "oscillator");
             }
             _ => panic!("expected AddNode command"),
         }

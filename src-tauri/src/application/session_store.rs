@@ -5,16 +5,15 @@ use crate::application::midi_learn::{
 use crate::application::performance_command;
 use crate::audio::runtime_manager::{AudioRuntimeManager, AudioRuntimeManagerError};
 use crate::domain::session::{
-    new_id, ActionHistoryEntry, ActorRef, AgentRuntimeState, AudioBusType, AudioOutputNode,
-    AudioOutputType, AudioPrimitive, AudioRuntimeHealth, AudioRuntimeLifecycle, AudioRuntimeState,
-    AudioSourceNode, AudioSourceType, BindingTarget, Bus, ChannelMode, ControllerKind, DiffSummary,
-    GraphEditCommand, HardwareBinding, HardwareLearnLifecycle, HardwareLearnStatus,
-    HardwareListenerLifecycle, HardwareRuntimeDiagnostic, HardwareRuntimeDiagnosticCode,
-    HardwareRuntimeSettings, HardwareRuntimeStatus, MacroCommand, MacroDefinition, MacroOverride,
-    MidiInputPort, Node, NodeType, OscRuntimeStatus, OwnershipAssignment, OwnershipRule,
-    ParameterOverride, ParameterValue, PerformanceCommand, Port, PortDirection, Route,
-    RuntimeConnectionState, RuntimeKind, RuntimeStatusRef, SceneDefinition, SessionDocument,
-    SignalType, TypedCommand, VariationDefinition,
+    new_id, ActionHistoryEntry, ActorRef, AgentRuntimeState, AudioBusType, AudioRuntimeHealth,
+    AudioRuntimeLifecycle, AudioRuntimeState, BindingTarget, Bus, ChannelMode, ControllerKind,
+    DiffSummary, GraphEditCommand, HardwareBinding, HardwareLearnLifecycle,
+    HardwareLearnStatus, HardwareListenerLifecycle, HardwareRuntimeDiagnostic,
+    HardwareRuntimeDiagnosticCode, HardwareRuntimeSettings, HardwareRuntimeStatus, MacroCommand,
+    MacroDefinition, MacroOverride, MidiInputPort, Node, OscRuntimeStatus, OutputKind,
+    OwnershipAssignment, OwnershipRule, ParameterOverride, ParameterValue, PerformanceCommand,
+    Port, PortDirection, Route, RuntimeConnectionState, RuntimeKind, RuntimeStatusRef,
+    SceneDefinition, SessionDocument, SignalType, TypedCommand, VariationDefinition,
 };
 use crate::hardware::midi_input::MidiInputManager;
 use crate::hardware::osc_input::OscInputManager;
@@ -838,6 +837,7 @@ fn extract_target_node_ids(session: &SessionDocument, command: &TypedCommand) ->
                 .unwrap_or_default(),
             GraphEditCommand::AssignNodeToBus { node_id, .. } => vec![node_id.clone()],
             GraphEditCommand::ClearNodeBusAssignment { node_id } => vec![node_id.clone()],
+            GraphEditCommand::SetStepValue { node_id, .. } => vec![node_id.clone()],
         },
         TypedCommand::Performance(_) => vec![],
     }
@@ -846,10 +846,7 @@ fn extract_target_node_ids(session: &SessionDocument, command: &TypedCommand) ->
 fn generate_diff_summary(command: &TypedCommand, _session: &SessionDocument) -> DiffSummary {
     let (description, affected_node_ids) = match command {
         TypedCommand::GraphEdit(GraphEditCommand::AddNode { node }) => (
-            format!(
-                "Added {} node",
-                format!("{:?}", node.node_type).to_lowercase()
-            ),
+            format!("Added {} node", node.node_type_id),
             vec![node.id.clone()],
         ),
         TypedCommand::GraphEdit(GraphEditCommand::RemoveNode { node_id }) => {
@@ -887,6 +884,14 @@ fn generate_diff_summary(command: &TypedCommand, _session: &SessionDocument) -> 
         ),
         TypedCommand::GraphEdit(GraphEditCommand::ClearNodeBusAssignment { node_id }) => (
             format!("Cleared bus assignment for node {}", node_id),
+            vec![node_id.clone()],
+        ),
+        TypedCommand::GraphEdit(GraphEditCommand::SetStepValue {
+            node_id,
+            step_index,
+            ..
+        }) => (
+            format!("Set sequencer step {step_index} on node {node_id}"),
             vec![node_id.clone()],
         ),
         TypedCommand::Performance(PerformanceCommand::RecallScene { scene_id }) => {
@@ -932,7 +937,7 @@ fn build_default_session() -> SessionDocument {
         nodes: vec![
             Node {
                 id: source_node_id.clone(),
-                node_type: NodeType::Source,
+                node_type_id: "oscillator".to_string(),
                 ports: vec![Port {
                     id: source_out_port_id.clone(),
                     name: "main_out".to_string(),
@@ -948,22 +953,23 @@ fn build_default_session() -> SessionDocument {
                     max_value: 1.0,
                     unit: "linear".to_string(),
                 }],
-                runtime_target: Some("audio/source/default".to_string()),
+                runtime_target: Some("audio/source/oscillator".to_string()),
                 scene_membership: vec![scene_id.clone()],
                 ownership: OwnershipAssignment {
                     controller: ControllerKind::Shared,
                     is_locked: false,
                 },
                 enabled: true,
-                audio_primitive: Some(AudioPrimitive::Source(AudioSourceNode {
-                    source_type: AudioSourceType::Oscillator,
-                    channel_mode: ChannelMode::Mono,
-                    bus_target_id: Some(bus_id.clone()),
-                })),
+                bus_target_id: Some(bus_id.clone()),
+                output_kind: None,
+                channel_count: None,
+                bypassed: None,
+                channel_mode: Some(ChannelMode::Mono),
+                sequencer_pattern: None,
             },
             Node {
                 id: master_node_id.clone(),
-                node_type: NodeType::Output,
+                node_type_id: "output".to_string(),
                 ports: vec![Port {
                     id: master_in_port_id.clone(),
                     name: "master_in".to_string(),
@@ -978,11 +984,12 @@ fn build_default_session() -> SessionDocument {
                     is_locked: false,
                 },
                 enabled: true,
-                audio_primitive: Some(AudioPrimitive::Output(AudioOutputNode {
-                    output_type: AudioOutputType::Master,
-                    channels: 2,
-                    bus_target_id: Some(bus_id.clone()),
-                })),
+                bus_target_id: Some(bus_id.clone()),
+                output_kind: Some(OutputKind::Master),
+                channel_count: Some(2),
+                bypassed: None,
+                channel_mode: None,
+                sequencer_pattern: None,
             },
         ],
         routes: vec![Route {

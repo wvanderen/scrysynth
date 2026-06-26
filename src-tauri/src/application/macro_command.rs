@@ -201,9 +201,8 @@ pub fn apply_audio_parameter(
 mod tests {
     use super::*;
     use crate::domain::session::{
-        AudioBusType, AudioPrimitive, AudioSourceNode, AudioSourceType, Bus, ChannelMode,
-        ControllerKind, MacroOverride, Node, NodeType, OwnershipAssignment, ParameterValue, Port,
-        PortDirection, Route, SceneDefinition, SignalType,
+        AudioBusType, Bus, ChannelMode, ControllerKind, MacroOverride, Node, OwnershipAssignment,
+        ParameterValue, Port, PortDirection, Route, SceneDefinition, SignalType,
     };
 
     fn test_session() -> SessionDocument {
@@ -211,7 +210,7 @@ mod tests {
             title: "Macro Test".to_string(),
             nodes: vec![Node {
                 id: "node-src".to_string(),
-                node_type: NodeType::Source,
+                node_type_id: "oscillator".to_string(),
                 ports: vec![Port {
                     id: "port-src-out".to_string(),
                     name: "main_out".to_string(),
@@ -234,11 +233,12 @@ mod tests {
                     is_locked: false,
                 },
                 enabled: true,
-                audio_primitive: Some(AudioPrimitive::Source(AudioSourceNode {
-                    source_type: AudioSourceType::Oscillator,
-                    channel_mode: ChannelMode::Mono,
-                    bus_target_id: None,
-                })),
+                bus_target_id: None,
+                    output_kind: None,
+                    channel_count: None,
+                    bypassed: None,
+                    channel_mode: Some(ChannelMode::Mono),
+                    sequencer_pattern: None,
             }],
             routes: vec![Route {
                 id: "route-1".to_string(),

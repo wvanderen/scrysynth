@@ -8,7 +8,7 @@ use scrysynth_lib::application::agent_planner::{
 use scrysynth_lib::application::session_store::{OwnershipGateReason, SessionStore};
 use scrysynth_lib::domain::session::{
     new_id, ActionHistoryEntry, ActorRef, AgentIntent, AgentRuntimeState, ControllerKind,
-    DiffSummary, GraphEditCommand, Node, NodeType, OwnershipAssignment, OwnershipRule,
+    DiffSummary, GraphEditCommand, Node, OwnershipAssignment, OwnershipRule,
     ParameterValue, PendingAction, PendingActionStatus, PerformanceCommand, Port, PortDirection,
     RiskTier, Route, SceneDefinition, SessionDocument, SignalType, TypedCommand,
 };
@@ -18,7 +18,7 @@ fn test_session() -> SessionDocument {
         nodes: vec![
             Node {
                 id: "node-src".to_string(),
-                node_type: NodeType::Source,
+                node_type_id: "oscillator".to_string(),
                 ports: vec![Port {
                     id: "port-src-out".to_string(),
                     name: "out".to_string(),
@@ -41,11 +41,16 @@ fn test_session() -> SessionDocument {
                     is_locked: false,
                 },
                 enabled: true,
-                audio_primitive: None,
+                bus_target_id: None,
+                output_kind: None,
+                channel_count: None,
+                bypassed: None,
+                channel_mode: None,
+                sequencer_pattern: None,
             },
             Node {
                 id: "node-user".to_string(),
-                node_type: NodeType::Effect,
+                node_type_id: "filter".to_string(),
                 ports: vec![],
                 parameters: vec![ParameterValue {
                     id: "param-mix".to_string(),
@@ -63,11 +68,16 @@ fn test_session() -> SessionDocument {
                     is_locked: false,
                 },
                 enabled: true,
-                audio_primitive: None,
+                bus_target_id: None,
+                output_kind: None,
+                channel_count: None,
+                bypassed: None,
+                channel_mode: None,
+                sequencer_pattern: None,
             },
             Node {
                 id: "node-agent".to_string(),
-                node_type: NodeType::Source,
+                node_type_id: "oscillator".to_string(),
                 ports: vec![],
                 parameters: vec![ParameterValue {
                     id: "param-lvl".to_string(),
@@ -85,11 +95,16 @@ fn test_session() -> SessionDocument {
                     is_locked: false,
                 },
                 enabled: true,
-                audio_primitive: None,
+                bus_target_id: None,
+                output_kind: None,
+                channel_count: None,
+                bypassed: None,
+                channel_mode: None,
+                sequencer_pattern: None,
             },
             Node {
                 id: "node-locked".to_string(),
-                node_type: NodeType::Mixer,
+                node_type_id: "mixer".to_string(),
                 ports: vec![],
                 parameters: vec![],
                 runtime_target: None,
@@ -99,7 +114,12 @@ fn test_session() -> SessionDocument {
                     is_locked: true,
                 },
                 enabled: true,
-                audio_primitive: None,
+                bus_target_id: None,
+                output_kind: None,
+                channel_count: None,
+                bypassed: None,
+                channel_mode: None,
+                sequencer_pattern: None,
             },
         ],
         scenes: vec![SceneDefinition {
@@ -226,8 +246,8 @@ fn intent_parser_add_oscillator_produces_add_node() {
     assert!(intent.confidence > 0.0);
     match &intent.parsed_commands[0] {
         TypedCommand::GraphEdit(GraphEditCommand::AddNode { node }) => {
-            assert_eq!(node.node_type, NodeType::Source);
-        }
+                assert_eq!(node.node_type_id, "oscillator");
+            }
         _ => panic!("expected AddNode"),
     }
 }

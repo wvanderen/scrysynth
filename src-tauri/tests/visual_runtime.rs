@@ -1,7 +1,7 @@
 use scrysynth_lib::application::session_store::SessionStore;
 use scrysynth_lib::domain::session::{
     new_id, AgentRuntimeState, GraphEditCommand, MacroDefinition, MacroOverride, MacroTarget,
-    NodeType, SessionDocument, VisualRuntimeHealth, VisualRuntimeLifecycle,
+    SessionDocument, VisualRuntimeHealth, VisualRuntimeLifecycle,
 };
 use scrysynth_lib::visual::adapter::{VisualAdapterStatus, VisualRuntimeAdapter};
 use scrysynth_lib::visual::compiler::{
@@ -218,12 +218,11 @@ fn compile_session_to_visual_scene_produces_scene_from_enabled_nodes() {
         let node = session.nodes.iter().find(|n| n.id == element.element_id);
         assert!(node.is_some());
         let node = node.unwrap();
-        let expected_type = match node.node_type {
-            NodeType::Source => "sphere",
-            NodeType::Effect => "box",
-            NodeType::Mixer => "ring",
-            NodeType::Output => "plane",
-        };
+        // Catalog-driven visual shape: read the expected shape from the catalog
+        // entry the visual compiler itself consults.
+        let expected_type = scrysynth_lib::catalog::find_catalog_entry(&node.node_type_id)
+            .map(|entry| entry.visual_shape)
+            .unwrap_or("box");
         assert_eq!(element.element_type, expected_type);
     }
 }
@@ -246,14 +245,14 @@ fn compile_session_to_visual_scene_uses_active_scene_selection() {
     let source_id = session
         .nodes
         .iter()
-        .find(|node| matches!(node.node_type, NodeType::Source))
+        .find(|node| node.node_type_id == "oscillator")
         .unwrap()
         .id
         .clone();
     let output_id = session
         .nodes
         .iter()
-        .find(|node| matches!(node.node_type, NodeType::Output))
+        .find(|node| node.node_type_id == "output")
         .unwrap()
         .id
         .clone();
@@ -438,7 +437,7 @@ fn visual_runtime_manager_reloads_scene_after_scene_recall() {
     let output_id = session
         .nodes
         .iter()
-        .find(|node| matches!(node.node_type, NodeType::Output))
+        .find(|node| node.node_type_id == "output")
         .unwrap()
         .id
         .clone();
@@ -522,7 +521,7 @@ fn visual_runtime_manager_skips_graph_parameter_updates_outside_active_scene() {
     let source_id = session
         .nodes
         .iter()
-        .find(|node| matches!(node.node_type, NodeType::Source))
+        .find(|node| node.node_type_id == "oscillator")
         .unwrap()
         .id
         .clone();
@@ -537,7 +536,7 @@ fn visual_runtime_manager_skips_graph_parameter_updates_outside_active_scene() {
     let output_id = session
         .nodes
         .iter()
-        .find(|node| matches!(node.node_type, NodeType::Output))
+        .find(|node| node.node_type_id == "output")
         .unwrap()
         .id
         .clone();
@@ -624,14 +623,14 @@ fn visual_runtime_manager_skips_macro_visual_targets_outside_active_scene() {
     let source_id = session
         .nodes
         .iter()
-        .find(|node| matches!(node.node_type, NodeType::Source))
+        .find(|node| node.node_type_id == "oscillator")
         .unwrap()
         .id
         .clone();
     let output_id = session
         .nodes
         .iter()
-        .find(|node| matches!(node.node_type, NodeType::Output))
+        .find(|node| node.node_type_id == "output")
         .unwrap()
         .id
         .clone();
@@ -736,7 +735,7 @@ fn visual_runtime_manager_stop_resets_to_idle() {
     let output_id = session
         .nodes
         .iter()
-        .find(|node| matches!(node.node_type, NodeType::Output))
+        .find(|node| node.node_type_id == "output")
         .unwrap()
         .id
         .clone();
@@ -805,7 +804,7 @@ fn visual_runtime_manager_panic_marks_restartable_panicked_state() {
     let output_id = session
         .nodes
         .iter()
-        .find(|node| matches!(node.node_type, NodeType::Output))
+        .find(|node| node.node_type_id == "output")
         .unwrap()
         .id
         .clone();

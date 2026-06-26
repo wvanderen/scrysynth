@@ -7,7 +7,7 @@ use scrysynth_lib::application::session_store::SessionStore;
 use scrysynth_lib::domain::session::{
     new_id, BindingTarget, HardwareBinding, HardwareLearnLifecycle, HardwareListenerLifecycle,
     HardwareRuntimeSettings, HardwareRuntimeStatus, HardwareSource, MacroDefinition, MacroTarget,
-    Node, NodeType, OwnershipAssignment, ParameterValue, Port, PortDirection, SessionDocument,
+    Node, OwnershipAssignment, ParameterValue, Port, PortDirection, SessionDocument,
     SignalType, ValueTransform,
 };
 use scrysynth_lib::hardware::midi_input::{parse_midi_message, MidiLearnEvent};
@@ -17,7 +17,7 @@ fn hardware_test_session() -> SessionDocument {
         title: "Hardware Test".to_string(),
         nodes: vec![Node {
             id: "node-src".to_string(),
-            node_type: NodeType::Source,
+            node_type_id: "oscillator".to_string(),
             ports: vec![Port {
                 id: "port-out".to_string(),
                 name: "out".to_string(),
@@ -40,7 +40,12 @@ fn hardware_test_session() -> SessionDocument {
                 is_locked: false,
             },
             enabled: true,
-            audio_primitive: None,
+            bus_target_id: None,
+                output_kind: None,
+                channel_count: None,
+                bypassed: None,
+                channel_mode: None,
+                sequencer_pattern: None,
         }],
         macros: vec![MacroDefinition {
             id: "macro-energy".to_string(),

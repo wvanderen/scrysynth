@@ -1,7 +1,7 @@
 use scrysynth_lib::application::agent_command;
 use scrysynth_lib::application::session_store::SessionStore;
 use scrysynth_lib::domain::session::{
-    new_id, ActorRef, ControllerKind, GraphEditCommand, Node, NodeType, OwnershipAssignment,
+    new_id, ActorRef, ControllerKind, GraphEditCommand, Node, OwnershipAssignment,
     ParameterValue, PendingActionStatus, PerformanceCommand, Port, PortDirection, RiskTier, Route,
     SceneDefinition, SessionDocument, SignalType, TypedCommand,
 };
@@ -25,7 +25,7 @@ fn test_session() -> SessionDocument {
         nodes: vec![
             Node {
                 id: "node-src".to_string(),
-                node_type: NodeType::Source,
+                node_type_id: "oscillator".to_string(),
                 ports: vec![Port {
                     id: "port-src-out".to_string(),
                     name: "out".to_string(),
@@ -48,11 +48,16 @@ fn test_session() -> SessionDocument {
                     is_locked: false,
                 },
                 enabled: true,
-                audio_primitive: None,
+                bus_target_id: None,
+                output_kind: None,
+                channel_count: None,
+                bypassed: None,
+                channel_mode: None,
+                sequencer_pattern: None,
             },
             Node {
                 id: "node-agent".to_string(),
-                node_type: NodeType::Effect,
+                node_type_id: "filter".to_string(),
                 ports: vec![],
                 parameters: vec![ParameterValue {
                     id: "param-mix".to_string(),
@@ -70,7 +75,12 @@ fn test_session() -> SessionDocument {
                     is_locked: false,
                 },
                 enabled: true,
-                audio_primitive: None,
+                bus_target_id: None,
+                output_kind: None,
+                channel_count: None,
+                bypassed: None,
+                channel_mode: None,
+                sequencer_pattern: None,
             },
         ],
         routes: vec![Route {
@@ -114,7 +124,7 @@ fn classify_risk_add_node_is_medium() {
     let cmd = TypedCommand::GraphEdit(GraphEditCommand::AddNode {
         node: Node {
             id: "new-node".to_string(),
-            node_type: NodeType::Source,
+            node_type_id: "oscillator".to_string(),
             ports: vec![],
             parameters: vec![],
             runtime_target: None,
@@ -124,7 +134,12 @@ fn classify_risk_add_node_is_medium() {
                 is_locked: false,
             },
             enabled: true,
-            audio_primitive: None,
+            bus_target_id: None,
+                output_kind: None,
+                channel_count: None,
+                bypassed: None,
+                channel_mode: None,
+                sequencer_pattern: None,
         },
     });
     assert_eq!(agent_command::classify_risk(&cmd), RiskTier::Medium);

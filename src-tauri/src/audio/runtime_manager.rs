@@ -193,6 +193,10 @@ where
             | GraphEditCommand::RemoveRoute { .. }
             | GraphEditCommand::AssignNodeToBus { .. }
             | GraphEditCommand::ClearNodeBusAssignment { .. } => self.reapply_live_topology(store),
+            // Sequencer step edits change the 16-step pattern the app-driven
+            // transport tick plays; they do not alter the audio topology, so no
+            // SC reapply is needed (the tick loop reads canonical state).
+            GraphEditCommand::SetStepValue { .. } => Ok(store.current().clone()),
         }
     }
 

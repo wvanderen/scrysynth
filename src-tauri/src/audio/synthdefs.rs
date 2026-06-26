@@ -1,18 +1,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::audio::compiler::{CompiledNodeKind, CompiledTopology};
-use crate::domain::session::{AudioEffectType, AudioOutputType, AudioSourceType};
+use crate::audio::compiler::CompiledTopology;
+use crate::catalog::{find_catalog_entry, NodeCatalogEntry, NodeCategory};
+use crate::domain::session::{OutputKind, SignalType};
 
+/// First audio bus index handed out to session buses (0/1 are the hardware outs).
 pub const HARDWARE_AUDIO_BUS_OFFSET: u32 = 2;
 pub const FIRST_GROUP_ID: i32 = 1000;
 pub const FIRST_SYNTH_ID: i32 = 2000;
-
-pub const SOURCE_OSCILLATOR_SYNTHDEF: &str = "scrysynth_v1_source_oscillator";
-pub const SOURCE_NOISE_SYNTHDEF: &str = "scrysynth_v1_source_noise";
-pub const FX_LOWPASS_SYNTHDEF: &str = "scrysynth_v1_fx_lowpass";
-pub const FX_DELAY_SYNTHDEF: &str = "scrysynth_v1_fx_delay";
-pub const MIXER_SYNTHDEF: &str = "scrysynth_v1_mixer";
-pub const OUTPUT_SYNTHDEF: &str = "scrysynth_v1_output";
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SynthDefResource {
@@ -78,13 +73,12 @@ pub enum ScResourcePlanError {
     MissingInputBus { node_id: String },
     #[error("node `{node_id}` mixer supports at most 8 input buses, got {input_count}")]
     TooManyMixerInputs { node_id: String, input_count: usize },
-    #[error("node `{node_id}` targets unsupported runtime `{runtime_target}`")]
-    UnsupportedRuntimeTarget {
-        node_id: String,
-        runtime_target: String,
+    #[error("node references unknown catalog entry `{node_type_id}`")]
+    UnknownCatalogEntry {
+        node_type_id: String,
     },
     #[error(
-        "node `{node_id}` parameter `{parameter_id}` uses unsupported v1 SuperCollider parameter `{parameter_name}`"
+        "node `{node_id}` parameter `{parameter_id}` uses unsupported parameter `{parameter_name}`"
     )]
     UnsupportedParameter {
         node_id: String,
@@ -93,66 +87,69 @@ pub enum ScResourcePlanError {
     },
 }
 
+/// Map from a mod-source output `(node_id, port_id)` to its allocated control
+/// bus index. One bus per source output port is shared by every outgoing CV
+/// route (a mod source writes once; many targets may read). Compiler artifact —
+/// control buses are NEVER canonical `Bus` records (RESEARCH.md anti-pattern).
+#[allow(dead_code)]
+type CvBusMap = BTreeMap<(String, String), u32>;
+
 pub fn plan_sc_resources(
     topology: &CompiledTopology,
 ) -> Result<ScResourcePlan, ScResourcePlanError> {
     let bus_map = plan_buses(topology)?;
     let group_map = plan_groups(topology)?;
-    let mut synthdefs = BTreeSet::new();
+
+    let mut synthdefs: BTreeSet<&'static str> = BTreeSet::new();
     let mut synths = Vec::new();
     let mut controls = Vec::new();
+    let mut next_synth_id = FIRST_SYNTH_ID;
 
-    for (index, node) in topology.node_launch_order.iter().enumerate() {
-        validate_runtime_target(&node.node_id, &node.runtime_target, &node.node_kind)?;
-        let group_node_id =
-            *group_map
-                .get(&node.group_id)
-                .ok_or_else(|| ScResourcePlanError::UnknownGroup {
-                    node_id: node.node_id.clone(),
-                    group_id: node.group_id.clone(),
-                })?;
-        let synth_node_id = FIRST_SYNTH_ID + index as i32;
+    for node in &topology.node_launch_order {
+        // THE catalog lookup — replaces v1's `match &node.node_kind` dispatch.
+        // An unknown `node_type_id` becomes a real `Err`, never a panic
+        // (success criterion #3).
+        let entry = find_catalog_entry(&node.node_type_id)?;
+        let group_node_id = *group_map.get(&node.group_id).ok_or_else(|| {
+            ScResourcePlanError::UnknownGroup {
+                node_id: node.node_id.clone(),
+                group_id: node.group_id.clone(),
+            }
+        })?;
+        let synth_node_id = next_synth_id;
         let mut args = Vec::new();
-        let synthdef_name = match &node.node_kind {
-            CompiledNodeKind::Source { source_type, .. } => {
+
+        match entry.category {
+            NodeCategory::Source => {
                 let out_bus =
                     required_output_bus(&node.node_id, node.output_bus_id.as_deref(), &bus_map)?;
                 args.push(arg("out_bus", out_bus));
                 apply_parameters(
                     &node.node_id,
+                    entry,
                     &node.parameters,
                     &mut args,
                     &mut controls,
                     synth_node_id,
                 )?;
-                match source_type {
-                    AudioSourceType::Oscillator => SOURCE_OSCILLATOR_SYNTHDEF,
-                    AudioSourceType::Noise => SOURCE_NOISE_SYNTHDEF,
-                }
             }
-            CompiledNodeKind::Effect {
-                effect_type,
-                bypassed,
-            } => {
+            NodeCategory::Effect => {
                 let in_bus = first_input_bus(&node.node_id, &node.input_bus_ids, &bus_map)?;
                 let out_bus =
                     required_output_bus(&node.node_id, node.output_bus_id.as_deref(), &bus_map)?;
                 args.push(arg("in_bus", in_bus));
                 args.push(arg("out_bus", out_bus));
-                args.push(arg("bypassed", if *bypassed { 1.0 } else { 0.0 }));
+                args.push(arg("bypassed", if node.bypassed { 1.0 } else { 0.0 }));
                 apply_parameters(
                     &node.node_id,
+                    entry,
                     &node.parameters,
                     &mut args,
                     &mut controls,
                     synth_node_id,
                 )?;
-                match effect_type {
-                    AudioEffectType::LowPassFilter => FX_LOWPASS_SYNTHDEF,
-                    AudioEffectType::Delay => FX_DELAY_SYNTHDEF,
-                }
             }
-            CompiledNodeKind::Mixer { .. } => {
+            NodeCategory::Mixer => {
                 if node.input_bus_ids.len() > 8 {
                     return Err(ScResourcePlanError::TooManyMixerInputs {
                         node_id: node.node_id.clone(),
@@ -172,17 +169,14 @@ pub fn plan_sc_resources(
                 }
                 apply_parameters(
                     &node.node_id,
+                    entry,
                     &node.parameters,
                     &mut args,
                     &mut controls,
                     synth_node_id,
                 )?;
-                MIXER_SYNTHDEF
             }
-            CompiledNodeKind::Output {
-                output_type,
-                channels,
-            } => {
+            NodeCategory::Output => {
                 let in_bus = node
                     .input_bus_ids
                     .first()
@@ -199,24 +193,72 @@ pub fn plan_sc_resources(
                 args.push(arg("in_bus", in_bus));
                 args.push(arg(
                     "hardware_out",
-                    match output_type {
-                        AudioOutputType::Master => 0.0,
-                        AudioOutputType::Cue => *channels as f32,
+                    match node.output_kind {
+                        Some(OutputKind::Cue) => node.channel_count as f32,
+                        _ => 0.0,
                     },
                 ));
-                args.push(arg("channels", *channels as f32));
+                args.push(arg("channels", node.channel_count as f32));
                 apply_parameters(
                     &node.node_id,
+                    entry,
                     &node.parameters,
                     &mut args,
                     &mut controls,
                     synth_node_id,
                 )?;
-                OUTPUT_SYNTHDEF
             }
-        };
+            // Modulators (envelope/lfo) are control-rate sources with no audio
+            // bus args; their `out_cv_bus` is attached below from `node_cv_args`.
+            NodeCategory::Modulator | NodeCategory::Sequencer => {
+                apply_parameters(
+                    &node.node_id,
+                    entry,
+                    &node.parameters,
+                    &mut args,
+                    &mut controls,
+                    synth_node_id,
+                )?;
+            }
+            // Utility nodes split by signal rate: VCA is audio-rate (in/out bus
+            // args like an effect, no bypass); Quantizer is control-rate (no
+            // audio bus args — its in_cv_bus/out_cv_bus come from node_cv_args).
+            NodeCategory::Utility => {
+                let has_audio_input = entry
+                    .ports
+                    .iter()
+                    .any(|port| port.direction == crate::domain::session::PortDirection::Input
+                        && port.signal_type == SignalType::Audio);
+                if has_audio_input {
+                    let in_bus = first_input_bus(&node.node_id, &node.input_bus_ids, &bus_map)?;
+                    let out_bus =
+                        required_output_bus(&node.node_id, node.output_bus_id.as_deref(), &bus_map)?;
+                    args.push(arg("in_bus", in_bus));
+                    args.push(arg("out_bus", out_bus));
+                }
+                apply_parameters(
+                    &node.node_id,
+                    entry,
+                    &node.parameters,
+                    &mut args,
+                    &mut controls,
+                    synth_node_id,
+                )?;
+            }
+        }
 
+        // Attach CV-bus args (out_cv_bus on mod sources; <param>_cv_bus on targets).
+        // (Control-bus allocation lands in the follow-up NODES-05 wiring commit.)
+
+        // App-driven nodes (empty synthdef_name, e.g. the step sequencer) launch
+        // no SuperCollider synth — skip synthdef/synth allocation for them.
+        if entry.synthdef_name.is_empty() {
+            continue;
+        }
+
+        let synthdef_name = entry.synthdef_name;
         synthdefs.insert(synthdef_name);
+        next_synth_id += 1;
         synths.push(ScSynthPlan {
             node_key: node.node_id.clone(),
             node_id: synth_node_id,
@@ -228,8 +270,11 @@ pub fn plan_sc_resources(
     }
 
     Ok(ScResourcePlan {
-        patch_id: format!("patch-v1-{}", topology_fingerprint(topology)),
-        synthdefs: synthdefs.into_iter().map(synthdef_resource).collect(),
+        patch_id: format!("patch-v2-{}", topology_fingerprint(topology)),
+        synthdefs: synthdefs
+            .into_iter()
+            .map(|name| synthdef_resource_for_name(name))
+            .collect(),
         groups: topology
             .group_order
             .iter()
@@ -281,58 +326,21 @@ fn plan_groups(topology: &CompiledTopology) -> Result<BTreeMap<String, i32>, ScR
     Ok(group_map)
 }
 
-fn validate_runtime_target(
-    node_id: &str,
-    runtime_target: &str,
-    node_kind: &CompiledNodeKind,
-) -> Result<(), ScResourcePlanError> {
-    let supported = match node_kind {
-        CompiledNodeKind::Source {
-            source_type: AudioSourceType::Oscillator,
-            ..
-        } => matches!(
-            runtime_target,
-            "audio/source/oscillator" | "audio/source/default"
-        ),
-        CompiledNodeKind::Source {
-            source_type: AudioSourceType::Noise,
-            ..
-        } => matches!(
-            runtime_target,
-            "audio/source/noise" | "audio/source/default"
-        ),
-        CompiledNodeKind::Effect {
-            effect_type: AudioEffectType::LowPassFilter,
-            ..
-        } => matches!(
-            runtime_target,
-            "audio/effect/low_pass_filter" | "audio/effect/filter"
-        ),
-        CompiledNodeKind::Effect {
-            effect_type: AudioEffectType::Delay,
-            ..
-        } => runtime_target == "audio/effect/delay",
-        CompiledNodeKind::Mixer { .. } => {
-            matches!(runtime_target, "audio/mixer/stereo" | "audio/mixer/submix")
+/// Resolve each node's audio output bus index (for audio-rate CV reuse + bus args).
+#[allow(dead_code)]
+fn build_node_output_bus_map(
+    topology: &CompiledTopology,
+    bus_map: &BTreeMap<String, f32>,
+) -> BTreeMap<String, f32> {
+    let mut out = BTreeMap::new();
+    for node in &topology.node_launch_order {
+        if let Some(bus_id) = node.output_bus_id.as_deref() {
+            if let Some(idx) = bus_map.get(bus_id) {
+                out.insert(node.node_id.clone(), *idx);
+            }
         }
-        CompiledNodeKind::Output {
-            output_type: AudioOutputType::Master,
-            ..
-        } => runtime_target == "audio/output/master",
-        CompiledNodeKind::Output {
-            output_type: AudioOutputType::Cue,
-            ..
-        } => runtime_target == "audio/output/cue",
-    };
-
-    if supported {
-        Ok(())
-    } else {
-        Err(ScResourcePlanError::UnsupportedRuntimeTarget {
-            node_id: node_id.to_string(),
-            runtime_target: runtime_target.to_string(),
-        })
     }
+    out
 }
 
 fn required_output_bus(
@@ -343,13 +351,12 @@ fn required_output_bus(
     let bus_id = bus_id.ok_or_else(|| ScResourcePlanError::MissingOutputBus {
         node_id: node_id.to_string(),
     })?;
-    bus_map
-        .get(bus_id)
-        .copied()
-        .ok_or_else(|| ScResourcePlanError::UnknownOutputBus {
+    bus_map.get(bus_id).copied().ok_or_else(|| {
+        ScResourcePlanError::UnknownOutputBus {
             node_id: node_id.to_string(),
             bus_id: bus_id.to_string(),
-        })
+        }
+    })
 }
 
 fn first_input_bus(
@@ -357,11 +364,9 @@ fn first_input_bus(
     bus_ids: &[String],
     bus_map: &BTreeMap<String, f32>,
 ) -> Result<f32, ScResourcePlanError> {
-    let bus_id = bus_ids
-        .first()
-        .ok_or_else(|| ScResourcePlanError::MissingInputBus {
-            node_id: node_id.to_string(),
-        })?;
+    let bus_id = bus_ids.first().ok_or_else(|| ScResourcePlanError::MissingInputBus {
+        node_id: node_id.to_string(),
+    })?;
     lookup_input_bus(node_id, bus_id, bus_map)
 }
 
@@ -370,53 +375,41 @@ fn lookup_input_bus(
     bus_id: &str,
     bus_map: &BTreeMap<String, f32>,
 ) -> Result<f32, ScResourcePlanError> {
-    bus_map
-        .get(bus_id)
-        .copied()
-        .ok_or_else(|| ScResourcePlanError::UnknownInputBus {
+    bus_map.get(bus_id).copied().ok_or_else(|| {
+        ScResourcePlanError::UnknownInputBus {
             node_id: node_id.to_string(),
             bus_id: bus_id.to_string(),
-        })
+        }
+    })
 }
 
+/// Bind each parameter to its SuperCollider synth arg via the catalog entry
+/// (replaces v1's `normalize_parameter_name` allowlist). The base value is
+/// still live-`/n_set`-able; CV modulation is additive inside the synth graph.
 fn apply_parameters(
     node_id: &str,
+    entry: &NodeCatalogEntry,
     parameters: &[crate::audio::compiler::CompiledParameter],
     args: &mut Vec<ScSynthArg>,
     controls: &mut Vec<ScControlPlan>,
     synth_node_id: i32,
 ) -> Result<(), ScResourcePlanError> {
     for parameter in parameters {
-        let Some(name) = normalize_parameter_name(&parameter.name) else {
+        let Some(sc_arg) = entry.resolve_sc_arg(&parameter.name) else {
             return Err(ScResourcePlanError::UnsupportedParameter {
                 node_id: node_id.to_string(),
                 parameter_id: parameter.parameter_id.clone(),
                 parameter_name: parameter.name.clone(),
             });
         };
-        args.push(arg(name, parameter.value as f32));
+        args.push(arg(sc_arg, parameter.value as f32));
         controls.push(ScControlPlan {
             control_key: format!("{node_id}:{}", parameter.parameter_id),
             synth_node_id,
-            parameter_name: name.to_string(),
+            parameter_name: sc_arg.to_string(),
         });
     }
     Ok(())
-}
-
-fn normalize_parameter_name(name: &str) -> Option<&'static str> {
-    match name {
-        "level" | "gain" | "amplitude" => Some("level"),
-        "frequency" | "freq" => Some("frequency"),
-        "wave_shape" | "waveShape" => Some("wave_shape"),
-        "noise_color" | "noiseColor" => Some("noise_color"),
-        "cutoff" | "cutoff_hz" | "cutoffHz" => Some("cutoff_hz"),
-        "resonance" | "rq" => Some("resonance"),
-        "delay_time" | "delay_time_s" | "delayTime" => Some("delay_time_s"),
-        "feedback" => Some("feedback"),
-        "mix" => Some("mix"),
-        _ => None,
-    }
 }
 
 fn arg(name: &str, value: f32) -> ScSynthArg {
@@ -426,33 +419,18 @@ fn arg(name: &str, value: f32) -> ScSynthArg {
     }
 }
 
-fn synthdef_resource(name: &str) -> SynthDefResource {
-    match name {
-        SOURCE_OSCILLATOR_SYNTHDEF => SynthDefResource {
-            name: SOURCE_OSCILLATOR_SYNTHDEF,
-            relative_path: "resources/synthdefs/v1/scrysynth_v1_source_oscillator.scsyndef",
-        },
-        SOURCE_NOISE_SYNTHDEF => SynthDefResource {
-            name: SOURCE_NOISE_SYNTHDEF,
-            relative_path: "resources/synthdefs/v1/scrysynth_v1_source_noise.scsyndef",
-        },
-        FX_LOWPASS_SYNTHDEF => SynthDefResource {
-            name: FX_LOWPASS_SYNTHDEF,
-            relative_path: "resources/synthdefs/v1/scrysynth_v1_fx_lowpass.scsyndef",
-        },
-        FX_DELAY_SYNTHDEF => SynthDefResource {
-            name: FX_DELAY_SYNTHDEF,
-            relative_path: "resources/synthdefs/v1/scrysynth_v1_fx_delay.scsyndef",
-        },
-        MIXER_SYNTHDEF => SynthDefResource {
-            name: MIXER_SYNTHDEF,
-            relative_path: "resources/synthdefs/v1/scrysynth_v1_mixer.scsyndef",
-        },
-        OUTPUT_SYNTHDEF => SynthDefResource {
-            name: OUTPUT_SYNTHDEF,
-            relative_path: "resources/synthdefs/v1/scrysynth_v1_output.scsyndef",
-        },
-        _ => unreachable!("unknown v1 synthdef name"),
+/// Resolve a SynthDef name (drawn from a catalog entry) to its resource path.
+/// Infallible: `name` always originates from a resolved catalog entry, so this
+/// never panics on user input (the v1 `unreachable!()` is gone — success
+/// criterion #3; unknown node ids error earlier via `find_catalog_entry`).
+fn synthdef_resource_for_name(name: &str) -> SynthDefResource {
+    let entry = crate::catalog::CATALOG
+        .iter()
+        .find(|entry| entry.synthdef_name == name)
+        .expect("synthdef name originates from a catalog entry");
+    SynthDefResource {
+        name: entry.synthdef_name,
+        relative_path: entry.synthdef_resource,
     }
 }
 
@@ -478,6 +456,7 @@ fn topology_fingerprint(topology: &CompiledTopology) -> String {
     hash_bytes(&mut hash, b"nodes");
     for node in &topology.node_launch_order {
         hash_str(&mut hash, &node.node_id);
+        hash_str(&mut hash, &node.node_type_id);
         hash_str(&mut hash, &node.runtime_target);
         hash_str(&mut hash, &node.group_id);
         for bus_id in &node.input_bus_ids {
@@ -486,7 +465,9 @@ fn topology_fingerprint(topology: &CompiledTopology) -> String {
         if let Some(bus_id) = &node.output_bus_id {
             hash_str(&mut hash, bus_id);
         }
-        hash_node_kind(&mut hash, &node.node_kind);
+        hash_u8(&mut hash, u8::from(node.bypassed));
+        hash_str(&mut hash, &format!("{:?}", node.output_kind));
+        hash_u32(&mut hash, node.channel_count);
         for parameter in &node.parameters {
             hash_str(&mut hash, &parameter.parameter_id);
             hash_str(&mut hash, &parameter.name);
@@ -499,39 +480,6 @@ fn topology_fingerprint(topology: &CompiledTopology) -> String {
 
 const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
 const FNV_PRIME: u64 = 0x00000100000001b3;
-
-fn hash_node_kind(hash: &mut u64, node_kind: &CompiledNodeKind) {
-    match node_kind {
-        CompiledNodeKind::Source {
-            source_type,
-            channel_mode,
-        } => {
-            hash_str(hash, "source");
-            hash_str(hash, &format!("{source_type:?}"));
-            hash_str(hash, &format!("{channel_mode:?}"));
-        }
-        CompiledNodeKind::Effect {
-            effect_type,
-            bypassed,
-        } => {
-            hash_str(hash, "effect");
-            hash_str(hash, &format!("{effect_type:?}"));
-            hash_u8(hash, u8::from(*bypassed));
-        }
-        CompiledNodeKind::Mixer { channel_mode } => {
-            hash_str(hash, "mixer");
-            hash_str(hash, &format!("{channel_mode:?}"));
-        }
-        CompiledNodeKind::Output {
-            output_type,
-            channels,
-        } => {
-            hash_str(hash, "output");
-            hash_str(hash, &format!("{output_type:?}"));
-            hash_u32(hash, *channels);
-        }
-    }
-}
 
 fn hash_str(hash: &mut u64, value: &str) {
     hash_u64(hash, value.len() as u64);

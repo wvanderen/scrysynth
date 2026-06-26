@@ -1,14 +1,14 @@
 use scrysynth_lib::application::graph_edit::{apply_graph_edit, GraphEditError};
 use scrysynth_lib::application::session_store::SessionStore;
 use scrysynth_lib::domain::session::{
-    AudioEffectNode, AudioEffectType, AudioPrimitive, ControllerKind, GraphEditCommand, Node,
-    NodeType, OwnershipAssignment, ParameterValue, Port, PortDirection, Route, SignalType,
+    ControllerKind, GraphEditCommand, Node,
+    OwnershipAssignment, ParameterValue, Port, PortDirection, Route, SignalType,
 };
 
 fn effect_node(id: &str) -> Node {
     Node {
         id: id.to_string(),
-        node_type: NodeType::Effect,
+        node_type_id: "filter".to_string(),
         ports: vec![
             Port {
                 id: format!("{id}-in"),
@@ -39,11 +39,12 @@ fn effect_node(id: &str) -> Node {
             is_locked: false,
         },
         enabled: true,
-        audio_primitive: Some(AudioPrimitive::Effect(AudioEffectNode {
-            effect_type: AudioEffectType::Delay,
-            bypassed: false,
-            bus_target_id: None,
-        })),
+        bus_target_id: None,
+                output_kind: None,
+                channel_count: None,
+                bypassed: Some(false),
+                channel_mode: None,
+                sequencer_pattern: None,
     }
 }
 
@@ -51,7 +52,7 @@ fn source_node_id(session: &scrysynth_lib::domain::session::SessionDocument) -> 
     session
         .nodes
         .iter()
-        .find(|node| node.node_type == NodeType::Source)
+        .find(|node| node.node_type_id == "oscillator")
         .expect("default source exists")
         .id
         .clone()
@@ -61,7 +62,7 @@ fn source_output_port_id(session: &scrysynth_lib::domain::session::SessionDocume
     session
         .nodes
         .iter()
-        .find(|node| node.node_type == NodeType::Source)
+        .find(|node| node.node_type_id == "oscillator")
         .and_then(|node| {
             node.ports
                 .iter()

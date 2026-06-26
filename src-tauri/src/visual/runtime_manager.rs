@@ -273,7 +273,8 @@ where
             | GraphEditCommand::AddRoute { .. }
             | GraphEditCommand::RemoveRoute { .. }
             | GraphEditCommand::AssignNodeToBus { .. }
-            | GraphEditCommand::ClearNodeBusAssignment { .. } => self.reload_scene(store),
+            | GraphEditCommand::ClearNodeBusAssignment { .. }
+            | GraphEditCommand::SetStepValue { .. } => self.reload_scene(store),
         }
     }
 

@@ -3,9 +3,8 @@ use scrysynth_lib::application::performance_command::{
 };
 use scrysynth_lib::application::session_store::SessionStore;
 use scrysynth_lib::domain::session::{
-    AudioBusType, AudioOutputNode, AudioOutputType, AudioPrimitive, AudioSourceNode,
-    AudioSourceType, Bus, ChannelMode, ControllerKind, MacroDefinition, MacroOverride, Node,
-    NodeType, OwnershipAssignment, ParameterOverride, ParameterValue, Port, PortDirection, Route,
+    AudioBusType, Bus, ChannelMode, ControllerKind, MacroDefinition, MacroOverride, Node,
+    OwnershipAssignment, OutputKind, ParameterOverride, ParameterValue, Port, PortDirection, Route,
     SceneDefinition, SessionDocument, SignalType, VariationDefinition,
 };
 
@@ -15,7 +14,7 @@ fn performance_test_session() -> SessionDocument {
         nodes: vec![
             Node {
                 id: "source-1".to_string(),
-                node_type: NodeType::Source,
+                node_type_id: "oscillator".to_string(),
                 ports: vec![Port {
                     id: "source-1-out".to_string(),
                     name: "main_out".to_string(),
@@ -38,15 +37,16 @@ fn performance_test_session() -> SessionDocument {
                     is_locked: false,
                 },
                 enabled: true,
-                audio_primitive: Some(AudioPrimitive::Source(AudioSourceNode {
-                    source_type: AudioSourceType::Oscillator,
-                    channel_mode: ChannelMode::Mono,
-                    bus_target_id: Some("bus-main".to_string()),
-                })),
+                bus_target_id: Some("bus-main".to_string()),
+                output_kind: None,
+                channel_count: None,
+                bypassed: None,
+                channel_mode: Some(ChannelMode::Mono),
+                sequencer_pattern: None,
             },
             Node {
                 id: "output-1".to_string(),
-                node_type: NodeType::Output,
+                node_type_id: "output".to_string(),
                 ports: vec![Port {
                     id: "output-1-in".to_string(),
                     name: "master_in".to_string(),
@@ -69,11 +69,12 @@ fn performance_test_session() -> SessionDocument {
                     is_locked: false,
                 },
                 enabled: true,
-                audio_primitive: Some(AudioPrimitive::Output(AudioOutputNode {
-                    output_type: AudioOutputType::Master,
-                    channels: 2,
-                    bus_target_id: Some("bus-main".to_string()),
-                })),
+                bus_target_id: Some("bus-main".to_string()),
+                output_kind: Some(OutputKind::Master),
+                channel_count: Some(2),
+                bypassed: None,
+                channel_mode: None,
+                sequencer_pattern: None,
             },
         ],
         routes: vec![Route {

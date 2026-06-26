@@ -18,25 +18,24 @@ export type VisualRuntimeState = { lifecycle: VisualRuntimeLifecycle, health: Vi
 
 export type AgentRuntimeState = { isAvailable: boolean, pendingActionCount: number, isFrozen: boolean, };
 
-export type Node = { id: string, nodeType: NodeType, ports: Array<Port>, parameters: Array<ParameterValue>, runtimeTarget: string | null, sceneMembership: Array<string>, ownership: OwnershipAssignment, enabled: boolean, audioPrimitive: AudioPrimitive | null, };
+export type Node = { id: string, 
+/**
+ * Canonical node identity (catalog `node_type_id`, e.g. `"oscillator"`).
+ * Replaces v1's `node_type` + `audio_primitive` closed enums.
+ */
+nodeTypeId: string, ports: Array<Port>, parameters: Array<ParameterValue>, runtimeTarget: string | null, sceneMembership: Array<string>, ownership: OwnershipAssignment, enabled: boolean, 
+/**
+ * Per-node config not owned by the catalog (D-09 clean break → flat optionals).
+ */
+busTargetId?: string | null, outputKind?: OutputKind | null, channelCount?: number | null, bypassed?: boolean | null, channelMode?: ChannelMode | null, 
+/**
+ * D-07/D-08: fixed 16-step mono gate+cv pattern (sequencer nodes only).
+ */
+sequencerPattern?: SequencerPattern | null, };
 
-export type NodeType = "source" | "effect" | "mixer" | "output";
+export type SequencerPattern = { gate: [boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean], cv: [number, number, number, number, number, number, number, number, number, number, number, number, number, number, number, number], };
 
-export type AudioPrimitive = { "kind": "source", "config": AudioSourceNode } | { "kind": "effect", "config": AudioEffectNode } | { "kind": "mixer", "config": AudioMixerNode } | { "kind": "output", "config": AudioOutputNode };
-
-export type AudioSourceNode = { sourceType: AudioSourceType, channelMode: ChannelMode, busTargetId: string | null, };
-
-export type AudioSourceType = "oscillator" | "noise";
-
-export type AudioEffectNode = { effectType: AudioEffectType, bypassed: boolean, busTargetId: string | null, };
-
-export type AudioEffectType = "low_pass_filter" | "delay";
-
-export type AudioMixerNode = { channelMode: ChannelMode, busTargetId: string | null, };
-
-export type AudioOutputNode = { outputType: AudioOutputType, channels: number, busTargetId: string | null, };
-
-export type AudioOutputType = "master" | "cue";
+export type OutputKind = "master" | "cue";
 
 export type ChannelMode = "mono" | "stereo";
 
@@ -80,7 +79,7 @@ export type RuntimeKind = "audio" | "visual" | "agent";
 
 export type RuntimeConnectionState = "disconnected" | "connecting" | "ready" | "error";
 
-export type GraphEditCommand = { "type": "addNode", "payload": { node: Node, } } | { "type": "removeNode", "payload": { node_id: string, } } | { "type": "setNodeEnabled", "payload": { node_id: string, enabled: boolean, } } | { "type": "setParameterValue", "payload": { node_id: string, parameter_id: string, value: number, } } | { "type": "addRoute", "payload": { route: Route, } } | { "type": "removeRoute", "payload": { route_id: string, } } | { "type": "assignNodeToBus", "payload": { node_id: string, bus_id: string, } } | { "type": "clearNodeBusAssignment", "payload": { node_id: string, } };
+export type GraphEditCommand = { "type": "addNode", "payload": { node: Node, } } | { "type": "removeNode", "payload": { node_id: string, } } | { "type": "setNodeEnabled", "payload": { node_id: string, enabled: boolean, } } | { "type": "setParameterValue", "payload": { node_id: string, parameter_id: string, value: number, } } | { "type": "addRoute", "payload": { route: Route, } } | { "type": "removeRoute", "payload": { route_id: string, } } | { "type": "assignNodeToBus", "payload": { node_id: string, bus_id: string, } } | { "type": "clearNodeBusAssignment", "payload": { node_id: string, } } | { "type": "setStepValue", "payload": { node_id: string, step_index: number, gate: boolean | null, cv: number | null, } };
 
 export type PerformanceCommand = { "type": "recallScene", "payload": { scene_id: string, } } | { "type": "saveVariation", "payload": { name: string, scene_id: string, } } | { "type": "restoreVariation", "payload": { variation_id: string, } };
 
@@ -131,3 +130,48 @@ export type HardwareRuntimeDiagnosticCode = "no_midi_ports" | "invalid_midi_port
 export type HardwareRuntimeDiagnostic = { code: HardwareRuntimeDiagnosticCode, message: string, recoverable: boolean, detail: string | null, };
 
 export type HardwareRuntimeStatus = { midi: MidiRuntimeStatus, osc: OscRuntimeStatus, learn: HardwareLearnStatus, diagnostics: Array<HardwareRuntimeDiagnostic>, };
+
+export type NodeCatalogEntry = { 
+/**
+ * Canonical node identity (e.g. `"oscillator"`, `"filter"`, `"step_sequencer"`).
+ */
+id: string, displayName: string, category: NodeCategory, 
+/**
+ * SuperCollider SynthDef name (empty for app-driven nodes like the sequencer).
+ */
+synthdefName: string, 
+/**
+ * Resource path relative to the crate manifest
+ * (e.g. `"resources/synthdefs/v2/scrysynth_v2_oscillator.scsyndef"`).
+ */
+synthdefResource: string, 
+/**
+ * audio in/out + per-parameter CV-input ports (D-04/D-05).
+ */
+ports: Array<CatalogPortSpec>, parameters: Array<CatalogParamSpec>, 
+/**
+ * Visual shape consumed by the visual compiler (Phase 15).
+ */
+visualShape: string, };
+
+export type CatalogPortSpec = { id: string, name: string, direction: PortDirection, signalType: SignalType, };
+
+export type CatalogParamSpec = { id: string, 
+/**
+ * SuperCollider synth arg name — replaces v1's `normalize_parameter_name`.
+ */
+scArg: string, 
+/**
+ * Backward-compatible parameter aliases accepted at the command boundary.
+ */
+aliases: Array<string>, defaultValue: number, minValue: number, maxValue: number, unit: string, 
+/**
+ * D-05: continuous params expose a CV-input port; selectors/toggles do not.
+ */
+exposesCvPort: boolean, 
+/**
+ * sibling CV-input port id (e.g. `"cutoff_cv"`) when `exposes_cv_port`.
+ */
+cvPortId: string | null, };
+
+export type NodeCategory = "source" | "modulator" | "effect" | "utility" | "sequencer" | "mixer" | "output";

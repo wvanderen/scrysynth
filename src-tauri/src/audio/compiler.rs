@@ -2,11 +2,8 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use thiserror::Error;
 
-use crate::domain::session::{
-    AudioBusType, AudioEffectNode, AudioEffectType, AudioMixerNode, AudioOutputNode,
-    AudioOutputType, AudioPrimitive, AudioSourceNode, AudioSourceType, ChannelMode, Node, NodeType,
-    Route, SessionDocument,
-};
+use crate::catalog::find_catalog_entry;
+use crate::domain::session::{AudioBusType, Node, OutputKind, Route, SessionDocument};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct CompiledTopology {
@@ -29,11 +26,18 @@ pub struct CompiledGroup {
     pub node_ids: Vec<String>,
 }
 
+/// A node's catalog identity plus the per-node config the catalog does not own
+/// (bypass / output routing / channel count). Replaces v1's `CompiledNodeKind`
+/// closed enum: identity is the catalog `node_type_id`, and category/ports/params
+/// come from `find_catalog_entry` at plan time.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CompiledNodeLaunch {
     pub node_id: String,
+    pub node_type_id: String,
     pub runtime_target: String,
-    pub node_kind: CompiledNodeKind,
+    pub bypassed: bool,
+    pub output_kind: Option<OutputKind>,
+    pub channel_count: u32,
     pub group_id: String,
     pub input_bus_ids: Vec<String>,
     pub output_bus_id: Option<String>,
@@ -47,29 +51,10 @@ pub struct CompiledParameter {
     pub value: f64,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum CompiledNodeKind {
-    Source {
-        source_type: AudioSourceType,
-        channel_mode: ChannelMode,
-    },
-    Effect {
-        effect_type: AudioEffectType,
-        bypassed: bool,
-    },
-    Mixer {
-        channel_mode: ChannelMode,
-    },
-    Output {
-        output_type: AudioOutputType,
-        channels: u32,
-    },
-}
-
 #[derive(Debug, Error, PartialEq)]
 pub enum TopologyCompileError {
-    #[error("node `{node_id}` is missing an audio primitive")]
-    MissingAudioPrimitive { node_id: String },
+    #[error("node `{node_id}` is missing a node_type_id")]
+    MissingNodeTypeId { node_id: String },
     #[error("node `{node_id}` is missing a runtime target")]
     MissingRuntimeTarget { node_id: String },
     #[error("node `{node_id}` references unknown bus `{bus_id}`")]
@@ -150,8 +135,8 @@ fn enabled_audio_nodes(
             continue;
         }
 
-        if node.audio_primitive.is_none() {
-            return Err(TopologyCompileError::MissingAudioPrimitive {
+        if node.node_type_id.trim().is_empty() {
+            return Err(TopologyCompileError::MissingNodeTypeId {
                 node_id: node.id.clone(),
             });
         }
@@ -326,49 +311,16 @@ fn compile_node_launch(
     session: &SessionDocument,
     group_id: &str,
 ) -> Result<CompiledNodeLaunch, TopologyCompileError> {
-    let primitive = node.audio_primitive.as_ref().ok_or_else(|| {
-        TopologyCompileError::MissingAudioPrimitive {
-            node_id: node.id.clone(),
-        }
-    })?;
-
-    let node_kind = match primitive {
-        AudioPrimitive::Source(AudioSourceNode {
-            source_type,
-            channel_mode,
-            ..
-        }) => CompiledNodeKind::Source {
-            source_type: source_type.clone(),
-            channel_mode: channel_mode.clone(),
-        },
-        AudioPrimitive::Effect(AudioEffectNode {
-            effect_type,
-            bypassed,
-            ..
-        }) => CompiledNodeKind::Effect {
-            effect_type: effect_type.clone(),
-            bypassed: *bypassed,
-        },
-        AudioPrimitive::Mixer(AudioMixerNode { channel_mode, .. }) => CompiledNodeKind::Mixer {
-            channel_mode: channel_mode.clone(),
-        },
-        AudioPrimitive::Output(AudioOutputNode {
-            output_type,
-            channels,
-            ..
-        }) => CompiledNodeKind::Output {
-            output_type: output_type.clone(),
-            channels: *channels,
-        },
-    };
-
     let input_bus_ids = incoming_bus_ids(session, &node.id);
     let output_bus_id = node_bus_target_id(node).map(ToString::to_string);
 
     Ok(CompiledNodeLaunch {
         node_id: node.id.clone(),
+        node_type_id: node.node_type_id.clone(),
         runtime_target: node.runtime_target.clone().unwrap_or_default(),
-        node_kind,
+        bypassed: node.bypassed.unwrap_or(false),
+        output_kind: node.output_kind,
+        channel_count: node.channel_count.unwrap_or(2),
         group_id: group_id.to_string(),
         input_bus_ids,
         output_bus_id,
@@ -397,13 +349,7 @@ fn incoming_bus_ids(session: &SessionDocument, node_id: &str) -> Vec<String> {
 }
 
 fn node_bus_target_id(node: &Node) -> Option<&str> {
-    match node.audio_primitive.as_ref() {
-        Some(AudioPrimitive::Source(primitive)) => primitive.bus_target_id.as_deref(),
-        Some(AudioPrimitive::Effect(primitive)) => primitive.bus_target_id.as_deref(),
-        Some(AudioPrimitive::Mixer(primitive)) => primitive.bus_target_id.as_deref(),
-        Some(AudioPrimitive::Output(primitive)) => primitive.bus_target_id.as_deref(),
-        None => None,
-    }
+    node.bus_target_id.as_deref()
 }
 
 fn bus_sort_key(bus: &crate::domain::session::Bus) -> (u8, &str) {
@@ -415,12 +361,14 @@ fn bus_sort_key(bus: &crate::domain::session::Bus) -> (u8, &str) {
     (kind_rank, bus.id.as_str())
 }
 
+/// Deterministic topology-sort rank for a node. Catalog-driven via
+/// `find_catalog_entry` — replaces v1's `match node.node_type` dispatch.
+/// Unknown `node_type_id`s sort last (rank 255); they fail loudly later in
+/// `plan_sc_resources` with `UnknownCatalogEntry` (success criterion #3), so the
+/// compiler stays non-fallible here.
 fn node_sort_key(node: &Node) -> (u8, &str) {
-    let kind_rank = match node.node_type {
-        NodeType::Source => 0,
-        NodeType::Effect => 1,
-        NodeType::Mixer => 2,
-        NodeType::Output => 3,
-    };
+    let kind_rank = find_catalog_entry(&node.node_type_id)
+        .map(|entry| entry.category.rank())
+        .unwrap_or(255);
     (kind_rank, node.id.as_str())
 }

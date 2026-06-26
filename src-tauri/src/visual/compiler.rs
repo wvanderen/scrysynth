@@ -53,12 +53,12 @@ pub fn compile_session_to_visual_scene(session: &SessionDocument) -> CompiledVis
         })
         .enumerate()
         .map(|(index, node)| {
-            let element_type = match node.node_type {
-                crate::domain::session::NodeType::Source => "sphere",
-                crate::domain::session::NodeType::Effect => "box",
-                crate::domain::session::NodeType::Mixer => "ring",
-                crate::domain::session::NodeType::Output => "plane",
-            };
+            // Catalog-driven visual shape (replaces v1's `match node.node_type`).
+            // Graceful default keeps `compile_session_to_visual_scene` non-Result
+            // (its current signature); unknown ids render as a plain box.
+            let element_type = crate::catalog::find_catalog_entry(&node.node_type_id)
+                .map(|entry| entry.visual_shape)
+                .unwrap_or("box");
 
             CompiledVisualElement {
                 element_id: node.id.clone(),

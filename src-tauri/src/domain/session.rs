@@ -6,7 +6,9 @@ use ts_rs::{Config, TS};
 use uuid::Uuid;
 
 const GENERATED_TYPES_PATH: &str = "../src/generated/session-types.ts";
-pub const CURRENT_SCHEMA_VERSION: u32 = 1;
+/// Session schema version. Bumped 1 → 2 for the catalog-driven node model
+/// (D-09 clean break; v1 session files are rejected with a friendly message).
+pub const CURRENT_SCHEMA_VERSION: u32 = 2;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -178,7 +180,9 @@ impl Default for TransportState {
 #[serde(rename_all = "camelCase")]
 pub struct Node {
     pub id: String,
-    pub node_type: NodeType,
+    /// Canonical node identity (catalog `node_type_id`, e.g. `"oscillator"`).
+    /// Replaces v1's `node_type` + `audio_primitive` closed enums.
+    pub node_type_id: String,
     pub ports: Vec<Port>,
     pub parameters: Vec<ParameterValue>,
     pub runtime_target: Option<String>,
@@ -186,76 +190,44 @@ pub struct Node {
     pub ownership: OwnershipAssignment,
     #[serde(default = "default_enabled")]
     pub enabled: bool,
-    #[serde(default)]
-    pub audio_primitive: Option<AudioPrimitive>,
+    /// Per-node config not owned by the catalog (D-09 clean break → flat optionals).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bus_target_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_kind: Option<OutputKind>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub channel_count: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bypassed: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub channel_mode: Option<ChannelMode>,
+    /// D-07/D-08: fixed 16-step mono gate+cv pattern (sequencer nodes only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sequencer_pattern: Option<SequencerPattern>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
-#[serde(rename_all = "snake_case")]
-pub enum NodeType {
-    Source,
-    Effect,
-    Mixer,
-    Output,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
-#[serde(tag = "kind", content = "config", rename_all = "camelCase")]
-pub enum AudioPrimitive {
-    Source(AudioSourceNode),
-    Effect(AudioEffectNode),
-    Mixer(AudioMixerNode),
-    Output(AudioOutputNode),
-}
-
+/// D-07 (mono: one gate + one CV) / D-08 (fixed 16 steps) sequencer pattern.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
-pub struct AudioSourceNode {
-    pub source_type: AudioSourceType,
-    pub channel_mode: ChannelMode,
-    pub bus_target_id: Option<String>,
+pub struct SequencerPattern {
+    pub gate: [bool; 16],
+    pub cv: [f64; 16],
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+impl Default for SequencerPattern {
+    fn default() -> Self {
+        Self {
+            gate: [false; 16],
+            cv: [0.0; 16],
+        }
+    }
+}
+
+/// Per-output-node routing target (master speakers vs cue bus). The catalog has
+/// a single `output` entry; master/cue is per-node config (D-09 clean break).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
-pub enum AudioSourceType {
-    Oscillator,
-    Noise,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-pub struct AudioEffectNode {
-    pub effect_type: AudioEffectType,
-    pub bypassed: bool,
-    pub bus_target_id: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
-#[serde(rename_all = "snake_case")]
-pub enum AudioEffectType {
-    LowPassFilter,
-    Delay,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-pub struct AudioMixerNode {
-    pub channel_mode: ChannelMode,
-    pub bus_target_id: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-pub struct AudioOutputNode {
-    pub output_type: AudioOutputType,
-    pub channels: u32,
-    pub bus_target_id: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
-#[serde(rename_all = "snake_case")]
-pub enum AudioOutputType {
+pub enum OutputKind {
     Master,
     Cue,
 }
@@ -276,14 +248,14 @@ pub struct Port {
     pub signal_type: SignalType,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
 pub enum PortDirection {
     Input,
     Output,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
 pub enum SignalType {
     Audio,
@@ -498,6 +470,14 @@ pub enum GraphEditCommand {
     },
     ClearNodeBusAssignment {
         node_id: String,
+    },
+    /// D-06/D-07/D-08: edit one step of a sequencer node's 16-step pattern.
+    /// Either `gate` or `cv` (or both) may be set per edit.
+    SetStepValue {
+        node_id: String,
+        step_index: u8,
+        gate: Option<bool>,
+        cv: Option<f64>,
     },
 }
 
@@ -816,15 +796,8 @@ pub fn write_generated_typescript_contract() -> std::io::Result<()> {
         VisualRuntimeState::decl(&cfg),
         AgentRuntimeState::decl(&cfg),
         Node::decl(&cfg),
-        NodeType::decl(&cfg),
-        AudioPrimitive::decl(&cfg),
-        AudioSourceNode::decl(&cfg),
-        AudioSourceType::decl(&cfg),
-        AudioEffectNode::decl(&cfg),
-        AudioEffectType::decl(&cfg),
-        AudioMixerNode::decl(&cfg),
-        AudioOutputNode::decl(&cfg),
-        AudioOutputType::decl(&cfg),
+        SequencerPattern::decl(&cfg),
+        OutputKind::decl(&cfg),
         ChannelMode::decl(&cfg),
         Port::decl(&cfg),
         PortDirection::decl(&cfg),
@@ -872,6 +845,11 @@ pub fn write_generated_typescript_contract() -> std::io::Result<()> {
         HardwareRuntimeDiagnosticCode::decl(&cfg),
         HardwareRuntimeDiagnostic::decl(&cfg),
         HardwareRuntimeStatus::decl(&cfg),
+        // Catalog — the single source of truth, exported for the palette/inspector/agent.
+        crate::catalog::NodeCatalogEntry::decl(&cfg),
+        crate::catalog::CatalogPortSpec::decl(&cfg),
+        crate::catalog::CatalogParamSpec::decl(&cfg),
+        crate::catalog::NodeCategory::decl(&cfg),
     ]
     .join("\n\n");
 
@@ -932,7 +910,7 @@ mod tests {
     fn session_document_node_exposes_required_fields() {
         let node = Node {
             id: new_id(),
-            node_type: NodeType::Source,
+            node_type_id: "oscillator".to_string(),
             ports: vec![Port {
                 id: new_id(),
                 name: "out".to_string(),
@@ -948,32 +926,30 @@ mod tests {
                 max_value: 1.0,
                 unit: "linear".to_string(),
             }],
-            runtime_target: Some("audio:source".to_string()),
+            runtime_target: Some("audio/source/oscillator".to_string()),
             scene_membership: vec![new_id()],
             ownership: OwnershipAssignment {
                 controller: ControllerKind::Shared,
                 is_locked: false,
             },
             enabled: true,
-            audio_primitive: Some(AudioPrimitive::Source(AudioSourceNode {
-                source_type: AudioSourceType::Oscillator,
-                channel_mode: ChannelMode::Mono,
-                bus_target_id: None,
-            })),
+            bus_target_id: None,
+            output_kind: None,
+            channel_count: None,
+            bypassed: None,
+            channel_mode: Some(ChannelMode::Mono),
+            sequencer_pattern: None,
         };
 
         assert!(!node.id.is_empty());
-        assert_eq!(node.node_type, NodeType::Source);
+        assert_eq!(node.node_type_id, "oscillator");
         assert_eq!(node.ports.len(), 1);
         assert_eq!(node.parameters.len(), 1);
-        assert_eq!(node.runtime_target.as_deref(), Some("audio:source"));
+        assert_eq!(node.runtime_target.as_deref(), Some("audio/source/oscillator"));
         assert_eq!(node.scene_membership.len(), 1);
         assert_eq!(node.ownership.controller, ControllerKind::Shared);
         assert!(node.enabled);
-        assert!(matches!(
-            node.audio_primitive,
-            Some(AudioPrimitive::Source(_))
-        ));
+        assert_eq!(node.channel_mode, Some(ChannelMode::Mono));
     }
 
     #[test]
@@ -1004,7 +980,7 @@ mod tests {
             nodes: vec![
                 Node {
                     id: "node-source".to_string(),
-                    node_type: NodeType::Source,
+                    node_type_id: "oscillator".to_string(),
                     ports: vec![Port {
                         id: "node-source-out".to_string(),
                         name: "main_out".to_string(),
@@ -1027,25 +1003,26 @@ mod tests {
                         is_locked: false,
                     },
                     enabled: true,
-                    audio_primitive: Some(AudioPrimitive::Source(AudioSourceNode {
-                        source_type: AudioSourceType::Oscillator,
-                        channel_mode: ChannelMode::Mono,
-                        bus_target_id: Some("bus-main".to_string()),
-                    })),
+                    bus_target_id: Some("bus-main".to_string()),
+                    output_kind: None,
+                    channel_count: None,
+                    bypassed: None,
+                    channel_mode: Some(ChannelMode::Mono),
+                    sequencer_pattern: None,
                 },
                 Node {
                     id: "node-fx".to_string(),
-                    node_type: NodeType::Effect,
+                    node_type_id: "filter".to_string(),
                     ports: vec![
                         Port {
                             id: "node-fx-in".to_string(),
-                            name: "signal_in".to_string(),
+                            name: "audio_in".to_string(),
                             direction: PortDirection::Input,
                             signal_type: SignalType::Audio,
                         },
                         Port {
                             id: "node-fx-out".to_string(),
-                            name: "signal_out".to_string(),
+                            name: "audio_out".to_string(),
                             direction: PortDirection::Output,
                             signal_type: SignalType::Audio,
                         },
@@ -1066,15 +1043,16 @@ mod tests {
                         is_locked: false,
                     },
                     enabled: false,
-                    audio_primitive: Some(AudioPrimitive::Effect(AudioEffectNode {
-                        effect_type: AudioEffectType::LowPassFilter,
-                        bypassed: true,
-                        bus_target_id: Some("bus-main".to_string()),
-                    })),
+                    bus_target_id: Some("bus-main".to_string()),
+                    output_kind: None,
+                    channel_count: None,
+                    bypassed: Some(true),
+                    channel_mode: None,
+                    sequencer_pattern: None,
                 },
                 Node {
                     id: "node-mix".to_string(),
-                    node_type: NodeType::Mixer,
+                    node_type_id: "mixer".to_string(),
                     ports: vec![],
                     parameters: vec![],
                     runtime_target: Some("audio/mixer/submix".to_string()),
@@ -1084,14 +1062,16 @@ mod tests {
                         is_locked: false,
                     },
                     enabled: true,
-                    audio_primitive: Some(AudioPrimitive::Mixer(AudioMixerNode {
-                        channel_mode: ChannelMode::Stereo,
-                        bus_target_id: Some("bus-main".to_string()),
-                    })),
+                    bus_target_id: Some("bus-main".to_string()),
+                    output_kind: None,
+                    channel_count: None,
+                    bypassed: None,
+                    channel_mode: Some(ChannelMode::Stereo),
+                    sequencer_pattern: None,
                 },
                 Node {
                     id: "node-out".to_string(),
-                    node_type: NodeType::Output,
+                    node_type_id: "output".to_string(),
                     ports: vec![],
                     parameters: vec![],
                     runtime_target: Some("audio/output/master".to_string()),
@@ -1101,11 +1081,12 @@ mod tests {
                         is_locked: false,
                     },
                     enabled: true,
-                    audio_primitive: Some(AudioPrimitive::Output(AudioOutputNode {
-                        output_type: AudioOutputType::Master,
-                        channels: 2,
-                        bus_target_id: Some("bus-main".to_string()),
-                    })),
+                    bus_target_id: Some("bus-main".to_string()),
+                    output_kind: Some(OutputKind::Master),
+                    channel_count: Some(2),
+                    bypassed: None,
+                    channel_mode: None,
+                    sequencer_pattern: None,
                 },
             ],
             buses: vec![Bus {
@@ -1136,7 +1117,8 @@ mod tests {
 
         assert!(generated.contains("export type GraphEditCommand"));
         assert!(generated.contains("export type AudioRuntimeState"));
-        assert!(generated.contains("export type AudioPrimitive"));
+        assert!(generated.contains("export type SequencerPattern"));
+        assert!(generated.contains("export type NodeCatalogEntry"));
         assert!(generated.contains("export type AudioBusType"));
     }
 }
