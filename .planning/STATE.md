@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: v1 runtime hardening
-status: hardening
-stopped_at: Completed 11-release-readiness-01-PLAN.md
-last_updated: "2026-06-24T03:31:43.403Z"
+status: paused
+stopped_at: "Plan 11-02 paused at Task 1 step 5/6 — planner-GUI wiring gap blocks REL-02 scenario 7; see .planning/phases/11-release-readiness/.pause-handoff.md"
+last_updated: "2026-06-25T00:00:00-05:00"
 progress:
   total_phases: 6
   completed_phases: 1
