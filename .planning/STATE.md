@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Studio-Grade Instrument
 current_phase: 12
-current_phase_name: first v2.0 phase
-status: planning
+current_phase_name: node-catalog-foundation
+status: executing
 stopped_at: Phase 12 planned (2 plans, checker PASS) — ready for execute
-last_updated: "2026-06-26T21:45:49.119Z"
+last_updated: "2026-06-26T21:47:25.956Z"
 last_activity: 2026-06-26
-last_activity_desc: "v2.0 roadmap created (7 phases: 12–18), 29/29 requirements mapped"
+last_activity_desc: Phase 12 execution started
 progress:
   total_phases: 7
   completed_phases: 0
@@ -25,14 +25,14 @@ See `.planning/PROJECT.md` and `.planning/ROADMAP.md`.
 
 **Core value:** The instrument must let a human and agent shape a live audiovisual session together through conversation, graph structure, and direct performance control without losing legibility or human override.
 
-**Current focus:** v2.0 Studio-Grade Instrument — Phase 12 (Node Catalog Foundation) ready to plan.
+**Current focus:** Phase 12 — node-catalog-foundation
 
 ## Current Position
 
-Phase: 12 of 18 — Node Catalog Foundation (first v2.0 phase)
-Plan: — (not yet planned)
-Status: Ready to plan
-Last activity: 2026-06-26 — v2.0 roadmap created (7 phases: 12–18), 29/29 requirements mapped
+Phase: 12 (node-catalog-foundation) — EXECUTING
+Plan: 1 of 2
+Status: Executing Phase 12
+Last activity: 2026-06-26 — Phase 12 execution started
 
 Progress: [░░░░░░░░░░] 0% (0/7 v2.0 phases complete)
 
