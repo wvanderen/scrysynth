@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Studio-Grade Instrument
-current_phase: 12
-current_phase_name: node-catalog-foundation
-status: phase_complete
+current_phase: 13
+current_phase_name: Graph UX Rebuild
+status: verifying
 stopped_at: Phase 12 complete — both plans shipped; vertical slice verified end-to-end against real scsynth
-last_updated: "2026-06-26T23:22:44.000Z"
-last_activity: 2026-06-26
-last_activity_desc: Phase 12 Plan 02 (app-driven sequencer + frontend catalog + real-scsynth conformance) complete
+last_updated: "2026-06-27T01:24:10.984Z"
+last_activity: 2026-06-27
+last_activity_desc: Phase 12 complete, transitioned to Phase 13
 progress:
   total_phases: 7
   completed_phases: 1
@@ -29,10 +29,10 @@ See `.planning/PROJECT.md` and `.planning/ROADMAP.md`.
 
 ## Current Position
 
-Phase: 12 (node-catalog-foundation) — COMPLETE
-Plan: 2 of 2 (both plans shipped)
+Phase: 13 — Graph UX Rebuild
+Plan: Not started
 Status: Phase 12 vertical slice complete — catalog + sequencer + frontend + real-scsynth conformance all verified
-Last activity: 2026-06-26 — Plan 12-02 (app-driven sequencer + frontend catalog + real-scsynth conformance) complete
+Last activity: 2026-06-27 — Phase 12 complete, transitioned to Phase 13
 
 Progress: [██░░░░░░░░] 14% (2/2 Phase 12 plans; 1/7 v2.0 phases complete)
 
