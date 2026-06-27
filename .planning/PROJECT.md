@@ -31,6 +31,8 @@ The next milestone has not been started. Candidate work (tracked, not committed)
 
 **v2.0 (Studio-Grade Instrument) milestone is now active** — see "Current Milestone" above. The v1 carry-overs (live provider agent, richer Bevy visuals, cross-platform builds, full notarization + auto-update) are folded into v2.0 alongside the new instrument-depth and shell-overhaul work.
 
+**Phase 12 (Node Catalog Foundation) complete** — the compiled-in `NodeCatalogEntry` table is now the single source of truth replacing v1's three hardcoded compiler allowlists + two enum-dispatch spots; ~15 catalog entries drive compiler/visual dispatch, palette, inspector, and ts-rs export; 14 v2 SuperCollider SynthDefs with CV-bus args; per-parameter CV ports with control-bus allocation; an app-driven 16-step sequencer (OSC `/c_set`); two-phase v1 session rejection; and a real-`scsynth` conformance test that `/d_recv`s every catalog entry. Verified 4/4 success criteria (real scsynth conformance passed locally). Next: Phase 13 (Graph UX Rebuild).
+
 ## Requirements
 
 ### Validated
@@ -44,12 +46,12 @@ The next milestone has not been started. Candidate work (tracked, not committed)
 - ✓ MIDI/OSC learn works from live desktop runtime listeners (CTRL-04R, HW-01) — v1.0
 - ✓ Agent collaboration is session-aware, explainable, and constrained by human override — deterministic/mock planner path + production-GUI wiring verified (AGNT-02R..03R) — v1.0
 - ✓ Tauri app packages for the target platform (REL-01), manual UAT covers the v1 scenario matrix (REL-02), and docs describe supported behavior without overstating stubs (REL-03) — v1.0
+- ✓ Curated modular node library as a data-driven catalog (NODES-01..05): ~15 node types (oscillator/noise/filter/envelope/LFO/VCA/quantizer/mixer/delay/reverb/distortion/chorus/flanger/output/step-sequencer) mapped to v2 SuperCollider SynthDefs, with per-parameter CV ports, control-bus allocation, app-driven 16-step sequencer, frontend palette/inspector consumption, and a real-scsynth conformance gate — Phase 12 (v2.0)
 
 ### Active — v2.0 Studio-Grade Instrument
 
 - [ ] Pro-grade focused shell: graph as hero, chat sidebar, progressive-disclosure menus/panels, iconography, intelligent screenspace — retire the "card webui" feel (design philosophy = focused instrument, not dense/maximalist).
 - [ ] Graph UX rebuild: draggable nodes; intuitive & flexible edge connect/reconnect.
-- [ ] Curated modular node library: ~12–16 well-designed node types (oscillators, filters, envelopes, LFOs, FX, sequencing) with rich per-node parameters, mapped to SuperCollider. Quality over quantity.
 - [ ] Visuals behind the grid: richer Bevy visual runtime rendered as an ambient layer behind the graph surface (Bespoke-Synth-style); unifies the v1 "richer Bevy" carry-over.
 - [ ] Live provider-backed agent orchestration (AGNT-01R carry-over): connect the verified planner boundary to a live LLM provider.
 - [ ] Cross-platform builds: Windows / Linux / Intel / universal macOS targets.
@@ -116,4 +118,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-26 after v2.0 milestone start*
+*Last updated: 2026-06-27 after Phase 12 (Node Catalog Foundation) completion*
