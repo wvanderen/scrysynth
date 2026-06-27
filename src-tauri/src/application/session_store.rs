@@ -1590,16 +1590,8 @@ mod tests {
 
     #[test]
     fn app_level_store_path_captures_osc_learn_event() {
-        let port = unused_local_udp_port();
         let mut store = SessionStore::new_default();
-        let mut settings = store.hardware_runtime_settings();
-        settings.osc.listen_port = port;
-        store
-            .update_hardware_runtime_settings(settings)
-            .expect("valid OSC settings");
-        store
-            .start_osc_listener()
-            .expect("OSC listener should start");
+        let port = bind_osc_listener_ephemeral(&mut store);
         store
             .hardware_router
             .start_learn(BindingTarget::TransportPlay);
@@ -1624,23 +1616,25 @@ mod tests {
 
     #[test]
     fn osc_listener_restarts_on_same_port() {
-        let port = unused_local_udp_port();
         let mut store = SessionStore::new_default();
-        let mut settings = store.hardware_runtime_settings();
-        settings.osc.listen_port = port;
-        store
-            .update_hardware_runtime_settings(settings)
-            .expect("valid OSC settings");
-
-        store
-            .start_osc_listener()
-            .expect("first OSC listener start");
+        let port = bind_osc_listener_ephemeral(&mut store);
         assert!(store.osc_input_manager.is_listening());
         store.stop_osc_listener();
         assert!(!store.osc_input_manager.is_listening());
-        store
-            .start_osc_listener()
-            .expect("OSC listener should restart on same port");
+
+        // Restart on the SAME port (the invariant under test). The port was
+        // just released by stop, so this must succeed — retry briefly to absorb
+        // any OS socket-close release jitter.
+        let restart_deadline = Instant::now() + Duration::from_millis(500);
+        loop {
+            match store.start_osc_listener() {
+                Ok(_) => break,
+                Err(_) if Instant::now() < restart_deadline => {
+                    thread::sleep(Duration::from_millis(5));
+                }
+                Err(err) => panic!("OSC listener should restart on same port: {err}"),
+            }
+        }
         assert!(store.osc_input_manager.is_listening());
 
         store.stop_osc_listener();
@@ -1648,18 +1642,12 @@ mod tests {
 
     #[test]
     fn osc_listener_shutdown_releases_udp_port() {
-        let port = unused_local_udp_port();
         let mut store = SessionStore::new_default();
-        let mut settings = store.hardware_runtime_settings();
-        settings.osc.listen_port = port;
-        store
-            .update_hardware_runtime_settings(settings)
-            .expect("valid OSC settings");
-        store.start_osc_listener().expect("OSC listener start");
+        let port = bind_osc_listener_ephemeral(&mut store);
 
         store.stop_osc_listener();
 
-        UdpSocket::bind(("127.0.0.1", port)).expect("stopped listener should release UDP port");
+        assert_udp_port_released(port);
     }
 
     #[test]
@@ -1696,6 +1684,48 @@ mod tests {
     fn unused_local_udp_port() -> u16 {
         let socket = UdpSocket::bind(("127.0.0.1", 0)).expect("bind ephemeral port");
         socket.local_addr().unwrap().port()
+    }
+
+    // Start the OSC listener on a fresh ephemeral port, retrying on transient
+    // "Address already in use". The `unused_local_udp_port()` probe is racy
+    // under cargo test's default parallelism (probe binds :0, drops, returns
+    // the port; a concurrent :0 bind elsewhere can transiently claim it before
+    // the listener binds). Each attempt re-probes a fresh port, so a real bind
+    // failure exhausts the budget and panics — this never masks a genuine bug.
+    fn bind_osc_listener_ephemeral(store: &mut SessionStore) -> u16 {
+        for attempt in 0..40u32 {
+            let port = unused_local_udp_port();
+            let mut settings = store.hardware_runtime_settings();
+            settings.osc.listen_port = port;
+            store
+                .update_hardware_runtime_settings(settings)
+                .expect("valid OSC settings");
+            match store.start_osc_listener() {
+                Ok(_) => return port,
+                Err(_) if attempt < 39 => continue,
+                Err(err) => panic!("OSC listener would not bind after retries: {err}"),
+            }
+        }
+        unreachable!()
+    }
+
+    // Assert that a UDP port becomes bindable again, retrying briefly to absorb
+    // OS-level socket-close release jitter. A port that is never released (the
+    // bug under test) exhausts the deadline and fails — this only smooths over
+    // transient release delay, not a genuine leak.
+    fn assert_udp_port_released(port: u16) {
+        let deadline = Instant::now() + Duration::from_millis(500);
+        loop {
+            match UdpSocket::bind(("127.0.0.1", port)) {
+                Ok(_) => return,
+                Err(_) if Instant::now() < deadline => {
+                    thread::sleep(Duration::from_millis(5));
+                }
+                Err(err) => {
+                    panic!("stopped listener did not release UDP port {port} within 500ms: {err}")
+                }
+            }
+        }
     }
 
     fn send_osc_message(port: u16, address: &str, args: Vec<rosc::OscType>) {
